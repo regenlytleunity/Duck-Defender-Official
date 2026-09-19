@@ -1,0 +1,22 @@
+# Unity generated folders
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+
+# Visual Studio / VS Code
+.vs/
+.vscode/
+
+# Generated project files
+*.csproj
+*.sln
+*.user
+*.tmp
+
+# Unity Version Control / Plastic SCM
+/.plastic/
+ignore.conf

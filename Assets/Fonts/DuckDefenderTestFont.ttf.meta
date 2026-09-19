@@ -1,0 +1,21 @@
+fileFormatVersion: 2
+guid: d932d4dcfffa148b5b94ec3d4f6c5f4d
+TrueTypeFontImporter:
+  externalObjects: {}
+  serializedVersion: 4
+  fontSize: 8
+  forceTextureCase: 3
+  characterSpacing: 0
+  characterPadding: 1
+  includeFontData: 1
+  fontNames:
+  - DuckDefenderTestFont
+  fallbackFontReferences: []
+  customCharacters: ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890.,;:!?/\_)(+~[]'"#%
+  fontRenderingMode: 2
+  ascentCalculationMode: 1
+  useLegacyBoundsCalculation: 0
+  shouldRoundAdvanceValue: 1
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

@@ -1,0 +1,1924 @@
+fileFormatVersion: 2
+guid: e3673485a1b8742d285dc134c665bbbe
+TextureImporter:
+  internalIDToNameTable:
+  - first:
+      213: -5790898980237569398
+    second: DuckDefenderTestFontv2 Atlas_0
+  - first:
+      213: -9133656202560262111
+    second: DuckDefenderTestFontv2 Atlas_1
+  - first:
+      213: 7579138101864725391
+    second: DuckDefenderTestFontv2 Atlas_2
+  - first:
+      213: -7815665796083562173
+    second: DuckDefenderTestFontv2 Atlas_3
+  - first:
+      213: -2524807762150139945
+    second: DuckDefenderTestFontv2 Atlas_4
+  - first:
+      213: -194841431773700575
+    second: DuckDefenderTestFontv2 Atlas_5
+  - first:
+      213: -2120070545575035168
+    second: DuckDefenderTestFontv2 Atlas_6
+  - first:
+      213: 3011888136967137725
+    second: DuckDefenderTestFontv2 Atlas_7
+  - first:
+      213: 5906359199290154471
+    second: DuckDefenderTestFontv2 Atlas_8
+  - first:
+      213: 931596819550713939
+    second: DuckDefenderTestFontv2 Atlas_9
+  - first:
+      213: -4368627194376417343
+    second: DuckDefenderTestFontv2 Atlas_10
+  - first:
+      213: 6430670458149601772
+    second: DuckDefenderTestFontv2 Atlas_11
+  - first:
+      213: -3336123431132891530
+    second: DuckDefenderTestFontv2 Atlas_12
+  - first:
+      213: -2622215109428485482
+    second: DuckDefenderTestFontv2 Atlas_13
+  - first:
+      213: -2553901966003145678
+    second: DuckDefenderTestFontv2 Atlas_14
+  - first:
+      213: 542281424810947021
+    second: DuckDefenderTestFontv2 Atlas_15
+  - first:
+      213: -4905587842018582585
+    second: DuckDefenderTestFontv2 Atlas_16
+  - first:
+      213: -3598532361847047584
+    second: DuckDefenderTestFontv2 Atlas_17
+  - first:
+      213: -8715727209222667444
+    second: DuckDefenderTestFontv2 Atlas_18
+  - first:
+      213: 3153961894931151314
+    second: DuckDefenderTestFontv2 Atlas_19
+  - first:
+      213: -5818887628522772547
+    second: DuckDefenderTestFontv2 Atlas_20
+  - first:
+      213: 1283151137955752319
+    second: DuckDefenderTestFontv2 Atlas_21
+  - first:
+      213: -2378559524918645405
+    second: DuckDefenderTestFontv2 Atlas_22
+  - first:
+      213: 2473905811834804303
+    second: DuckDefenderTestFontv2 Atlas_23
+  - first:
+      213: 6565120631298128221
+    second: DuckDefenderTestFontv2 Atlas_24
+  - first:
+      213: -4915062384178626985
+    second: DuckDefenderTestFontv2 Atlas_25
+  - first:
+      213: 1306740539655619186
+    second: DuckDefenderTestFontv2 Atlas_26
+  - first:
+      213: 9165807824429434522
+    second: DuckDefenderTestFontv2 Atlas_27
+  - first:
+      213: 2362005850967218435
+    second: DuckDefenderTestFontv2 Atlas_28
+  - first:
+      213: 948915089400951557
+    second: DuckDefenderTestFontv2 Atlas_29
+  - first:
+      213: -4129220379076889577
+    second: DuckDefenderTestFontv2 Atlas_30
+  - first:
+      213: 3459677848589638669
+    second: DuckDefenderTestFontv2 Atlas_31
+  - first:
+      213: 3519529747368339605
+    second: DuckDefenderTestFontv2 Atlas_32
+  - first:
+      213: -3357245813611242040
+    second: DuckDefenderTestFontv2 Atlas_33
+  - first:
+      213: 7291265514714797160
+    second: DuckDefenderTestFontv2 Atlas_34
+  - first:
+      213: -1200111049641988931
+    second: DuckDefenderTestFontv2 Atlas_35
+  - first:
+      213: 2845128209864615330
+    second: DuckDefenderTestFontv2 Atlas_36
+  - first:
+      213: 8362258312771180616
+    second: DuckDefenderTestFontv2 Atlas_37
+  - first:
+      213: -2588263155033578230
+    second: DuckDefenderTestFontv2 Atlas_38
+  - first:
+      213: 567487690708354614
+    second: DuckDefenderTestFontv2 Atlas_39
+  - first:
+      213: 1692266645743897281
+    second: DuckDefenderTestFontv2 Atlas_40
+  - first:
+      213: 7791413502357504674
+    second: DuckDefenderTestFontv2 Atlas_41
+  - first:
+      213: 8297343884637098281
+    second: DuckDefenderTestFontv2 Atlas_42
+  - first:
+      213: 4431139886208294088
+    second: DuckDefenderTestFontv2 Atlas_43
+  - first:
+      213: 7570228475289956594
+    second: DuckDefenderTestFontv2 Atlas_44
+  - first:
+      213: 7355921834501968845
+    second: DuckDefenderTestFontv2 Atlas_45
+  - first:
+      213: 1585300353447531892
+    second: DuckDefenderTestFontv2 Atlas_46
+  - first:
+      213: 7792862591824966150
+    second: DuckDefenderTestFontv2 Atlas_47
+  - first:
+      213: -2089037855294516665
+    second: DuckDefenderTestFontv2 Atlas_48
+  - first:
+      213: 4724133034160550987
+    second: DuckDefenderTestFontv2 Atlas_49
+  - first:
+      213: 9065426043764128158
+    second: DuckDefenderTestFontv2 Atlas_50
+  - first:
+      213: -4228009465141677529
+    second: DuckDefenderTestFontv2 Atlas_51
+  - first:
+      213: 6829610409262191542
+    second: DuckDefenderTestFontv2 Atlas_52
+  - first:
+      213: -6437754625478754521
+    second: DuckDefenderTestFontv2 Atlas_53
+  - first:
+      213: -6296913363547643194
+    second: DuckDefenderTestFontv2 Atlas_54
+  - first:
+      213: -4779183631166669064
+    second: DuckDefenderTestFontv2 Atlas_55
+  - first:
+      213: -6918388209355659034
+    second: DuckDefenderTestFontv2 Atlas_56
+  - first:
+      213: -7303215130672139204
+    second: DuckDefenderTestFontv2 Atlas_57
+  - first:
+      213: 8086068588649409324
+    second: DuckDefenderTestFontv2 Atlas_58
+  - first:
+      213: 1318030134236940243
+    second: DuckDefenderTestFontv2 Atlas_59
+  - first:
+      213: 5884822671371796304
+    second: DuckDefenderTestFontv2 Atlas_60
+  - first:
+      213: -2424001139274494442
+    second: DuckDefenderTestFontv2 Atlas_61
+  - first:
+      213: 7919197132566980273
+    second: DuckDefenderTestFontv2 Atlas_62
+  - first:
+      213: 3954176412083621122
+    second: DuckDefenderTestFontv2 Atlas_63
+  - first:
+      213: -6542595649453029604
+    second: DuckDefenderTestFontv2 Atlas_64
+  - first:
+      213: -4030360306372328534
+    second: DuckDefenderTestFontv2 Atlas_65
+  - first:
+      213: 8123460824254299824
+    second: DuckDefenderTestFontv2 Atlas_66
+  - first:
+      213: -2567354604575829211
+    second: DuckDefenderTestFontv2 Atlas_67
+  - first:
+      213: 823604157761497694
+    second: DuckDefenderTestFontv2 Atlas_68
+  externalObjects: {}
+  serializedVersion: 13
+  mipmaps:
+    mipMapMode: 0
+    enableMipMap: 0
+    sRGBTexture: 1
+    linearTexture: 0
+    fadeOut: 0
+    borderMipMap: 0
+    mipMapsPreserveCoverage: 0
+    alphaTestReferenceValue: 0.5
+    mipMapFadeDistanceStart: 1
+    mipMapFadeDistanceEnd: 3
+  bumpmap:
+    convertToNormalMap: 0
+    externalNormalMap: 0
+    heightScale: 0.25
+    normalMapFilter: 0
+    flipGreenChannel: 0
+  isReadable: 0
+  streamingMipmaps: 0
+  streamingMipmapsPriority: 0
+  vTOnly: 0
+  ignoreMipmapLimit: 0
+  grayScaleToAlpha: 0
+  generateCubemap: 6
+  cubemapConvolution: 0
+  seamlessCubemap: 0
+  textureFormat: 1
+  maxTextureSize: 2048
+  textureSettings:
+    serializedVersion: 2
+    filterMode: 0
+    aniso: 1
+    mipBias: 0
+    wrapU: 1
+    wrapV: 1
+    wrapW: 1
+  nPOTScale: 0
+  lightmap: 0
+  compressionQuality: 50
+  spriteMode: 2
+  spriteExtrude: 1
+  spriteMeshType: 1
+  alignment: 0
+  spritePivot: {x: 0.5, y: 0.5}
+  spritePixelsToUnits: 16
+  spriteBorder: {x: 0, y: 0, z: 0, w: 0}
+  spriteGenerateFallbackPhysicsShape: 1
+  alphaUsage: 1
+  alphaIsTransparency: 1
+  spriteTessellationDetail: -1
+  textureType: 8
+  textureShape: 1
+  singleChannelComponent: 0
+  flipbookRows: 1
+  flipbookColumns: 1
+  maxTextureSizeSet: 0
+  compressionQualitySet: 0
+  textureFormatSet: 0
+  ignorePngGamma: 0
+  applyGammaDecoding: 0
+  swizzle: 50462976
+  cookieLightType: 0
+  platformSettings:
+  - serializedVersion: 4
+    buildTarget: DefaultTexturePlatform
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: Standalone
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: WebGL
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  spriteSheet:
+    serializedVersion: 2
+    sprites:
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_0
+      rect:
+        serializedVersion: 2
+        x: 0
+        y: 116
+        width: 8
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: a8294c81f0892afa0800000000000000
+      internalID: -5790898980237569398
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_1
+      rect:
+        serializedVersion: 2
+        x: 0
+        y: 107
+        width: 8
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 1203ad1731cbe3180800000000000000
+      internalID: -9133656202560262111
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_2
+      rect:
+        serializedVersion: 2
+        x: 8
+        y: 115
+        width: 8
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: f8b764992f18e2960800000000000000
+      internalID: 7579138101864725391
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_3
+      rect:
+        serializedVersion: 2
+        x: 0
+        y: 98
+        width: 8
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 349c44d1e5d298390800000000000000
+      internalID: -7815665796083562173
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_4
+      rect:
+        serializedVersion: 2
+        x: 8
+        y: 106
+        width: 8
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 7d754e2a7b416fcd0800000000000000
+      internalID: -2524807762150139945
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_5
+      rect:
+        serializedVersion: 2
+        x: 8
+        y: 97
+        width: 8
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 12e999700c8cb4df0800000000000000
+      internalID: -194841431773700575
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_6
+      rect:
+        serializedVersion: 2
+        x: 0
+        y: 89
+        width: 8
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 0ee3b38421ff392e0800000000000000
+      internalID: -2120070545575035168
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_7
+      rect:
+        serializedVersion: 2
+        x: 0
+        y: 79
+        width: 8
+        height: 10
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: db9a32b8d406cc920800000000000000
+      internalID: 3011888136967137725
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_8
+      rect:
+        serializedVersion: 2
+        x: 8
+        y: 88
+        width: 8
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 7eddc85066a97f150800000000000000
+      internalID: 5906359199290154471
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_9
+      rect:
+        serializedVersion: 2
+        x: 0
+        y: 70
+        width: 9
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 358343f1f52bdec00800000000000000
+      internalID: 931596819550713939
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_10
+      rect:
+        serializedVersion: 2
+        x: 8
+        y: 79
+        width: 8
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 1cf051376b48f53c0800000000000000
+      internalID: -4368627194376417343
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_11
+      rect:
+        serializedVersion: 2
+        x: 9
+        y: 70
+        width: 8
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: ce10b95e5b45e3950800000000000000
+      internalID: 6430670458149601772
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_12
+      rect:
+        serializedVersion: 2
+        x: 0
+        y: 60
+        width: 9
+        height: 10
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 67677783a65b3b1d0800000000000000
+      internalID: -3336123431132891530
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_13
+      rect:
+        serializedVersion: 2
+        x: 9
+        y: 60
+        width: 8
+        height: 10
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 6926ad540450c9bd0800000000000000
+      internalID: -2622215109428485482
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_14
+      rect:
+        serializedVersion: 2
+        x: 17
+        y: 69
+        width: 8
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 234f53d61b7be8cd0800000000000000
+      internalID: -2553901966003145678
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_15
+      rect:
+        serializedVersion: 2
+        x: 17
+        y: 60
+        width: 9
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: dc1362e2512968700800000000000000
+      internalID: 542281424810947021
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_16
+      rect:
+        serializedVersion: 2
+        x: 0
+        y: 50
+        width: 9
+        height: 10
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 7cfd10e39d9dbebb0800000000000000
+      internalID: -4905587842018582585
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_17
+      rect:
+        serializedVersion: 2
+        x: 0
+        y: 40
+        width: 9
+        height: 10
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 06afb5bf1e17f0ec0800000000000000
+      internalID: -3598532361847047584
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_18
+      rect:
+        serializedVersion: 2
+        x: 9
+        y: 50
+        width: 9
+        height: 10
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: c438317f7448b0780800000000000000
+      internalID: -8715727209222667444
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_19
+      rect:
+        serializedVersion: 2
+        x: 9
+        y: 40
+        width: 9
+        height: 10
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 2d93d7e02af15cb20800000000000000
+      internalID: 3153961894931151314
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_20
+      rect:
+        serializedVersion: 2
+        x: 18
+        y: 50
+        width: 8
+        height: 10
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: db72cf918882f3fa0800000000000000
+      internalID: -5818887628522772547
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_21
+      rect:
+        serializedVersion: 2
+        x: 18
+        y: 40
+        width: 9
+        height: 10
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: f79adfa592baec110800000000000000
+      internalID: 1283151137955752319
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_22
+      rect:
+        serializedVersion: 2
+        x: 0
+        y: 30
+        width: 9
+        height: 10
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 36d2a18d6b8adfed0800000000000000
+      internalID: -2378559524918645405
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_23
+      rect:
+        serializedVersion: 2
+        x: 9
+        y: 30
+        width: 9
+        height: 10
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: f4810328a34155220800000000000000
+      internalID: 2473905811834804303
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_24
+      rect:
+        serializedVersion: 2
+        x: 18
+        y: 30
+        width: 9
+        height: 10
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: d59fc104e6efb1b50800000000000000
+      internalID: 6565120631298128221
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_25
+      rect:
+        serializedVersion: 2
+        x: 27
+        y: 40
+        width: 9
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 75ef52e7dc03acbb0800000000000000
+      internalID: -4915062384178626985
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_26
+      rect:
+        serializedVersion: 2
+        x: 27
+        y: 30
+        width: 9
+        height: 10
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 27286cfe899722210800000000000000
+      internalID: 1306740539655619186
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_27
+      rect:
+        serializedVersion: 2
+        x: 36
+        y: 39
+        width: 9
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: a96cc9e57ad733f70800000000000000
+      internalID: 9165807824429434522
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_28
+      rect:
+        serializedVersion: 2
+        x: 0
+        y: 20
+        width: 10
+        height: 10
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 3099b489ec787c020800000000000000
+      internalID: 2362005850967218435
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_29
+      rect:
+        serializedVersion: 2
+        x: 10
+        y: 20
+        width: 9
+        height: 10
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 50370c90f393b2d00800000000000000
+      internalID: 948915089400951557
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_30
+      rect:
+        serializedVersion: 2
+        x: 19
+        y: 20
+        width: 9
+        height: 10
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 71471d951ff02b6c0800000000000000
+      internalID: -4129220379076889577
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_31
+      rect:
+        serializedVersion: 2
+        x: 28
+        y: 20
+        width: 9
+        height: 10
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: d0c19725cae330030800000000000000
+      internalID: 3459677848589638669
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_32
+      rect:
+        serializedVersion: 2
+        x: 36
+        y: 30
+        width: 9
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 5986f4078a1e7d030800000000000000
+      internalID: 3519529747368339605
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_33
+      rect:
+        serializedVersion: 2
+        x: 37
+        y: 20
+        width: 9
+        height: 10
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 8cdd80058baa861d0800000000000000
+      internalID: -3357245813611242040
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_34
+      rect:
+        serializedVersion: 2
+        x: 55
+        y: 10
+        width: 15
+        height: 22
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 86491a7da57cf2560800000000000000
+      internalID: 7291265514714797160
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_35
+      rect:
+        serializedVersion: 2
+        x: 0
+        y: 10
+        width: 10
+        height: 10
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: dbc611bdb59585fe0800000000000000
+      internalID: -1200111049641988931
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_36
+      rect:
+        serializedVersion: 2
+        x: 10
+        y: 10
+        width: 9
+        height: 10
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 2a56c61680deb7720800000000000000
+      internalID: 2845128209864615330
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_37
+      rect:
+        serializedVersion: 2
+        x: 19
+        y: 10
+        width: 9
+        height: 10
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 84898cc51a5bc0470800000000000000
+      internalID: 8362258312771180616
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_38
+      rect:
+        serializedVersion: 2
+        x: 28
+        y: 10
+        width: 9
+        height: 10
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: a05edfaaf54a41cd0800000000000000
+      internalID: -2588263155033578230
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_39
+      rect:
+        serializedVersion: 2
+        x: 37
+        y: 10
+        width: 9
+        height: 10
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 636041b4c0f10e700800000000000000
+      internalID: 567487690708354614
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_40
+      rect:
+        serializedVersion: 2
+        x: 46
+        y: 20
+        width: 9
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 1ca8ecc5c832c7710800000000000000
+      internalID: 1692266645743897281
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_41
+      rect:
+        serializedVersion: 2
+        x: 46
+        y: 10
+        width: 9
+        height: 10
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 2a2833abc49a02c60800000000000000
+      internalID: 7791413502357504674
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_42
+      rect:
+        serializedVersion: 2
+        x: 68
+        y: 17
+        width: 7
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 921dd074d46162370800000000000000
+      internalID: 8297343884637098281
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_43
+      rect:
+        serializedVersion: 2
+        x: 75
+        y: 17
+        width: 7
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 8cc9283df329e7d30800000000000000
+      internalID: 4431139886208294088
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_44
+      rect:
+        serializedVersion: 2
+        x: 82
+        y: 17
+        width: 7
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 2f0743280bade0960800000000000000
+      internalID: 7570228475289956594
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_45
+      rect:
+        serializedVersion: 2
+        x: 89
+        y: 17
+        width: 6
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: dc397056feb751660800000000000000
+      internalID: 7355921834501968845
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_46
+      rect:
+        serializedVersion: 2
+        x: 95
+        y: 17
+        width: 8
+        height: 7
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 4759a8da54e100610800000000000000
+      internalID: 1585300353447531892
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_47
+      rect:
+        serializedVersion: 2
+        x: 103
+        y: 18
+        width: 7
+        height: 6
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 60238292d3fc52c60800000000000000
+      internalID: 7792862591824966150
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_48
+      rect:
+        serializedVersion: 2
+        x: 104
+        y: 8
+        width: 24
+        height: 15
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 74293d8832f3203e0800000000000000
+      internalID: -2089037855294516665
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_49
+      rect:
+        serializedVersion: 2
+        x: 0
+        y: 0
+        width: 10
+        height: 10
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: b44f3dc07fd7f8140800000000000000
+      internalID: 4724133034160550987
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_50
+      rect:
+        serializedVersion: 2
+        x: 10
+        y: 0
+        width: 10
+        height: 10
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: e99b224c4fcdecd70800000000000000
+      internalID: 9065426043764128158
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_51
+      rect:
+        serializedVersion: 2
+        x: 20
+        y: 0
+        width: 9
+        height: 10
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 722bd3bdac71355c0800000000000000
+      internalID: -4228009465141677529
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_52
+      rect:
+        serializedVersion: 2
+        x: 29
+        y: 0
+        width: 9
+        height: 10
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 6b3126e7b76a7ce50800000000000000
+      internalID: 6829610409262191542
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_53
+      rect:
+        serializedVersion: 2
+        x: 38
+        y: 0
+        width: 9
+        height: 10
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 72ff53dd64088a6a0800000000000000
+      internalID: -6437754625478754521
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_54
+      rect:
+        serializedVersion: 2
+        x: 47
+        y: 0
+        width: 9
+        height: 10
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 6c2255888aedc98a0800000000000000
+      internalID: -6296913363547643194
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_55
+      rect:
+        serializedVersion: 2
+        x: 56
+        y: 0
+        width: 9
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 8fef2f30fcdecadb0800000000000000
+      internalID: -4779183631166669064
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_56
+      rect:
+        serializedVersion: 2
+        x: 60
+        y: 9
+        width: 9
+        height: 8
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 6e8ea1b2492fcff90800000000000000
+      internalID: -6918388209355659034
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_57
+      rect:
+        serializedVersion: 2
+        x: 65
+        y: 0
+        width: 9
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: c3477026884c5aa90800000000000000
+      internalID: -7303215130672139204
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_58
+      rect:
+        serializedVersion: 2
+        x: 69
+        y: 9
+        width: 9
+        height: 8
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: c2b64ef1a8c773070800000000000000
+      internalID: 8086068588649409324
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_59
+      rect:
+        serializedVersion: 2
+        x: 74
+        y: 0
+        width: 9
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 3d704728c659a4210800000000000000
+      internalID: 1318030134236940243
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_60
+      rect:
+        serializedVersion: 2
+        x: 78
+        y: 9
+        width: 9
+        height: 8
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 05ff74d5a071ba150800000000000000
+      internalID: 5884822671371796304
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_61
+      rect:
+        serializedVersion: 2
+        x: 83
+        y: 0
+        width: 9
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 61ec6668ec73c5ed0800000000000000
+      internalID: -2424001139274494442
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_62
+      rect:
+        serializedVersion: 2
+        x: 87
+        y: 9
+        width: 9
+        height: 8
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 1b662f895d3a6ed60800000000000000
+      internalID: 7919197132566980273
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_63
+      rect:
+        serializedVersion: 2
+        x: 92
+        y: 0
+        width: 8
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 20d09752f7e00e630800000000000000
+      internalID: 3954176412083621122
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_64
+      rect:
+        serializedVersion: 2
+        x: 96
+        y: 9
+        width: 8
+        height: 8
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: c170655cbe70435a0800000000000000
+      internalID: -6542595649453029604
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_65
+      rect:
+        serializedVersion: 2
+        x: 100
+        y: 0
+        width: 8
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: aa3c7d5b7a84118c0800000000000000
+      internalID: -4030360306372328534
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_66
+      rect:
+        serializedVersion: 2
+        x: 108
+        y: 0
+        width: 8
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 0beba7864945cb070800000000000000
+      internalID: 8123460824254299824
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_67
+      rect:
+        serializedVersion: 2
+        x: 112
+        y: 9
+        width: 6
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 5235bcde69cee5cd0800000000000000
+      internalID: -2567354604575829211
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: DuckDefenderTestFontv2 Atlas_68
+      rect:
+        serializedVersion: 2
+        x: 116
+        y: 0
+        width: 9
+        height: 8
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: e5aa8ea2e970e6b00800000000000000
+      internalID: 823604157761497694
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    outline: []
+    customData: 
+    physicsShape: []
+    bones: []
+    spriteID: 
+    internalID: 0
+    vertices: []
+    indices: 
+    edges: []
+    weights: []
+    secondaryTextures: []
+    spriteCustomMetadata:
+      entries: []
+    nameFileIdTable:
+      DuckDefenderTestFontv2 Atlas_0: -5790898980237569398
+      DuckDefenderTestFontv2 Atlas_1: -9133656202560262111
+      DuckDefenderTestFontv2 Atlas_10: -4368627194376417343
+      DuckDefenderTestFontv2 Atlas_11: 6430670458149601772
+      DuckDefenderTestFontv2 Atlas_12: -3336123431132891530
+      DuckDefenderTestFontv2 Atlas_13: -2622215109428485482
+      DuckDefenderTestFontv2 Atlas_14: -2553901966003145678
+      DuckDefenderTestFontv2 Atlas_15: 542281424810947021
+      DuckDefenderTestFontv2 Atlas_16: -4905587842018582585
+      DuckDefenderTestFontv2 Atlas_17: -3598532361847047584
+      DuckDefenderTestFontv2 Atlas_18: -8715727209222667444
+      DuckDefenderTestFontv2 Atlas_19: 3153961894931151314
+      DuckDefenderTestFontv2 Atlas_2: 7579138101864725391
+      DuckDefenderTestFontv2 Atlas_20: -5818887628522772547
+      DuckDefenderTestFontv2 Atlas_21: 1283151137955752319
+      DuckDefenderTestFontv2 Atlas_22: -2378559524918645405
+      DuckDefenderTestFontv2 Atlas_23: 2473905811834804303
+      DuckDefenderTestFontv2 Atlas_24: 6565120631298128221
+      DuckDefenderTestFontv2 Atlas_25: -4915062384178626985
+      DuckDefenderTestFontv2 Atlas_26: 1306740539655619186
+      DuckDefenderTestFontv2 Atlas_27: 9165807824429434522
+      DuckDefenderTestFontv2 Atlas_28: 2362005850967218435
+      DuckDefenderTestFontv2 Atlas_29: 948915089400951557
+      DuckDefenderTestFontv2 Atlas_3: -7815665796083562173
+      DuckDefenderTestFontv2 Atlas_30: -4129220379076889577
+      DuckDefenderTestFontv2 Atlas_31: 3459677848589638669
+      DuckDefenderTestFontv2 Atlas_32: 3519529747368339605
+      DuckDefenderTestFontv2 Atlas_33: -3357245813611242040
+      DuckDefenderTestFontv2 Atlas_34: 7291265514714797160
+      DuckDefenderTestFontv2 Atlas_35: -1200111049641988931
+      DuckDefenderTestFontv2 Atlas_36: 2845128209864615330
+      DuckDefenderTestFontv2 Atlas_37: 8362258312771180616
+      DuckDefenderTestFontv2 Atlas_38: -2588263155033578230
+      DuckDefenderTestFontv2 Atlas_39: 567487690708354614
+      DuckDefenderTestFontv2 Atlas_4: -2524807762150139945
+      DuckDefenderTestFontv2 Atlas_40: 1692266645743897281
+      DuckDefenderTestFontv2 Atlas_41: 7791413502357504674
+      DuckDefenderTestFontv2 Atlas_42: 8297343884637098281
+      DuckDefenderTestFontv2 Atlas_43: 4431139886208294088
+      DuckDefenderTestFontv2 Atlas_44: 7570228475289956594
+      DuckDefenderTestFontv2 Atlas_45: 7355921834501968845
+      DuckDefenderTestFontv2 Atlas_46: 1585300353447531892
+      DuckDefenderTestFontv2 Atlas_47: 7792862591824966150
+      DuckDefenderTestFontv2 Atlas_48: -2089037855294516665
+      DuckDefenderTestFontv2 Atlas_49: 4724133034160550987
+      DuckDefenderTestFontv2 Atlas_5: -194841431773700575
+      DuckDefenderTestFontv2 Atlas_50: 9065426043764128158
+      DuckDefenderTestFontv2 Atlas_51: -4228009465141677529
+      DuckDefenderTestFontv2 Atlas_52: 6829610409262191542
+      DuckDefenderTestFontv2 Atlas_53: -6437754625478754521
+      DuckDefenderTestFontv2 Atlas_54: -6296913363547643194
+      DuckDefenderTestFontv2 Atlas_55: -4779183631166669064
+      DuckDefenderTestFontv2 Atlas_56: -6918388209355659034
+      DuckDefenderTestFontv2 Atlas_57: -7303215130672139204
+      DuckDefenderTestFontv2 Atlas_58: 8086068588649409324
+      DuckDefenderTestFontv2 Atlas_59: 1318030134236940243
+      DuckDefenderTestFontv2 Atlas_6: -2120070545575035168
+      DuckDefenderTestFontv2 Atlas_60: 5884822671371796304
+      DuckDefenderTestFontv2 Atlas_61: -2424001139274494442
+      DuckDefenderTestFontv2 Atlas_62: 7919197132566980273
+      DuckDefenderTestFontv2 Atlas_63: 3954176412083621122
+      DuckDefenderTestFontv2 Atlas_64: -6542595649453029604
+      DuckDefenderTestFontv2 Atlas_65: -4030360306372328534
+      DuckDefenderTestFontv2 Atlas_66: 8123460824254299824
+      DuckDefenderTestFontv2 Atlas_67: -2567354604575829211
+      DuckDefenderTestFontv2 Atlas_68: 823604157761497694
+      DuckDefenderTestFontv2 Atlas_7: 3011888136967137725
+      DuckDefenderTestFontv2 Atlas_8: 5906359199290154471
+      DuckDefenderTestFontv2 Atlas_9: 931596819550713939
+  mipmapLimitGroupName: 
+  pSDRemoveMatte: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

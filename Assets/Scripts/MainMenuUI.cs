@@ -1,0 +1,370 @@
+using UnityEngine;
+using UnityEngine.UI;
+using TMPro;
+using System.Collections;
+using System.Collections.Generic;
+
+public class MainMenuUI : MonoBehaviour
+{
+    public static MainMenuUI Instance;
+
+    [Header("Main Panels")]
+    public GameObject MenuPanel;
+    public GameObject ShopPanel;
+    public GameObject SettingsPanel;
+    public GameObject IndexPanel; 
+
+    [Header("Shop Components")]
+    public Transform PackContainer;
+    public GameObject PackButtonPrefab; 
+    public TextMeshProUGUI TotalCoinsText;
+
+    [Header("Confirmation Overlay")]
+    public GameObject ConfirmPanel;
+    public TextMeshProUGUI ConfirmText;
+    public Button YesButton;
+    private ShopPackDefinition _selectedPack;
+
+    [Header("Pack Opening Minigame")]
+    public GameObject OpeningOverlay;
+    public Image PackImage; 
+    public GameObject SliceZone; 
+    public Transform CardRevealCenter; 
+    public GameObject CardDisplayPrefab; 
+    
+    public GameObject SliceHelpText; 
+    public Button ContinueButton;    
+    
+    private bool _isSlicingMode = false;
+    private Vector2 _lastMousePos;
+    private float _sliceProgress = 0f;
+
+    void Awake()
+    {
+        Instance = this;
+    }
+
+    void Start()
+    {
+        // --- DEBUG: UI Safety Checks ---
+        if (CardDisplayPrefab == null) Debug.LogError("<color=red>MainMenuUI Error: 'Card Display Prefab' is missing in Inspector.</color>");
+        if (CardRevealCenter == null) Debug.LogError("<color=red>MainMenuUI Error: 'Card Reveal Center' is missing in Inspector.</color>");
+
+        ShowPanel(MenuPanel);
+        if (ShopManager.Instance != null)
+        {
+            UpdateCoinDisplay(ShopManager.Instance.CurrentCoins);
+            GenerateShopButtons();
+        }
+    }
+
+    void Update()
+    {
+        if (_isSlicingMode && Input.GetMouseButton(0))
+        {
+            PerformSlice();
+        }
+        if (Input.GetMouseButtonUp(0))
+        {
+            _lastMousePos = Vector2.zero;
+        }
+    }
+
+    // --- NAVIGATION ---
+public void ShowPanel(GameObject panel)
+{
+    MenuPanel.SetActive(false);
+    ShopPanel.SetActive(false);
+    SettingsPanel.SetActive(false);
+    IndexPanel.SetActive(false);
+    ConfirmPanel.SetActive(false);
+    OpeningOverlay.SetActive(false);
+
+    panel.SetActive(true);
+    
+    // Switch music to match the panel being shown.
+    // AudioManager.PlayMusic() crossfades smoothly and ignores duplicate calls 
+    // (won't restart if the same track is already playing).
+    if (AudioManager.Instance != null)
+    {
+        if (panel == MenuPanel)
+            AudioManager.Instance.PlayMusic("Main_Menu_Track_1");
+        else if (panel == ShopPanel)
+            AudioManager.Instance.PlayMusic("Shop_Menu_Track_1");
+        else if (panel == SettingsPanel)
+            AudioManager.Instance.PlayMusic("Settings_Menu_Track_1");
+        else if (panel == IndexPanel)
+            AudioManager.Instance.PlayMusic("Card_Index_Menu_Track_1");
+        // ConfirmPanel and OpeningOverlay don't trigger music changes - 
+        // they overlay on top of an existing panel and inherit its music.
+    }
+}
+
+    public void OpenMenu()
+    {
+        ShowPanel(MenuPanel);
+    }
+    
+    public void BackToMainMenu()
+    {
+        ShowPanel(MenuPanel);
+    }
+
+public void OpenShop()
+{
+    ShowPanel(ShopPanel);
+}
+
+    public void OpenSettings()
+    {
+        ShowPanel(SettingsPanel);
+    }
+
+    public void OpenIndex()
+    {
+        ShowPanel(IndexPanel);
+    }
+
+    public void UpdateCoinDisplay(int coins)
+    {
+        if (TotalCoinsText != null) TotalCoinsText.text = coins + " Coins";
+    }
+
+    // --- SHOP GENERATION ---
+    void GenerateShopButtons()
+    {
+        foreach (Transform child in PackContainer) Destroy(child.gameObject);
+
+        if (ShopManager.Instance == null) return;
+
+        foreach (ShopPackDefinition pack in ShopManager.Instance.AvailablePacks)
+        {
+            if (pack == null) continue;
+
+            GameObject btnObj = Instantiate(PackButtonPrefab, PackContainer);
+            
+            TextMeshProUGUI[] texts = btnObj.GetComponentsInChildren<TextMeshProUGUI>();
+            if (texts.Length > 0) texts[0].text = pack.PackName; 
+            if (texts.Length > 1) texts[1].text = pack.Cost + " G";
+
+            Transform iconTr = btnObj.transform.Find("Icon");
+            if (iconTr != null && iconTr.GetComponent<Image>())
+            {
+                iconTr.GetComponent<Image>().sprite = pack.ClosedPackIcon;
+            }
+            else
+            {
+                Image[] images = btnObj.GetComponentsInChildren<Image>();
+                foreach(var img in images)
+                {
+                    if (img.gameObject != btnObj)
+                    {
+                        img.sprite = pack.ClosedPackIcon;
+                        break; 
+                    }
+                }
+            }
+
+            Button btn = btnObj.GetComponent<Button>();
+            if (btn)
+            {
+                btn.onClick.AddListener(() => OnPackClicked(pack));
+            }
+        }
+    }
+
+void OnPackClicked(ShopPackDefinition pack)
+{
+    AudioManager.Instance.PlaySFX("UI_button_Click");
+    
+    _selectedPack = pack;
+    ConfirmPanel.SetActive(true);
+    ConfirmText.text = $"Buy {pack.PackName} for {pack.Cost} Coins?";
+    
+    YesButton.onClick.RemoveAllListeners();
+    YesButton.onClick.AddListener(BuyPack);
+}
+
+public void BuyPack()
+{
+    if (_selectedPack == null) return;
+
+    if (ShopManager.Instance.CanAfford(_selectedPack.Cost))
+    {
+        AudioManager.Instance.PlaySFX("UI_button_Click");
+        
+        ShopManager.Instance.SpendCoins(_selectedPack.Cost);
+        StartPackOpening(_selectedPack);
+        ConfirmPanel.SetActive(false);
+    }
+    else
+    {
+        AudioManager.Instance.PlaySFX("Button_Error");
+        
+        ConfirmText.text = "Not enough coins!";
+    }
+}
+
+    // --- MINIGAME LOGIC ---
+    void StartPackOpening(ShopPackDefinition pack)
+    {
+        OpeningOverlay.SetActive(true);
+        ShopPanel.SetActive(false);
+
+        PackImage.sprite = pack.ClosedPackIcon;
+        PackImage.transform.rotation = Quaternion.identity;
+        PackImage.gameObject.SetActive(true);
+        SliceZone.SetActive(true);
+        SliceHelpText.SetActive(true);
+        ContinueButton.gameObject.SetActive(false);
+
+        foreach (Transform child in CardRevealCenter) Destroy(child.gameObject);
+
+        _isSlicingMode = true;
+        _sliceProgress = 0f;
+        _lastMousePos = Input.mousePosition;
+    }
+
+    void PerformSlice()
+    {
+        Vector2 currentPos = Input.mousePosition;
+        
+        if (_lastMousePos == Vector2.zero)
+        {
+            _lastMousePos = currentPos;
+            return;
+        }
+
+        float dist = Vector2.Distance(currentPos, _lastMousePos);
+        
+        _sliceProgress += dist;
+        _lastMousePos = currentPos;
+
+        PackImage.transform.rotation = Quaternion.Euler(0, 0, Mathf.Sin(Time.time * 50) * 5);
+
+        if (_sliceProgress > 500f) 
+        {
+            CompleteSlice();
+        }
+    }
+
+    void CompleteSlice()
+    {
+        _isSlicingMode = false;
+        SliceZone.SetActive(false);
+        SliceHelpText.SetActive(false);
+        
+        if (_selectedPack.OpenedPackIcon != null)
+        {
+            PackImage.sprite = _selectedPack.OpenedPackIcon;
+        }
+
+        StartCoroutine(RevealCardsRoutine());
+    }
+
+    /// <summary>
+    /// Opens the pack using ShopManager's centralized, rarity-weighted logic.
+    /// ShopManager.OpenPack() handles:
+    ///   - Rarity rolling (5% Legendary, 35% Rare, 60% Common)
+    ///   - Filtering by PackCategory
+    ///   - Saving cards to the player's collection
+    ///   - Saving to disk
+    /// This method is now purely responsible for visual reveal + animation.
+    /// </summary>
+    IEnumerator RevealCardsRoutine()
+    {
+        yield return new WaitForSeconds(0.5f);
+        PackImage.gameObject.SetActive(false);
+
+        // --- 1. GET CARDS (uses proper rarity-weighted pull) ---
+        if (ShopManager.Instance == null)
+        {
+            Debug.LogError("<color=red>ShopManager.Instance is null - cannot open pack.</color>");
+            yield break;
+        }
+
+        List<CardDefinition> pulledCards = ShopManager.Instance.OpenPack(_selectedPack.PackType);
+
+        if (pulledCards == null || pulledCards.Count == 0)
+        {
+            Debug.LogError($"<color=red>No cards returned from pack type: {_selectedPack.PackType}. Check ShopManager's card list.</color>");
+            
+            // Show continue button anyway so the player isn't stuck
+            if (ContinueButton != null)
+            {
+                ContinueButton.gameObject.SetActive(true);
+                ContinueButton.onClick.RemoveAllListeners();
+                ContinueButton.onClick.AddListener(() => ShowPanel(ShopPanel));
+            }
+            yield break;
+        }
+
+        // --- 2. SPAWN VISUALS ---
+        List<GameObject> spawnedCards = new List<GameObject>();
+
+        foreach (CardDefinition picked in pulledCards)
+        {
+            if (CardDisplayPrefab != null)
+            {
+                GameObject cardObj = Instantiate(CardDisplayPrefab, CardRevealCenter);
+                CardDisplay disp = cardObj.GetComponent<CardDisplay>();
+                if (disp != null)
+                {
+                    disp.Setup(picked);
+                    // Disable clicking during reveal animation
+                    Button cardButton = disp.GetComponent<Button>();
+                    if (cardButton != null) cardButton.interactable = false;
+                }
+
+                cardObj.transform.localScale = Vector3.zero;
+                spawnedCards.Add(cardObj);
+            }
+        }
+
+        // --- 3. REFRESH ECONOMY DISPLAY ---
+        // ShopManager.OpenPack() already saved the collection changes,
+        // but we reload to ensure the coin display and any cached data syncs.
+        ShopManager.Instance.LoadEconomy();
+        UpdateCoinDisplay(ShopManager.Instance.CurrentCoins);
+
+        yield return null; 
+
+        // --- 4. POP-IN ANIMATION ---
+        for (int i = 0; i < spawnedCards.Count; i++)
+        {
+            StartCoroutine(AnimatePop(spawnedCards[i].transform));
+            yield return new WaitForSeconds(0.5f);
+        }
+
+        yield return new WaitForSeconds(1.0f);
+        
+        if (ContinueButton != null)
+        {
+            ContinueButton.gameObject.SetActive(true);
+            ContinueButton.onClick.RemoveAllListeners();
+            ContinueButton.onClick.AddListener(() => ShowPanel(ShopPanel));
+        }
+    }
+    
+    IEnumerator AnimatePop(Transform target)
+    {
+        float timer = 0f;
+        while(timer < 0.3f)
+        {
+            timer += Time.deltaTime;
+            float progress = timer / 0.3f;
+            target.localScale = Vector3.Lerp(Vector3.zero, Vector3.one, progress);
+            yield return null;
+        }
+        target.localScale = Vector3.one;
+    }
+
+    public void ResetGameData()
+    {
+        if (ShopManager.Instance != null)
+        {
+            ShopManager.Instance.ResetProgress();
+            UpdateCoinDisplay(ShopManager.Instance.CurrentCoins);
+        }
+    }
+}

@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2561132a95c7341bc9919b7346600e22, type: 3}
+  m_Name: Slow Aura
+  m_EditorClassIdentifier: 
+  ID: gad_slow_aura
+  CardName: Slowing Aura
+  Description: Gain a slowing aura with a radius of {1} that slows down enemies and
+    projectiles by {0}x
+  Icon: {fileID: 0}
+  Rarity: 0
+  PackCategory: 3
+  Modifiers:
+  - StatType: 22
+    BaseAmount: 0.2
+    AmountPerShopLevel: 0.05
+    StackMode: 0
+    InRunStackAmount: 0
+  - StatType: 23
+    BaseAmount: 1
+    AmountPerShopLevel: 0.2
+    StackMode: 0
+    InRunStackAmount: 0
+  BaseUpgradeCost: 50
+  MaxLevel: 5
+  BaseCost: 100

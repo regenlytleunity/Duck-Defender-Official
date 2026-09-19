@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2561132a95c7341bc9919b7346600e22, type: 3}
+  m_Name: Frosty Feathers
+  m_EditorClassIdentifier: 
+  ID: mun_frosty_feathers
+  CardName: Frosty Feathers
+  Description: 'Every {0}th attack fires a frosty feather that freezes  enemies for
+    {1} seconds '
+  Icon: {fileID: 0}
+  Rarity: 0
+  PackCategory: 0
+  Modifiers:
+  - StatType: 7
+    BaseAmount: 10
+    AmountPerShopLevel: -1
+    StackMode: 2
+    InRunStackAmount: 0
+  - StatType: 8
+    BaseAmount: 3
+    AmountPerShopLevel: 1
+    StackMode: 1
+    InRunStackAmount: 0
+  BaseUpgradeCost: 100
+  MaxLevel: 5
+  BaseCost: 100

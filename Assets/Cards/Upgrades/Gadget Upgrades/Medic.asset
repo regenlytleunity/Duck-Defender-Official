@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2561132a95c7341bc9919b7346600e22, type: 3}
+  m_Name: Medic
+  m_EditorClassIdentifier: 
+  ID: gad_medic_turret
+  CardName: Medic
+  Description: Gain a medic turret that heals {0} health every {1} seconds
+  Icon: {fileID: 0}
+  Rarity: 1
+  PackCategory: 3
+  Modifiers:
+  - StatType: 29
+    BaseAmount: 1
+    AmountPerShopLevel: 0.2
+    StackMode: 2
+    InRunStackAmount: 0
+  - StatType: 30
+    BaseAmount: 7
+    AmountPerShopLevel: -0.3
+    StackMode: 1
+    InRunStackAmount: 0
+  BaseUpgradeCost: 100
+  MaxLevel: 5
+  BaseCost: 100

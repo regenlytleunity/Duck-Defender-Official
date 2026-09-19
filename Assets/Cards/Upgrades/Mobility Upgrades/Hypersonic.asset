@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2561132a95c7341bc9919b7346600e22, type: 3}
+  m_Name: Hypersonic
+  m_EditorClassIdentifier: 
+  ID: mob_hypersonic
+  CardName: Hypersonic
+  Description: Coliding with enemies while moving at max speed deals {0} damage
+  Icon: {fileID: 0}
+  Rarity: 1
+  PackCategory: 1
+  Modifiers:
+  - StatType: 48
+    BaseAmount: 5
+    AmountPerShopLevel: 5
+    StackMode: 0
+    InRunStackAmount: 0
+  BaseUpgradeCost: 100
+  MaxLevel: 5
+  BaseCost: 100

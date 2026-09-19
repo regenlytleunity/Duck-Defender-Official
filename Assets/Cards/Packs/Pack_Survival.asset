@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 928415990afad4e7cb320c0631321e5a, type: 3}
+  m_Name: Pack_Survival
+  m_EditorClassIdentifier: 
+  PackName: Survival
+  Cost: 100
+  PackType: 2
+  ClosedPackIcon: {fileID: 41901204, guid: 6001dccc0e79540c5b9609981952faff, type: 3}
+  OpenedPackIcon: {fileID: 1707329138, guid: d437bbdda15a344e6839ec72600b7dc8, type: 3}
