@@ -36,6 +36,7 @@ public abstract class EnemyBase : MonoBehaviour
     public Color FrozenColor = new Color(0.5f, 0.9f, 1f);
 
     public float MaxHealth { get; private set; }
+    public bool IsAlive => !_isDead && CurrentHealth > 0f;
 
     protected float CurrentSpeed;
     protected float CurrentHealth;

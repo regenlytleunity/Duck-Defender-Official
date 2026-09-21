@@ -928,6 +928,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 49d5cc34475c74e6a8b8036d75105f99, type: 2}
   - {fileID: 11400000, guid: a1c40f71ab0a8410f9e1661df3371c33, type: 2}
   - {fileID: 11400000, guid: 3b7cd25765a774150be666f872a9b578, type: 2}
+  - {fileID: 11400000, guid: dd96dab89563f5e41a81b37102853ce6, type: 2}
   CommonRollWeight: 0.65
   RareRollWeight: 0.3
   LegendaryRollWeight: 0.05
@@ -4749,6 +4750,10 @@ MonoBehaviour:
   MetalFeatherColor: {r: 0.7, g: 0.7, b: 0.75, a: 1}
   ExplosiveFeatherColor: {r: 1, g: 0.5, b: 0.2, a: 1}
   BuckshotFeatherColor: {r: 0.9, g: 0.8, b: 0.5, a: 1}
+  ElectricFeatherColor: {r: 0.9150943, g: 0.82351387, b: 0, a: 1}
+  ElectricChainRadius: 4
+  ElectricChainEffectPrefab: {fileID: 5361781433340091638, guid: ea462124a63ff3b4e8fc1de953181523, type: 3}
+  ElectricChainEffectDuration: 0.08
   AirburstFeatherColor: {r: 1, g: 0.85, b: 0.4, a: 1}
   AirburstConeAngle: 60
   AirburstSpeedMultiplier: 1

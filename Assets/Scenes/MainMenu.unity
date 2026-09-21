@@ -3797,6 +3797,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 00e16e223cc9e40f485cbad8e1c569f5, type: 2}
   - {fileID: 11400000, guid: 68f3e3a47038a48f1bffd6b0e61d788f, type: 2}
   - {fileID: 11400000, guid: ea72d446bc3724ea1aada8f53e9518b4, type: 2}
+  - {fileID: 11400000, guid: dd96dab89563f5e41a81b37102853ce6, type: 2}
   AvailablePacks:
   - {fileID: 11400000, guid: 02fa998980a704b0ca4a399a8adf9308, type: 2}
   - {fileID: 11400000, guid: 76111fbcdc87d4007b103d6383b52ddf, type: 2}

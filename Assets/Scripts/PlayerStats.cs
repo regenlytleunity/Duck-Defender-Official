@@ -180,7 +180,8 @@ public class PlayerStats : MonoBehaviour
         Poison,
         Metal,
         Explosive,
-        Buckshot
+        Buckshot,
+        Electric
     }
 
     [System.Serializable]
@@ -197,6 +198,7 @@ public class PlayerStats : MonoBehaviour
         public float BonusKnockback;
         public float ExplosionRadius;
         public int BuckshotPellets;
+        public int ElectricChainCount = 1;
 
         public SpecialFeatherInstance(string cardID, FeatherType type, int threshold)
         {

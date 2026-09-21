@@ -686,6 +686,37 @@ Custom          = 2
 
 ## Card Assets
 
+### Electric Feathers scripting
+
+Electric Feathers extends `PlayerStats.SpecialFeatherInstance` with the appended
+`FeatherType.Electric` and `ElectricChainCount`. The appended `StatType` values
+`ElectricFeatherThreshold` and `ElectricFeatherChainCount` preserve all existing
+serialized enum indices. `CardManager` applies the existing first-pick/re-pick
+model and caps this effect at a 5-attack interval and 6 additional chain targets.
+
+`WeaponPlayer` counts each successfully emitted normal volley once, and each
+independent Mini Gun shot once. Extra pellets, special feathers, airbursts, and
+turrets do not advance the electric counter. Electric projectiles reuse
+`ObjectPooler`; pool exhaustion keeps one activation pending until a later
+successful attack can emit it.
+
+The initial feather flies normally. Its damage snapshots normal non-critical
+attack damage, including the damage multiplier and Money High, when fired.
+`Projectile` resolves all subsequent jumps immediately on the first enemy hit,
+halving the unrounded damage per jump. Each hit uses the existing integer damage
+API (round to nearest, minimum 1), including enemy-specific damage reduction.
+Nearest living enemies within `WeaponPlayer.ElectricChainRadius` are selected
+through a reusable Physics2D overlap list and the existing Enemy tag/EnemyBase
+architecture. Targets cannot repeat; walls do not block chain jumps.
+
+Optional lightning uses reusable LineRenderer instances owned by `WeaponPlayer`,
+independent of projectile reuse. No new component script is required.
+
+The card asset and visual prefab are not included with this scripting change.
+See [Electric Feathers setup](ELECTRIC_FEATHERS.md) for the required Editor work.
+
+### Existing assets
+
 Current count:
 
 ```text

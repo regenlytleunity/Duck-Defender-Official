@@ -408,6 +408,13 @@ public class CardManager : MonoBehaviour
                 ApplySpecialFeather(card, PlayerStats.FeatherType.Poison, "dps", amount);
                 break;
 
+            case StatType.ElectricFeatherThreshold:
+                ApplySpecialFeather(card, PlayerStats.FeatherType.Electric, "threshold", amount);
+                break;
+            case StatType.ElectricFeatherChainCount:
+                ApplySpecialFeather(card, PlayerStats.FeatherType.Electric, "chains", amount);
+                break;
+
             // --- Mini Gun ---
             // SET-STYLE: literal seconds. First pick replaces default; re-picks add delta.
             case StatType.MiniGunOverheatThreshold:
@@ -867,6 +874,14 @@ public class CardManager : MonoBehaviour
                 {
                     instance.Threshold = Mathf.Max(1, instance.Threshold + Mathf.RoundToInt(amount));
                 }
+                if (type == PlayerStats.FeatherType.Electric)
+                    instance.Threshold = Mathf.Clamp(instance.Threshold, 5, 10);
+                break;
+
+            case "chains":
+                instance.ElectricChainCount = Mathf.Clamp(
+                    isFirstWrite ? Mathf.RoundToInt(amount) : instance.ElectricChainCount + Mathf.RoundToInt(amount),
+                    1, 6);
                 break;
             
             case "heal":

@@ -47,6 +47,16 @@ public class WeaponPlayer : MonoBehaviour
     public Color ExplosiveFeatherColor = new Color(1f, 0.5f, 0.2f);
     public Color BuckshotFeatherColor = new Color(0.9f, 0.8f, 0.5f);
 
+    [Header("Electric Feathers")]
+    public Color ElectricFeatherColor = new Color(0.5f, 0.9f, 1f);
+    [Min(0.1f)] public float ElectricChainRadius = 4f;
+    [Tooltip("Optional LineRenderer prefab. Damage works without it; instances are reused for chain links.")]
+    public LineRenderer ElectricChainEffectPrefab;
+    [Min(0.01f)] public float ElectricChainEffectDuration = 0.08f;
+
+    private readonly List<LineRenderer> _electricChainLines = new List<LineRenderer>();
+    private readonly List<float> _electricChainExpirations = new List<float>();
+
     [Header("Airburst Visuals (1.4.11)")]
     public Color AirburstFeatherColor = new Color(1f, 0.85f, 0.4f);
     public float AirburstConeAngle = 60f;
@@ -110,6 +120,7 @@ public class WeaponPlayer : MonoBehaviour
 
     void Update()
     {
+        UpdateElectricChainVisuals();
         bool shootHeld = InputHelper.GetShootHeld();
 
         if (shootHeld && Time.time >= _nextNormalFireTime)
@@ -290,6 +301,8 @@ public class WeaponPlayer : MonoBehaviour
         p.SetColor(MiniGunFeatherColor);
         p.SetVisualScale(MiniGunFeatherScale * GetCurrentFeatherSize());
         bulletObj.SetActive(true);
+        // Mini Gun has its own firing cadence; a successfully spawned shot is one attack.
+        TickElectricFeathers(angle);
     }
 
     // ============================================================
@@ -322,7 +335,7 @@ public class WeaponPlayer : MonoBehaviour
                 readyOthers.Add(feather);
         }
 
-        FireNormalPattern(baseAngle, aimDir);
+        bool firedNormalAttack = FireNormalPattern(baseAngle, aimDir);
 
         foreach (var buck in readyBuckshots)
         {
@@ -337,6 +350,9 @@ public class WeaponPlayer : MonoBehaviour
         {
             StartCoroutine(FireStaggeredSpecials(readyOthers, baseAngle));
         }
+
+        // Count the volley once, regardless of parallel/spread projectiles or bonus feathers.
+        if (firedNormalAttack) TickElectricFeathers(baseAngle);
     }
 
     List<PlayerStats.SpecialFeatherInstance> TickAndCollectReadySpecials()
@@ -346,6 +362,8 @@ public class WeaponPlayer : MonoBehaviour
 
         foreach (var feather in PlayerStats.Instance.SpecialFeathers)
         {
+            // Electric feathers count successful attacks, including the separate Mini Gun path.
+            if (feather.Type == PlayerStats.FeatherType.Electric) continue;
             if (feather.Threshold <= 0) continue;
             feather.ShotCounter++;
             if (feather.ShotCounter >= feather.Threshold)
@@ -373,8 +391,10 @@ public class WeaponPlayer : MonoBehaviour
         }
     }
 
-    void FireNormalPattern(float baseAngle, Vector3 aimDir)
+    bool FireNormalPattern(float baseAngle, Vector3 aimDir)
     {
+        if (FirePoint == null) return false;
+        bool fired = false;
         Vector3 perpendicular = new Vector3(-aimDir.y, aimDir.x, 0).normalized;
         float effectiveSpacing = Mathf.Max(ParallelSpacing, MinParallelDistance);
 
@@ -399,13 +419,14 @@ public class WeaponPlayer : MonoBehaviour
 
         foreach (Vector3 posOffset in parallelOffsets)
         {
-            SpawnNormalFeather(baseAngle, posOffset);
+            fired |= SpawnNormalFeather(baseAngle, posOffset);
         }
 
         foreach (float angleOffset in spreadAngles)
         {
-            SpawnNormalFeather(baseAngle + angleOffset, Vector3.zero);
+            fired |= SpawnNormalFeather(baseAngle + angleOffset, Vector3.zero);
         }
+        return fired;
     }
 
     List<Vector3> CalculateGroundAwareParallelOffsets(Vector3 firePointPos, Vector3 perpendicular, float spacing, int count)
@@ -486,17 +507,17 @@ public class WeaponPlayer : MonoBehaviour
 
     // === Spawn helpers ===
 
-    void SpawnNormalFeather(float angle, Vector3 positionOffset)
+    bool SpawnNormalFeather(float angle, Vector3 positionOffset)
     {
-        if (ObjectPooler.Instance == null) return;
+        if (ObjectPooler.Instance == null) return false;
         GameObject bulletObj = ObjectPooler.Instance.GetPooledObject();
-        if (bulletObj == null) return;
+        if (bulletObj == null) return false;
 
         bulletObj.transform.position = FirePoint.position + positionOffset;
         bulletObj.transform.rotation = Quaternion.Euler(0, 0, angle);
 
         Projectile p = bulletObj.GetComponent<Projectile>();
-        if (p == null) return;
+        if (p == null) return false;
 
         p.SpriteAngleOffset = ProjectileSpriteOffset;
 
@@ -524,6 +545,103 @@ public class WeaponPlayer : MonoBehaviour
         p.SetColor(NormalFeatherColor);
         p.SetVisualScale(GetCurrentFeatherSize());
         bulletObj.SetActive(true);
+        return true;
+    }
+
+    // ============================================================
+    // ELECTRIC FEATHERS
+    // ============================================================
+
+    void TickElectricFeathers(float angle)
+    {
+        if (PlayerStats.Instance == null) return;
+
+        foreach (var feather in PlayerStats.Instance.SpecialFeathers)
+        {
+            if (feather.Type != PlayerStats.FeatherType.Electric || feather.Threshold <= 0) continue;
+
+            int threshold = Mathf.Clamp(feather.Threshold, 5, 10);
+            feather.ShotCounter = Mathf.Min(feather.ShotCounter + 1, threshold);
+            if (feather.ShotCounter >= threshold && SpawnElectricFeather(angle, feather))
+                feather.ShotCounter = 0;
+            // If the pool is exhausted, keep one pending activation until an attack can emit it.
+        }
+    }
+
+    bool SpawnElectricFeather(float angle, PlayerStats.SpecialFeatherInstance feather)
+    {
+        if (FirePoint == null || ObjectPooler.Instance == null) return false;
+        GameObject bulletObj = ObjectPooler.Instance.GetPooledObject();
+        if (bulletObj == null) return false;
+        Projectile projectile = bulletObj.GetComponent<Projectile>();
+        if (projectile == null) return false;
+
+        bulletObj.transform.position = FirePoint.position;
+        bulletObj.transform.rotation = Quaternion.Euler(0, 0, angle);
+        projectile.SpriteAngleOffset = ProjectileSpriteOffset;
+
+        // Same non-critical damage formula as a normal feather, sampled now rather than on impact.
+        float baseMult = CurrentStats.DamageMultiplier > 0f ? CurrentStats.DamageMultiplier : 1f;
+        float moneyMult = PlayerStats.Instance != null ? PlayerStats.Instance.GetCurrentMoneyHighMultiplier() : 1f;
+        int damage = Mathf.Max(1, Mathf.RoundToInt(CurrentStats.Damage * baseMult * moneyMult));
+
+        Projectile.BallisticData stats = new Projectile.BallisticData();
+        stats.Damage = damage;
+        stats.DamageMultiplier = 1f;
+        stats.Speed = CurrentStats.Speed;
+        // No pierce/ricochet, secondary statuses, airburst or independent critical rolls on this chain.
+        projectile.Initialize(stats);
+        projectile.ConfigureElectricChain(damage, feather.ElectricChainCount, ElectricChainRadius, this);
+        projectile.SetColor(ElectricFeatherColor);
+        projectile.SetVisualScale(GetCurrentFeatherSize());
+        bulletObj.SetActive(true);
+        return true;
+    }
+
+    public void ShowElectricChain(Vector3 from, Vector3 to)
+    {
+        if (ElectricChainEffectPrefab == null || !isActiveAndEnabled) return;
+
+        int index = 0;
+        while (index < _electricChainLines.Count && _electricChainLines[index].enabled) index++;
+        if (index == _electricChainLines.Count)
+        {
+            LineRenderer line = Instantiate(ElectricChainEffectPrefab, transform);
+            line.gameObject.SetActive(true);
+            _electricChainLines.Add(line);
+            _electricChainExpirations.Add(0f);
+        }
+
+        LineRenderer effect = _electricChainLines[index];
+        effect.useWorldSpace = true;
+        effect.loop = false;
+        effect.positionCount = 5;
+        Vector3 direction = to - from;
+        Vector3 bend = new Vector3(-direction.y, direction.x, 0f).normalized * Mathf.Min(0.12f, direction.magnitude * 0.1f);
+        effect.SetPosition(0, from);
+        effect.SetPosition(1, Vector3.Lerp(from, to, 0.25f) + bend);
+        effect.SetPosition(2, Vector3.Lerp(from, to, 0.5f) - bend);
+        effect.SetPosition(3, Vector3.Lerp(from, to, 0.75f) + bend);
+        effect.SetPosition(4, to);
+        effect.enabled = true;
+        _electricChainExpirations[index] = Time.time + Mathf.Max(0.01f, ElectricChainEffectDuration);
+    }
+
+    void UpdateElectricChainVisuals()
+    {
+        for (int i = 0; i < _electricChainLines.Count; i++)
+        {
+            if (_electricChainLines[i].enabled && Time.time >= _electricChainExpirations[i])
+                _electricChainLines[i].enabled = false;
+        }
+    }
+
+    void OnDisable()
+    {
+        foreach (var line in _electricChainLines)
+        {
+            if (line != null) line.enabled = false;
+        }
     }
 
     void SpawnSpecialFeather(float angle, Vector3 positionOffset, PlayerStats.SpecialFeatherInstance feather)

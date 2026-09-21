@@ -180,7 +180,11 @@ public enum StatType
     PassiveIncomeRate,
     InterestRate,
     CoinShotThreshold,
-    CoinShotDuration
+    CoinShotDuration,
+
+    // Append new values to preserve existing serialized StatType indices.
+    ElectricFeatherThreshold,
+    ElectricFeatherChainCount
 }
 
 public enum CardRarity { Common, Rare, Legendary, Corrupted }

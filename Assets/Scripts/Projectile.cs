@@ -100,6 +100,15 @@ public class Projectile : MonoBehaviour
 
     private System.Collections.Generic.HashSet<int> _hitEnemyIDs = new System.Collections.Generic.HashSet<int>();
 
+    // Runtime-only electric state. Initialize clears it before every pooled reuse.
+    private int _electricDamage;
+    private int _electricChainCount;
+    private float _electricChainRadius;
+    private bool _electricHitResolved;
+    private WeaponPlayer _electricOwner;
+    private readonly System.Collections.Generic.List<Collider2D> _electricOverlapResults =
+        new System.Collections.Generic.List<Collider2D>(32);
+
     void Awake()
     {
         _rb = GetComponent<Rigidbody2D>();
@@ -117,6 +126,12 @@ public class Projectile : MonoBehaviour
 
         _spawnPosition = transform.position;
         _hitEnemyIDs.Clear();
+        _electricDamage = 0;
+        _electricChainCount = 0;
+        _electricChainRadius = 0f;
+        _electricHitResolved = false;
+        _electricOwner = null;
+        _electricOverlapResults.Clear();
 
         _target = null;
         _currentDamageMultiplier = 1f;
@@ -214,6 +229,16 @@ public class Projectile : MonoBehaviour
         if (collision.CompareTag("OutOfBounds"))
         {
             SilentDeactivate();
+            return;
+        }
+
+        if (_electricChainCount > 0 && !collision.CompareTag("Ground"))
+        {
+            // Resolve by EnemyBase, so multiple child colliders cannot produce duplicate hits.
+            EnemyBase electricTarget = collision.GetComponentInParent<EnemyBase>();
+            if (electricTarget != null && electricTarget.isActiveAndEnabled &&
+                electricTarget.CompareTag("Enemy") && electricTarget.IsAlive)
+                HitElectricChain(electricTarget);
             return;
         }
 
@@ -359,6 +384,71 @@ public class Projectile : MonoBehaviour
         {
             GameUI.Instance.ShowDamagePopup(enemy.transform.position, damageToDeal, isCrit);
         }
+    }
+
+    public void ConfigureElectricChain(int damage, int chainCount, float radius, WeaponPlayer owner)
+    {
+        _electricDamage = Mathf.Max(1, damage);
+        _electricChainCount = Mathf.Clamp(chainCount, 1, 6);
+        _electricChainRadius = Mathf.Max(0.1f, radius);
+        _electricOwner = owner;
+    }
+
+    void HitElectricChain(EnemyBase firstTarget)
+    {
+        if (_electricHitResolved) return;
+        _electricHitResolved = true;
+        if (AudioManager.Instance != null) AudioManager.Instance.PlaySFX("Feather_Hit_Enemy");
+
+        EnemyBase target = firstTarget;
+        float damage = _electricDamage;
+        Vector3 previousPosition = target.transform.position;
+
+        // The initial hit plus up to N ADDITIONAL enemies, all resolved in this call (no travel delay).
+        for (int hitIndex = 0; hitIndex <= _electricChainCount && target != null; hitIndex++)
+        {
+            Vector3 hitPosition = target.transform.position;
+            _hitEnemyIDs.Add(target.GetInstanceID());
+
+            if (hitIndex > 0 && _electricOwner != null)
+                _electricOwner.ShowElectricChain(previousPosition, hitPosition);
+
+            // Keep the unrounded falloff for the next hop. EnemyBase's damage API uses whole HP.
+            int hitDamage = Mathf.Max(1, Mathf.RoundToInt(damage));
+            target.TakeDamage(hitDamage);
+            if (GameUI.Instance != null) GameUI.Instance.ShowDamagePopup(hitPosition, hitDamage, false);
+
+            if (hitIndex == _electricChainCount) break;
+            previousPosition = hitPosition; // Captured before damage, even if this enemy died.
+            target = FindElectricChainTarget(hitPosition);
+            damage *= 0.5f;
+        }
+
+        SpawnEffect();
+        Deactivate();
+    }
+
+    EnemyBase FindElectricChainTarget(Vector3 origin)
+    {
+        // Reuse a growable result list: crowded waves are not truncated by a fixed-size buffer.
+        ContactFilter2D filter = new ContactFilter2D().NoFilter();
+        Physics2D.OverlapCircle(origin, _electricChainRadius, filter, _electricOverlapResults);
+        EnemyBase nearest = null;
+        float nearestDistance = _electricChainRadius * _electricChainRadius;
+
+        foreach (var collider in _electricOverlapResults)
+        {
+            EnemyBase candidate = collider.GetComponentInParent<EnemyBase>();
+            if (candidate == null || !candidate.isActiveAndEnabled || !candidate.IsAlive) continue;
+            if (!candidate.CompareTag("Enemy") || _hitEnemyIDs.Contains(candidate.GetInstanceID())) continue;
+
+            float distance = ((Vector2)candidate.transform.position - (Vector2)origin).sqrMagnitude;
+            if (distance > nearestDistance) continue;
+            nearestDistance = distance;
+            nearest = candidate;
+        }
+
+        return nearest;
     }
 
     void HandleGroundCollision()
