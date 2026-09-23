@@ -13,18 +13,32 @@ MonoBehaviour:
   m_Name: Elemental
   m_EditorClassIdentifier: 
   ID: gad_elemental_turret
-  CardName: Elemental
-  Description: Gain a turret that fires a random feather variant at an enemy every
-    {0} seconds
+  CardName: Wizard
+  Description: A turret fires random elemental feathers at {0} enemies every {1}
+    seconds.
   Icon: {fileID: 0}
   Rarity: 2
   PackCategory: 3
   Modifiers:
-  - StatType: 37
-    BaseAmount: 2
-    AmountPerShopLevel: -0.3
-    StackMode: 1
+  - StatType: 86
+    BaseAmount: 1
+    AmountPerShopLevel: 1
+    StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 1
+  - StatType: 37
+    BaseAmount: 12
+    AmountPerShopLevel: -1
+    StackMode: 0
+    InRunStackAmount: 0
+    DisplayMultiplier: 1
   BaseUpgradeCost: 250
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 24
+  AscendedName: Elemental
+  AscendedDescription: Every 10 seconds, fires random Absolute Zero, Tungsten, Supercharged,
+    Volcano or Deadly Toxin feathers at 6 enemies.
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 0
   BaseCost: 100

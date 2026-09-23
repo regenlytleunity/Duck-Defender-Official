@@ -49,8 +49,9 @@ public class CardManager : MonoBehaviour
     [Header("Rarity Roll Weights (no luck)")]
     [Range(0f, 1f)] public float CommonRollWeight = 0.60f;
     [Range(0f, 1f)] public float RareRollWeight = 0.30f;
-    [Range(0f, 1f)] public float LegendaryRollWeight = 0.08f;
-    [Range(0f, 1f)] public float CorruptedRollWeight = 0.02f;
+    [Range(0f, 1f)] public float LegendaryRollWeight = 0.03f;
+    [Range(0f, 1f)] public float CorruptedRollWeight = 0f;
+    [Range(0f, 1f)] public float BasicRollWeight = 0.07f;
 
     void Awake()
     {
@@ -67,30 +68,30 @@ public class CardManager : MonoBehaviour
     /// </summary>
     public List<CardDefinition> GetRandomCards(int count)
     {
-        var unlocked = GetUnlockedCardPool();
-        if (unlocked.Count == 0) return new List<CardDefinition>();
-
-        List<CardDefinition> picks = new List<CardDefinition>();
-        HashSet<string> chosenIDs = new HashSet<string>();
-
-        for (int i = 0; i < count; i++)
+        var pool = GetUnlockedCardPool();
+        var basics = pool.Where(c => c.IsBasic).ToList();
+        var collection = pool.Where(c => !c.IsBasic && GetRunPickups(c.ID) == 0).ToList();
+        var picks = new List<CardDefinition>();
+        bool fillOnly = collection.Count < count;
+        while (picks.Count < count)
         {
-            CardRarity targetRarity = RollRarity();
-            var candidates = unlocked
-                .Where(c => c.Rarity == targetRarity && !chosenIDs.Contains(c.ID))
-                .ToList();
-
-            if (candidates.Count == 0)
+            CardDefinition pick = null;
+            if (fillOnly && collection.Count > 0)
+                pick = collection[Random.Range(0, collection.Count)];
+            else if (collection.Count > 0 && Random.value >= BasicRollWeight)
             {
-                candidates = unlocked.Where(c => !chosenIDs.Contains(c.ID)).ToList();
+                CardRarity rarity = RollRarity();
+                var candidates = collection.Where(c => c.Rarity == rarity).ToList();
+                if (candidates.Count == 0) candidates = collection;
+                pick = candidates[Random.Range(0, candidates.Count)];
             }
-            if (candidates.Count == 0) break;
-
-            CardDefinition pick = candidates[Random.Range(0, candidates.Count)];
+            else if (basics.Count > 0) pick = basics[Random.Range(0, basics.Count)];
+            else if (collection.Count > 0) pick = collection[Random.Range(0, collection.Count)];
+            if (pick == null) break;
             picks.Add(pick);
-            chosenIDs.Add(pick.ID);
+            collection.RemoveAll(c => c.ID == pick.ID);
+            basics.RemoveAll(c => c.ID == pick.ID);
         }
-
         return picks;
     }
 
@@ -102,7 +103,7 @@ public class CardManager : MonoBehaviour
         return AllCards
             .Where(c => c != null)
             .Where(c => c.PackCategory == CardPackType.BaseSet ||
-                        (data.CardCollection != null && data.CardCollection.Exists(s => s.CardID == c.ID)))
+                        (data.CardCollection != null && data.CardCollection.Exists(s => s.CardID == c.ID && s.IsUnlocked)))
             .ToList();
     }
 
@@ -111,28 +112,13 @@ public class CardManager : MonoBehaviour
     /// </summary>
     CardRarity RollRarity()
     {
-        float luck = 0f;
-        if (PlayerStats.Instance != null)
-        {
-            luck = Mathf.Clamp01(PlayerStats.Instance.LuckPercent);
-        }
-
-        float common = CommonRollWeight * (1f - luck * 0.7f);
-        float commonStolen = CommonRollWeight - common;
-
-        float upperTotal = RareRollWeight + LegendaryRollWeight + CorruptedRollWeight;
-        if (upperTotal <= 0) upperTotal = 1f;
-        float rare = RareRollWeight + commonStolen * (RareRollWeight / upperTotal);
-        float legendary = LegendaryRollWeight + commonStolen * (LegendaryRollWeight / upperTotal);
-        float corrupted = CorruptedRollWeight + commonStolen * (CorruptedRollWeight / upperTotal);
-
-        float totalWeight = common + rare + legendary + corrupted;
-        float roll = Random.value * totalWeight;
-
+        float luck = PlayerStats.Instance != null ? Mathf.Clamp01(PlayerStats.Instance.LuckPercent) : 0;
+        float rare = RareRollWeight * (1f + luck);
+        float legendary = LegendaryRollWeight * (1f + luck);
+        float common = Mathf.Max(0, CommonRollWeight - (rare - RareRollWeight) - (legendary - LegendaryRollWeight));
+        float roll = Random.value * (common + rare + legendary);
         if (roll < common) return CardRarity.Common;
-        if (roll < common + rare) return CardRarity.Rare;
-        if (roll < common + rare + legendary) return CardRarity.Legendary;
-        return CardRarity.Corrupted;
+        return roll < common + rare ? CardRarity.Rare : CardRarity.Legendary;
     }
 
     // ============================================================
@@ -192,6 +178,13 @@ public class CardManager : MonoBehaviour
     /// <summary>
     /// How many times this card has been picked up this run (not including the upcoming pickup).
     /// </summary>
+    public bool IsAscended(string id)
+    {
+        if (ShopManager.Instance != null) return ShopManager.Instance.GetCardData(id)?.IsAscended == true;
+        EnsurePlayerDataLoaded();
+        return _cachedPlayerData.CardCollection.Find(c => c.CardID == id)?.IsAscended == true;
+    }
+
     public int GetRunPickups(string cardID)
     {
         if (string.IsNullOrEmpty(cardID)) return 0;
@@ -228,13 +221,18 @@ public class CardManager : MonoBehaviour
         int shopLevel = GetShopLevel(card.ID);
         int pickupIndex = GetRunPickups(card.ID); // 0 on first pickup, 1 on second, etc.
 
+        if (!card.IsBasic && pickupIndex > 0) return;
         _cardRunPickups[card.ID] = pickupIndex + 1;
+        bool ascended = IsAscended(card.ID) && card.Ascension != CardAscension.None;
+        if (ascended && PlayerStats.Instance != null)
+            PlayerStats.Instance.ActivateAscension(card.Ascension);
+        if (ascended && !card.AscensionRetainsBase) return;
 
         if (card.Modifiers == null) return;
 
         foreach (var mod in card.Modifiers)
         {
-            float amount = card.GetAmountForPickup(mod, shopLevel, pickupIndex);
+            float amount = card.GetAmountAtShopLevel(mod, card.IsBasic ? 1 : shopLevel);
             ApplyStat(card, mod.StatType, amount);
         }
 
@@ -322,10 +320,10 @@ public class CardManager : MonoBehaviour
     {
         if (Mathf.Approximately(amount, 0f)) return;
 
-        WeaponPlayer weapon = GameObject.FindFirstObjectByType<WeaponPlayer>();
-        PlayerController controller = PlayerController.Instance;
-        PlayerHealth health = GameObject.FindFirstObjectByType<PlayerHealth>();
         PlayerStats ps = PlayerStats.Instance;
+        WeaponPlayer weapon = ps != null ? ps.GetComponent<WeaponPlayer>() : null;
+        PlayerController controller = PlayerController.Instance;
+        PlayerHealth health = ps != null ? ps.GetComponent<PlayerHealth>() : null;
 
         switch (stat)
         {
@@ -337,7 +335,7 @@ public class CardManager : MonoBehaviour
             // current FireRate (card data uses positive values representing magnitude 
             // of reduction). The base default lives on the WeaponPlayer prefab.
             case StatType.FireRate:
-                if (weapon != null) weapon.FireRate = Mathf.Max(0.05f, weapon.FireRate - amount);
+                if (weapon != null) weapon.ApplyFireRateReduction(amount);
                 break;
 
             case StatType.Damage:
@@ -345,7 +343,7 @@ public class CardManager : MonoBehaviour
                 break;
 
             case StatType.DamageMultiplier:
-                if (weapon != null) weapon.CurrentStats.DamageMultiplier += amount;
+                if (ps != null) ps.GlobalDamageBonus += amount;
                 break;
 
             case StatType.CritChance:
@@ -463,7 +461,7 @@ public class CardManager : MonoBehaviour
                 if (ps != null)
                 {
                     ps.HasSlowingAura = true;
-                    ps.SlowingAuraRadius += amount;
+                    ps.SlowingAuraRadius = amount;
                 }
                 break;
 
@@ -487,7 +485,7 @@ public class CardManager : MonoBehaviour
                 if (ps != null)
                 {
                     ps.HasMarksman = true;
-                    ps.MarksmanTargetCount += Mathf.RoundToInt(amount);
+                    ps.MarksmanTargetCount = Mathf.RoundToInt(amount);
                 }
                 break;
             
@@ -509,7 +507,7 @@ public class CardManager : MonoBehaviour
                 if (ps != null)
                 {
                     ps.HasMedic = true;
-                    ps.MedicHealAmount += Mathf.RoundToInt(amount);
+                    ps.MedicHealAmount = Mathf.RoundToInt(amount);
                 }
                 break;
             
@@ -531,7 +529,7 @@ public class CardManager : MonoBehaviour
                 if (ps != null)
                 {
                     ps.HasProtector = true;
-                    ps.ProtectorRadius += amount;
+                    ps.ProtectorRadius = amount;
                 }
                 break;
             
@@ -557,18 +555,18 @@ public class CardManager : MonoBehaviour
                 if (ps != null)
                 {
                     ps.HomingProjectiles = true;
-                    ps.HomingSpeedBonus += amount;
+                    ps.HomingSpeedBonus = amount;
                 }
-                if (weapon != null) weapon.CurrentStats.HomingSpeed += amount;
+                if (weapon != null) weapon.CurrentStats.HomingSpeed = amount;
                 break;
 
             case StatType.AuraDamage:
-                if (ps != null) ps.AuraDamage += amount;
-                if (controller != null) controller.AuraDamage += amount;
+                if (ps != null) ps.AuraDamage = amount;
+                if (controller != null) controller.AuraDamage = amount;
                 break;
             case StatType.AuraRadius:
-                if (ps != null) ps.AuraRadius += amount;
-                if (controller != null) controller.AuraRadius += amount;
+                if (ps != null) ps.AuraRadius = amount;
+                if (controller != null) controller.AuraRadius = amount;
                 break;
 
             // SET-STYLE.
@@ -608,7 +606,7 @@ public class CardManager : MonoBehaviour
                 }
                 break;
             case StatType.DashDuration:
-                if (controller != null) controller.DashDuration += amount;
+                if (controller != null) controller.DashDuration = amount;
                 break;
             
             // SET-STYLE: literal cooldown seconds.
@@ -643,7 +641,7 @@ public class CardManager : MonoBehaviour
                 if (ps != null)
                 {
                     ps.HasBlink = true;
-                    ps.BlinkDuration = Mathf.Max(0.05f, ps.BlinkDuration + amount);
+                    ps.BlinkDuration = Mathf.Max(0.05f, amount);
                 }
                 break;
 
@@ -663,20 +661,20 @@ public class CardManager : MonoBehaviour
                 break;
 
             case StatType.MaxSpeedDamage:
-                if (ps != null) ps.MaxSpeedDamage += Mathf.RoundToInt(amount);
+                if (ps != null) ps.HypersonicDamageFraction = amount;
                 break;
 
             case StatType.ShockwaveSize:
                 if (controller != null)
                 {
-                    controller.ShockwaveRadius += amount;
+                    controller.ShockwaveRadius = amount;
                     if (ps != null) ps.OnShockwaveSelected();
                 }
                 break;
             case StatType.ShockwaveDamage:
                 if (controller != null)
                 {
-                    controller.ShockwaveDamage += amount;
+                    controller.ShockwaveDamage = amount;
                     if (ps != null) ps.OnShockwaveSelected();
                 }
                 break;
@@ -685,14 +683,14 @@ public class CardManager : MonoBehaviour
                 if (ps != null)
                 {
                     ps.HasFireTrail = true;
-                    ps.FireTrailDamage += Mathf.RoundToInt(amount);
+                    ps.FireTrailDamage = Mathf.RoundToInt(amount);
                 }
                 break;
             case StatType.FireTrailDuration:
                 if (ps != null)
                 {
                     ps.HasFireTrail = true;
-                    ps.FireTrailDuration += amount;
+                    ps.FireTrailDuration = amount;
                 }
                 break;
 
@@ -719,8 +717,7 @@ public class CardManager : MonoBehaviour
                 if (health != null)
                 {
                     int add = Mathf.RoundToInt(amount);
-                    health.MaxHealth += add;
-                    health.Heal(add);
+                    health.AddMaxHealth(add);
                 }
                 break;
             case StatType.PickupRadius:
@@ -752,8 +749,8 @@ public class CardManager : MonoBehaviour
                 if (controller != null) controller.HasCoinMeteors = true;
                 break;
             case StatType.MeteorDamage:
-                if (ps != null) ps.MeteorDamage += Mathf.RoundToInt(amount);
-                if (controller != null) controller.MeteorDamage += Mathf.RoundToInt(amount);
+                if (ps != null) ps.MeteorDamage = Mathf.RoundToInt(amount);
+                if (controller != null) controller.MeteorDamage = Mathf.RoundToInt(amount);
                 break;
             case StatType.MeteorRadius:
                 if (ps != null) ps.MeteorRadius += amount;
@@ -775,7 +772,7 @@ public class CardManager : MonoBehaviour
                 if (controller != null) controller.HasCoinShot = true;
                 break;
             case StatType.TripleshotDuration:
-                if (ps != null) ps.TripleshotDuration += amount;
+                if (ps != null) ps.TripleshotDuration = amount;
                 break;
 
             // SET-STYLE: literal seconds.
@@ -820,6 +817,18 @@ public class CardManager : MonoBehaviour
                 }
                 break;
 
+            case StatType.BuckshotDamageFraction:
+                if (ps != null) ps.BuckshotDamageFraction = amount; break;
+            case StatType.MetalDamageFraction:
+                if (ps != null) ps.MetalDamageFraction = amount; break;
+            case StatType.RicochetDamageLoss:
+                if (ps != null) ps.RicochetDamageLoss = amount; break;
+            case StatType.DuplicatorDamageReduction:
+                if (ps != null) ps.DuplicatorDamageReduction = amount; break;
+            case StatType.ElementalTargetCount:
+                if (ps != null) ps.ElementalTargetCount = Mathf.RoundToInt(amount); break;
+            case StatType.NonFeatherDamage:
+                if (ps != null) ps.NonFeatherFlatDamage += amount; break;
             default:
                 break;
         }
@@ -886,7 +895,7 @@ public class CardManager : MonoBehaviour
             
             case "heal":
                 // Additive count.
-                instance.HealAmount = Mathf.Max(1, instance.HealAmount + Mathf.RoundToInt(amount));
+                instance.HealAmount = Mathf.Max(1, Mathf.RoundToInt(amount));
                 break;
             
             case "freeze":
@@ -939,7 +948,7 @@ public class CardManager : MonoBehaviour
             
             case "pellets":
                 // Additive count.
-                instance.BuckshotPellets = Mathf.Max(1, instance.BuckshotPellets + Mathf.RoundToInt(amount));
+                instance.BuckshotPellets = Mathf.Max(1, Mathf.RoundToInt(amount));
                 break;
         }
     }

@@ -202,8 +202,13 @@ public class Coin : MonoBehaviour
         if (collision.collider.CompareTag("Player")) Collect();
     }
 
+    public bool SecondaryMeteorOnPickup;
+    bool _collected;
     void Collect()
     {
+        if (_collected) return;
+        _collected = true;
+        if (SecondaryMeteorOnPickup && PlayerController.Instance != null) PlayerController.Instance.SpawnSecondaryMeteor();
         if (AudioManager.Instance != null) AudioManager.Instance.PlaySFX("Coin_Collection");
 
         if (LevelManager.Instance != null)

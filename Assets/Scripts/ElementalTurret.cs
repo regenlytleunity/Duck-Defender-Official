@@ -46,13 +46,26 @@ public class ElementalTurret : TurretBase
 
     protected override void OnTick()
     {
-        Transform target = FindNearestVisibleEnemy();
-        if (target == null) return;
-
-        // Pick a random elemental type (4 options)
-        PlayerStats.FeatherType pick = PickRandomElement();
-        FireElementalAt(target, pick);
+        var player = PlayerStats.Instance;
+        if (player == null) return;
+        var weapon = player.GetComponent<WeaponPlayer>();
+        if (weapon == null) return;
+        bool ascended = player.HasAscension(CardAscension.Elemental);
+        _targets.Clear();
+        foreach (var enemy in EnemyBase.ActiveEnemies)
+        {
+            if (enemy == null || !enemy.IsAlive || Vector2.Distance(transform.position, enemy.transform.position) > TargetingRange) continue;
+            if (IsOnScreen(Camera.main, enemy.transform) && HasLineOfSight(enemy.transform)) _targets.Add(enemy);
+        }
+        _targets.Sort((a, b) => (a.transform.position - transform.position).sqrMagnitude.CompareTo((b.transform.position - transform.position).sqrMagnitude));
+        int count = Mathf.Min(player.ElementalTargetCount, _targets.Count);
+        for (int i = 0; i < count; i++)
+        {
+            var type = ascended && Random.Range(0, 5) == 4 ? PlayerStats.FeatherType.Electric : PickRandomElement();
+            weapon.FireTurretElement(transform.position, _targets[i].transform, type, ascended);
+        }
     }
+    readonly List<EnemyBase> _targets = new List<EnemyBase>();
 
     PlayerStats.FeatherType PickRandomElement()
     {
@@ -109,117 +122,4 @@ public class ElementalTurret : TurretBase
         return hit.collider == null;
     }
 
-    void FireElementalAt(Transform target, PlayerStats.FeatherType type)
-    {
-        if (ObjectPooler.Instance == null) return;
-
-        GameObject bullet = ObjectPooler.Instance.GetPooledObject();
-        if (bullet == null) return;
-
-        Vector2 dir = ((Vector2)target.position - (Vector2)transform.position).normalized;
-        float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
-
-        bullet.transform.position = transform.position;
-        bullet.transform.rotation = Quaternion.Euler(0, 0, angle);
-
-        Projectile p = bullet.GetComponent<Projectile>();
-        if (p == null) return;
-
-        int playerDamage = 1;
-        float playerDamageMult = 1f;
-        float playerCrit = 0f;
-
-        var weapon = FindFirstObjectByType<WeaponPlayer>();
-        if (weapon != null)
-        {
-            playerDamage = weapon.CurrentStats.Damage;
-            playerDamageMult = weapon.CurrentStats.DamageMultiplier > 0 ? weapon.CurrentStats.DamageMultiplier : 1f;
-            playerCrit = weapon.CurrentStats.CritChance;
-        }
-
-        Projectile.BallisticData stats = new Projectile.BallisticData();
-        stats.Damage = Mathf.Max(1, Mathf.RoundToInt(playerDamage * 0.5f));
-        stats.DamageMultiplier = playerDamageMult;
-        stats.Speed = ProjectileSpeed;
-        stats.Knockback = 1f;
-        stats.PierceCount = 0;
-        stats.RicochetCount = 0;
-        stats.HomingSpeed = 0;
-        stats.CritChance = playerCrit;
-        stats.ProximityScaling = 0;
-        stats.CanAirburst = false;
-
-        Color elementColor = Color.white;
-
-        switch (type)
-        {
-            case PlayerStats.FeatherType.Frosty:
-                stats.IsFrostyFeather = true;
-                stats.FreezeDuration = GetEffectStrength(type, DefaultFreezeDuration);
-                elementColor = FrostyColor;
-                break;
-
-            case PlayerStats.FeatherType.Poison:
-                stats.IsPoisonFeather = true;
-                stats.PoisonDPS = GetEffectStrength(type, DefaultPoisonDPS);
-                elementColor = PoisonColor;
-                break;
-
-            case PlayerStats.FeatherType.Metal:
-                stats.IsMetalFeather = true;
-                stats.BonusKnockback = GetEffectStrength(type, DefaultMetalKnockback);
-                stats.ProjectileGravity = 0.5f;
-                elementColor = MetalColor;
-                break;
-
-            case PlayerStats.FeatherType.Explosive:
-                stats.IsExplosiveFeather = true;
-                stats.ExplosionRadius = GetEffectStrength(type, DefaultExplosionRadius);
-                elementColor = ExplosiveColor;
-                break;
-        }
-
-        p.Initialize(stats);
-        p.SetColor(elementColor);
-
-        bullet.SetActive(true);
-
-        if (AudioManager.Instance != null && !string.IsNullOrEmpty(FireSoundName))
-        {
-            AudioManager.Instance.PlaySFX(FireSoundName);
-        }
-    }
-
-    /// <summary>
-    /// If the player has a special feather of this type, use its effect strength. 
-    /// Otherwise fall back to the turret's default.
-    /// </summary>
-    float GetEffectStrength(PlayerStats.FeatherType type, float defaultValue)
-    {
-        if (PlayerStats.Instance == null) return defaultValue;
-        var feathers = PlayerStats.Instance.GetSpecialFeathersByType(type);
-        if (feathers.Count == 0) return defaultValue;
-
-        // Use the strongest active instance
-        float strongest = defaultValue;
-        foreach (var f in feathers)
-        {
-            switch (type)
-            {
-                case PlayerStats.FeatherType.Frosty:
-                    strongest = Mathf.Max(strongest, f.FreezeDuration);
-                    break;
-                case PlayerStats.FeatherType.Poison:
-                    strongest = Mathf.Max(strongest, f.PoisonDPS);
-                    break;
-                case PlayerStats.FeatherType.Metal:
-                    strongest = Mathf.Max(strongest, f.BonusKnockback);
-                    break;
-                case PlayerStats.FeatherType.Explosive:
-                    strongest = Mathf.Max(strongest, f.ExplosionRadius);
-                    break;
-            }
-        }
-        return strongest;
-    }
 }

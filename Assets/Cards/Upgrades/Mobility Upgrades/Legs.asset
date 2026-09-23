@@ -14,16 +14,23 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: mob_strong_legs
   CardName: Strong Legs
-  Description: Increases jump height by {0}
+  Description: Increases jump force by {0}.
   Icon: {fileID: 0}
   Rarity: 0
   PackCategory: 1
   Modifiers:
   - StatType: 40
     BaseAmount: 2
-    AmountPerShopLevel: 1
+    AmountPerShopLevel: 2
     StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 1
   BaseUpgradeCost: 50
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 0
+  AscendedName: 
+  AscendedDescription: 
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 0
   BaseCost: 100

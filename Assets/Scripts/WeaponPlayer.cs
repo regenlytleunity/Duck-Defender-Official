@@ -84,6 +84,21 @@ public class WeaponPlayer : MonoBehaviour
 
     [HideInInspector] public int BonusSpreadProjectiles = 0;
 
+    float _baseFireInterval;
+    float _fireReduction;
+    public Vector2 AimDirection => ComputeAimDir();
+    public float EffectiveFireInterval => Mathf.Max(.005f, FireRate / (PlayerStats.Instance != null ? PlayerStats.Instance.BeneficialStatMultiplier : 1f));
+    public void ApplyFireRateReduction(float fraction)
+    {
+        if (_baseFireInterval <= 0) _baseFireInterval = FireRate;
+        _fireReduction += fraction;
+        FireRate = Mathf.Max(.005f, _baseFireInterval * (1f - Mathf.Clamp(_fireReduction, 0f, .99f)));
+    }
+    public float FeatherDamage(float fraction = 1f)
+    {
+        return PlayerStats.Instance != null ? PlayerStats.Instance.CalculateDamage(CurrentStats.Damage, true, fraction, Mathf.Max(1, CurrentStats.DamageMultiplier) - 1)
+            : CurrentStats.Damage * fraction;
+    }
     private float _nextNormalFireTime;
     private float _nextMiniGunFireTime;
     private Camera _mainCam;
@@ -110,6 +125,7 @@ public class WeaponPlayer : MonoBehaviour
     void Start()
     {
         _mainCam = Camera.main;
+        _baseFireInterval = FireRate;
 
         if (CurrentStats.Speed == 0) CurrentStats.Speed = 20f;
         if (CurrentStats.Damage == 0) CurrentStats.Damage = 1;
@@ -121,12 +137,13 @@ public class WeaponPlayer : MonoBehaviour
     void Update()
     {
         UpdateElectricChainVisuals();
+        if (Time.timeScale == 0) return;
         bool shootHeld = InputHelper.GetShootHeld();
 
         if (shootHeld && Time.time >= _nextNormalFireTime)
         {
             ShootNormal();
-            _nextNormalFireTime = Time.time + FireRate;
+            _nextNormalFireTime = Time.time + EffectiveFireInterval;
         }
 
         if (PlayerStats.Instance != null && PlayerStats.Instance.HasMiniGun)
@@ -212,7 +229,7 @@ public class WeaponPlayer : MonoBehaviour
         if (_miniGunOverheated) return;
         if (!shootHeld) return;
 
-        float baseInterval = FireRate * 0.5f;
+        float baseInterval = EffectiveFireInterval * 0.5f;
         float heatPercent = _miniGunHeat / threshold;
         float intervalScale = 1f + (heatPercent * 2f);
         float currentInterval = baseInterval * intervalScale;
@@ -280,7 +297,8 @@ public class WeaponPlayer : MonoBehaviour
         p.SpriteAngleOffset = ProjectileSpriteOffset;
 
         Projectile.BallisticData stats = CurrentStats;
-        stats.Damage = Mathf.Max(1, Mathf.RoundToInt(CurrentStats.Damage * 0.5f));
+        stats.Damage = CurrentStats.Damage;
+        stats.DamageRatio = .5f;
         stats.PierceCount = 0;
         stats.RicochetCount = 0;
         stats.ExplosionRadius = 0;
@@ -336,6 +354,8 @@ public class WeaponPlayer : MonoBehaviour
         }
 
         bool firedNormalAttack = FireNormalPattern(baseAngle, aimDir);
+        if (firedNormalAttack && PlayerStats.Instance != null && PlayerStats.Instance.HasAscension(CardAscension.DivineDuplicator))
+            FireDivineFeather();
 
         foreach (var buck in readyBuckshots)
         {
@@ -394,6 +414,8 @@ public class WeaponPlayer : MonoBehaviour
     bool FireNormalPattern(float baseAngle, Vector3 aimDir)
     {
         if (FirePoint == null) return false;
+        if (_isTripleshotActive && PlayerStats.Instance != null && PlayerStats.Instance.HasAscension(CardAscension.DoubleDown))
+            return FireRandomVolley();
         bool fired = false;
         Vector3 perpendicular = new Vector3(-aimDir.y, aimDir.x, 0).normalized;
         float effectiveSpacing = Mathf.Max(ParallelSpacing, MinParallelDistance);
@@ -417,10 +439,8 @@ public class WeaponPlayer : MonoBehaviour
             spreadAngles.Add(sign * tier * SpreadAngleStep);
         }
 
-        foreach (Vector3 posOffset in parallelOffsets)
-        {
-            fired |= SpawnNormalFeather(baseAngle, posOffset);
-        }
+        for (int i = 0; i < parallelOffsets.Count; i++)
+            fired |= SpawnNormalFeather(baseAngle, parallelOffsets[i], i > 0);
 
         foreach (float angleOffset in spreadAngles)
         {
@@ -507,7 +527,7 @@ public class WeaponPlayer : MonoBehaviour
 
     // === Spawn helpers ===
 
-    bool SpawnNormalFeather(float angle, Vector3 positionOffset)
+    bool SpawnNormalFeather(float angle, Vector3 positionOffset, bool duplicate = false)
     {
         if (ObjectPooler.Instance == null) return false;
         GameObject bulletObj = ObjectPooler.Instance.GetPooledObject();
@@ -525,7 +545,7 @@ public class WeaponPlayer : MonoBehaviour
 
         if (PlayerStats.Instance != null && PlayerStats.Instance.HomingProjectiles)
         {
-            stats.HomingSpeed = Mathf.Max(stats.HomingSpeed, 1f + PlayerStats.Instance.HomingSpeedBonus);
+            stats.HomingSpeed = PlayerStats.Instance.HomingSpeedBonus;
         }
 
         stats.IsHealingFeather = false;
@@ -538,7 +558,8 @@ public class WeaponPlayer : MonoBehaviour
         stats.PoisonDamage = 0;
         stats.IceSlowFactor = 0;
         stats.ExplosionRadius = 0;
-        stats.ProjectileGravity = 0;
+        stats.ProjectileGravity = PlayerStats.Instance != null && PlayerStats.Instance.FeatherSize > 1 ? 1 : 0;
+        stats.DamageRatio = duplicate && PlayerStats.Instance != null ? 1f - PlayerStats.Instance.DuplicatorDamageReduction : 1f;
         stats.Lifetime = 0;
 
         p.Initialize(stats);
@@ -583,12 +604,14 @@ public class WeaponPlayer : MonoBehaviour
         // Same non-critical damage formula as a normal feather, sampled now rather than on impact.
         float baseMult = CurrentStats.DamageMultiplier > 0f ? CurrentStats.DamageMultiplier : 1f;
         float moneyMult = PlayerStats.Instance != null ? PlayerStats.Instance.GetCurrentMoneyHighMultiplier() : 1f;
-        int damage = Mathf.Max(1, Mathf.RoundToInt(CurrentStats.Damage * baseMult * moneyMult));
+        int damage = Mathf.Max(1, Mathf.RoundToInt(FeatherDamage()));
 
         Projectile.BallisticData stats = new Projectile.BallisticData();
         stats.Damage = damage;
         stats.DamageMultiplier = 1f;
         stats.Speed = CurrentStats.Speed;
+        stats.CritChance = CurrentStats.CritChance;
+        stats.Variant = PlayerStats.Instance.HasAscension(CardAscension.Supercharged) ? CardAscension.Supercharged : CardAscension.None;
         // No pierce/ricochet, secondary statuses, airburst or independent critical rolls on this chain.
         projectile.Initialize(stats);
         projectile.ConfigureElectricChain(damage, feather.ElectricChainCount, ElectricChainRadius, this);
@@ -596,6 +619,84 @@ public class WeaponPlayer : MonoBehaviour
         projectile.SetVisualScale(GetCurrentFeatherSize());
         bulletObj.SetActive(true);
         return true;
+    }
+
+    public void FireNeedle(Vector2 direction)
+    {
+        var stats = new Projectile.BallisticData { Damage = 5, DamageMultiplier = 1, Speed = CurrentStats.Speed,
+            NonFeather = true, InfinitePierce = true };
+        Emit(transform.position, Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg, stats, Color.white, .5f);
+    }
+
+    void FireDivineFeather()
+    {
+        var enemy = EnemyBase.Nearest(transform.position);
+        Vector3 target = enemy != null ? enemy.transform.position : transform.position + (Vector3)AimDirection * 5;
+        var stats = CurrentStats;
+        stats.DamageRatio = .5f; stats.CanAirburst = false; stats.ProjectileGravity = 0;
+        Emit(target + Vector3.up * 10, -90, stats, Color.white, GetCurrentFeatherSize());
+    }
+
+    bool FireRandomVolley()
+    {
+        bool fired = false;
+        for (int i = 0; i < 6; i++)
+        {
+            var stats = CurrentStats;
+            stats.DamageRatio = Random.Range(.25f, 2f);
+            stats.Speed *= Random.Range(.5f, 2f);
+            stats.HomingSpeed = Random.Range(0f, 3f);
+            stats.PierceCount = Random.Range(0, 7); stats.RicochetCount = Random.Range(0, 7);
+            stats.CanAirburst = true;
+            float angle = Random.Range(-180f, 180f);
+            if (PlayerController.Instance != null && PlayerController.Instance.IsGrounded && Mathf.Sin(angle * Mathf.Deg2Rad) < -.95f)
+                angle = -angle;
+            fired |= Emit(FirePoint.position, angle, stats, NormalFeatherColor, GetCurrentFeatherSize());
+        }
+        return fired;
+    }
+
+    public bool Emit(Vector3 position, float angle, Projectile.BallisticData stats, Color color, float scale = 1)
+    {
+        if (ObjectPooler.Instance == null) return false;
+        var bullet = ObjectPooler.Instance.GetPooledObject();
+        if (bullet == null) return false;
+        var projectile = bullet.GetComponent<Projectile>();
+        if (projectile == null) return false;
+        bullet.transform.SetPositionAndRotation(position, Quaternion.Euler(0, 0, angle));
+        projectile.SpriteAngleOffset = ProjectileSpriteOffset;
+        projectile.Initialize(stats); projectile.SetColor(color); projectile.SetVisualScale(scale);
+        if (stats.Variant == CardAscension.Supercharged)
+            projectile.ConfigureElectricChain(Mathf.RoundToInt(FeatherDamage()), 1, ElectricChainRadius, this);
+        bullet.SetActive(true);
+        return true;
+    }
+
+    public void FireTurretElement(Vector3 position, Transform target, PlayerStats.FeatherType type, bool ascended)
+    {
+        var stats = new Projectile.BallisticData { Damage = CurrentStats.Damage, DamageMultiplier = CurrentStats.DamageMultiplier,
+            DamageRatio = .5f, Speed = CurrentStats.Speed, CritChance = CurrentStats.CritChance };
+        Color color = NormalFeatherColor;
+        switch (type)
+        {
+            case PlayerStats.FeatherType.Frosty:
+                stats.IsFrostyFeather = true; stats.FreezeDuration = 2.25f; color = FrostyFeatherColor;
+                if (ascended) stats.Variant = CardAscension.AbsoluteZero; break;
+            case PlayerStats.FeatherType.Metal:
+                stats.IsMetalFeather = true; stats.ProjectileGravity = 1; stats.BonusKnockback = 2; stats.DamageRatio = ascended ? 4 : 2;
+                color = MetalFeatherColor;
+                if (ascended) { stats.Variant = CardAscension.Tungsten; stats.RicochetCount = 3; } break;
+            case PlayerStats.FeatherType.Poison:
+                stats.IsPoisonFeather = true; stats.PoisonDPS = 3.5f; color = PoisonFeatherColor;
+                if (ascended) stats.Variant = CardAscension.DeadlyToxin; break;
+            case PlayerStats.FeatherType.Explosive:
+                stats.IsExplosiveFeather = true; stats.ExplosionRadius = 6; color = ExplosiveFeatherColor;
+                if (ascended) stats.Variant = CardAscension.Volcano; break;
+            case PlayerStats.FeatherType.Electric:
+                stats.Variant = CardAscension.Supercharged; color = ElectricFeatherColor; break;
+        }
+        Vector2 dir = target.position - position;
+        Emit(position, Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg, stats, color);
     }
 
     public void ShowElectricChain(Vector3 from, Vector3 to)
@@ -679,7 +780,7 @@ public class WeaponPlayer : MonoBehaviour
             case PlayerStats.FeatherType.Healing:
                 stats.IsHealingFeather = true;
                 stats.HealAmount = feather.HealAmount;
-                stats.Damage = Mathf.Max(1, stats.Damage / 3);
+                stats.DamageRatio = .5f;
                 // 1.4.11 PATCH: healing feathers no longer inherit pierce/ricochet/homing 
                 // for balance reasons. They're a single-hit utility, not a damage tool.
                 stats.PierceCount = 0;
@@ -690,22 +791,28 @@ public class WeaponPlayer : MonoBehaviour
             case PlayerStats.FeatherType.Frosty:
                 stats.IsFrostyFeather = true;
                 stats.FreezeDuration = feather.FreezeDuration;
+                if (PlayerStats.Instance.HasAscension(CardAscension.AbsoluteZero)) stats.Variant = CardAscension.AbsoluteZero;
                 featherColor = FrostyFeatherColor;
                 break;
             case PlayerStats.FeatherType.Poison:
                 stats.IsPoisonFeather = true;
                 stats.PoisonDPS = feather.PoisonDPS;
+                if (PlayerStats.Instance.HasAscension(CardAscension.DeadlyToxin)) stats.Variant = CardAscension.DeadlyToxin;
                 featherColor = PoisonFeatherColor;
                 break;
             case PlayerStats.FeatherType.Metal:
                 stats.IsMetalFeather = true;
                 stats.BonusKnockback = feather.BonusKnockback;
                 stats.ProjectileGravity = 1.0f;
+                stats.DamageRatio = PlayerStats.Instance.MetalDamageFraction;
+                if (PlayerStats.Instance.HasAscension(CardAscension.Tungsten))
+                { stats.Variant = CardAscension.Tungsten; stats.DamageRatio = 4; stats.RicochetCount = 3; stats.PierceCount = 0; }
                 featherColor = MetalFeatherColor;
                 break;
             case PlayerStats.FeatherType.Explosive:
                 stats.IsExplosiveFeather = true;
                 stats.ExplosionRadius = feather.ExplosionRadius;
+                if (PlayerStats.Instance.HasAscension(CardAscension.Volcano)) stats.Variant = CardAscension.Volcano;
                 featherColor = ExplosiveFeatherColor;
                 break;
         }
@@ -744,7 +851,8 @@ public class WeaponPlayer : MonoBehaviour
         p.SpriteAngleOffset = ProjectileSpriteOffset;
 
         Projectile.BallisticData stats = new Projectile.BallisticData();
-        stats.Damage = Mathf.Max(1, Mathf.RoundToInt(CurrentStats.Damage * 0.5f));
+        stats.Damage = CurrentStats.Damage;
+        stats.DamageRatio = PlayerStats.Instance != null ? PlayerStats.Instance.BuckshotDamageFraction : .4f;
         stats.DamageMultiplier = CurrentStats.DamageMultiplier;
         stats.Speed = CurrentStats.Speed * BuckshotSpeedMultiplier;
         stats.Knockback = CurrentStats.Knockback * 0.5f;
@@ -771,7 +879,7 @@ public class WeaponPlayer : MonoBehaviour
     // AIRBURST API
     // ============================================================
 
-    public void SpawnAirburst(Vector3 enemyPos, Vector3 incomingDirection, int sourceDamage, float sourceDamageMult)
+    public void SpawnAirburst(Vector3 enemyPos, Vector3 incomingDirection, int sourceDamage, float sourceDamageMult, int ignoredEnemy = 0)
     {
         if (PlayerStats.Instance == null) return;
         int count = PlayerStats.Instance.AirburstFeatherCount;
@@ -786,11 +894,11 @@ public class WeaponPlayer : MonoBehaviour
         for (int i = 0; i < count; i++)
         {
             float angle = (count == 1) ? baseAngle : startAngle + (angleStep * i);
-            SpawnAirburstPellet(spawnPos, angle, sourceDamage, sourceDamageMult);
+            SpawnAirburstPellet(spawnPos, angle, sourceDamage, sourceDamageMult, ignoredEnemy);
         }
     }
 
-    void SpawnAirburstPellet(Vector3 spawnPos, float angle, int sourceDamage, float sourceDamageMult)
+    void SpawnAirburstPellet(Vector3 spawnPos, float angle, int sourceDamage, float sourceDamageMult, int ignoredEnemy = 0)
     {
         if (ObjectPooler.Instance == null) return;
         GameObject bulletObj = ObjectPooler.Instance.GetPooledObject();
@@ -805,7 +913,9 @@ public class WeaponPlayer : MonoBehaviour
         p.SpriteAngleOffset = ProjectileSpriteOffset;
 
         Projectile.BallisticData stats = new Projectile.BallisticData();
-        stats.Damage = Mathf.Max(1, Mathf.RoundToInt(sourceDamage * 0.33f));
+        stats.Damage = sourceDamage;
+        stats.DamageRatio = .33f;
+        stats.IgnoreEnemyID = ignoredEnemy;
         stats.DamageMultiplier = sourceDamageMult;
         stats.Speed = CurrentStats.Speed * AirburstSpeedMultiplier;
         stats.Knockback = 0;

@@ -24,6 +24,17 @@ public class MainMenuUI : MonoBehaviour
     public TextMeshProUGUI ConfirmText;
     public Button YesButton;
     private ShopPackDefinition _selectedPack;
+    [Header("Multiple packs")]
+    public UnityEngine.UI.Button BuyThreeButton;
+    public TextMeshProUGUI BuyThreeText;
+    public UnityEngine.UI.Image[] AdditionalPackImages;
+    public UnityEngine.UI.GridLayoutGroup RevealGrid;
+    public Vector2 SingleCardSize = new Vector2(260, 360);
+    public Vector2 TripleCardSize = new Vector2(160, 220);
+    public TextMeshProUGUI EssenceBalancesText;
+    int _packCount = 1;
+    bool _purchaseInProgress;
+    List<CardDefinition> _purchasedCards;
 
     [Header("Pack Opening Minigame")]
     public GameObject OpeningOverlay;
@@ -55,6 +66,7 @@ public class MainMenuUI : MonoBehaviour
         {
             UpdateCoinDisplay(ShopManager.Instance.CurrentCoins);
             GenerateShopButtons();
+            ShopManager.Instance.OnCollectionChanged += RefreshBalances;
         }
     }
 
@@ -79,6 +91,8 @@ public void ShowPanel(GameObject panel)
     IndexPanel.SetActive(false);
     ConfirmPanel.SetActive(false);
     OpeningOverlay.SetActive(false);
+    _purchaseInProgress = false;
+    _isSlicingMode = false;
 
     panel.SetActive(true);
     
@@ -127,7 +141,8 @@ public void OpenShop()
 
     public void UpdateCoinDisplay(int coins)
     {
-        if (TotalCoinsText != null) TotalCoinsText.text = coins + " Coins";
+        if (TotalCoinsText != null) TotalCoinsText.text = ShopManager.Instance != null && ShopManager.Instance.InfiniteResources ? "Infinite Coins" : coins + " Coins";
+        RefreshEssence();
     }
 
     // --- SHOP GENERATION ---
@@ -183,26 +198,28 @@ void OnPackClicked(ShopPackDefinition pack)
     
     YesButton.onClick.RemoveAllListeners();
     YesButton.onClick.AddListener(BuyPack);
+    if (BuyThreeButton != null)
+    {
+        BuyThreeButton.onClick.RemoveAllListeners();
+        BuyThreeButton.onClick.AddListener(BuyThreePacks);
+        BuyThreeButton.interactable = (long)pack.Cost * 3 <= int.MaxValue && ShopManager.Instance.CanAfford(pack.Cost * 3);
+    }
+    if (BuyThreeText != null) BuyThreeText.text = "Open 3 - " + ((long)pack.Cost * 3) + " Coins";
 }
 
-public void BuyPack()
+public void BuyPack() { Purchase(1); }
+public void BuyThreePacks() { Purchase(3); }
+void Purchase(int count)
 {
-    if (_selectedPack == null) return;
-
-    if (ShopManager.Instance.CanAfford(_selectedPack.Cost))
-    {
-        AudioManager.Instance.PlaySFX("UI_button_Click");
-        
-        ShopManager.Instance.SpendCoins(_selectedPack.Cost);
-        StartPackOpening(_selectedPack);
-        ConfirmPanel.SetActive(false);
-    }
-    else
-    {
-        AudioManager.Instance.PlaySFX("Button_Error");
-        
-        ConfirmText.text = "Not enough coins!";
-    }
+    if (_purchaseInProgress || _selectedPack == null) return;
+    var cards = ShopManager.Instance.TryBuyPacks(_selectedPack, count);
+    if (cards == null) { ConfirmText.text = "Not enough coins or no cards assigned."; return; }
+    _purchaseInProgress = true;
+    _packCount = count;
+    _purchasedCards = cards;
+    UpdateCoinDisplay(ShopManager.Instance.CurrentCoins);
+    StartPackOpening(_selectedPack);
+    ConfirmPanel.SetActive(false);
 }
 
     // --- MINIGAME LOGIC ---
@@ -214,6 +231,19 @@ public void BuyPack()
         PackImage.sprite = pack.ClosedPackIcon;
         PackImage.transform.rotation = Quaternion.identity;
         PackImage.gameObject.SetActive(true);
+        if (AdditionalPackImages != null)
+            for (int i = 0; i < AdditionalPackImages.Length; i++)
+                if (AdditionalPackImages[i] != null)
+                {
+                    AdditionalPackImages[i].sprite = pack.ClosedPackIcon;
+                    AdditionalPackImages[i].gameObject.SetActive(i < _packCount - 1);
+                }
+        if (RevealGrid != null)
+        {
+            RevealGrid.constraint = UnityEngine.UI.GridLayoutGroup.Constraint.FixedColumnCount;
+            RevealGrid.constraintCount = 3;
+            RevealGrid.cellSize = _packCount == 3 ? TripleCardSize : SingleCardSize;
+        }
         SliceZone.SetActive(true);
         SliceHelpText.SetActive(true);
         ContinueButton.gameObject.SetActive(false);
@@ -257,6 +287,8 @@ public void BuyPack()
         if (_selectedPack.OpenedPackIcon != null)
         {
             PackImage.sprite = _selectedPack.OpenedPackIcon;
+            if (AdditionalPackImages != null)
+                foreach (var image in AdditionalPackImages) if (image != null) image.sprite = _selectedPack.OpenedPackIcon;
         }
 
         StartCoroutine(RevealCardsRoutine());
@@ -275,6 +307,7 @@ public void BuyPack()
     {
         yield return new WaitForSeconds(0.5f);
         PackImage.gameObject.SetActive(false);
+        if (AdditionalPackImages != null) foreach (var image in AdditionalPackImages) if (image != null) image.gameObject.SetActive(false);
 
         // --- 1. GET CARDS (uses proper rarity-weighted pull) ---
         if (ShopManager.Instance == null)
@@ -283,7 +316,7 @@ public void BuyPack()
             yield break;
         }
 
-        List<CardDefinition> pulledCards = ShopManager.Instance.OpenPack(_selectedPack.PackType);
+        List<CardDefinition> pulledCards = _purchasedCards;
 
         if (pulledCards == null || pulledCards.Count == 0)
         {
@@ -311,6 +344,7 @@ public void BuyPack()
                 if (disp != null)
                 {
                     disp.Setup(picked);
+                    disp.HideShopControls();
                     // Disable clicking during reveal animation
                     Button cardButton = disp.GetComponent<Button>();
                     if (cardButton != null) cardButton.interactable = false;
@@ -367,4 +401,15 @@ public void BuyPack()
             UpdateCoinDisplay(ShopManager.Instance.CurrentCoins);
         }
     }
+    void RefreshBalances() { if (ShopManager.Instance != null) UpdateCoinDisplay(ShopManager.Instance.CurrentCoins); }
+    void RefreshEssence()
+    {
+        if (EssenceBalancesText == null || ShopManager.Instance == null) return;
+        var shop = ShopManager.Instance;
+        EssenceBalancesText.text = "Munitions " + (shop.InfiniteResources ? "Infinite" : shop.GetEssence(CardPackType.Munitions).ToString()) +
+            "  Mobility " + (shop.InfiniteResources ? "Infinite" : shop.GetEssence(CardPackType.Mobility).ToString()) +
+            "  Survival " + (shop.InfiniteResources ? "Infinite" : shop.GetEssence(CardPackType.Survival).ToString()) +
+            "  Gadget " + (shop.InfiniteResources ? "Infinite" : shop.GetEssence(CardPackType.Gadget).ToString());
+    }
+    void OnDestroy() { if (ShopManager.Instance != null) ShopManager.Instance.OnCollectionChanged -= RefreshBalances; }
 }

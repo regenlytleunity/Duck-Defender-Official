@@ -14,21 +14,31 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: sur_powerful_profit
   CardName: Powerful Profit
-  Description: Every coin colected increases damage by {0}x for {1} seconds
+  Description: Each collected coin adds {0}% damage for {1} seconds. Each bonus expires
+    independently.
   Icon: {fileID: 0}
   Rarity: 2
   PackCategory: 2
   Modifiers:
   - StatType: 61
-    BaseAmount: 0.05
-    AmountPerShopLevel: 0.01
-    StackMode: 1
+    BaseAmount: 0.001
+    AmountPerShopLevel: 0.001
+    StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 100
   - StatType: 62
     BaseAmount: 3
-    AmountPerShopLevel: 0.5
-    StackMode: 1
+    AmountPerShopLevel: 0.1
+    StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 1
   BaseUpgradeCost: 50
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 17
+  AscendedName: Illegal Operations
+  AscendedDescription: Each collected coin permanently adds 0.01% damage for the
+    remainder of this run.
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 0
   BaseCost: 100

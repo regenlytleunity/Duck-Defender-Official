@@ -20,6 +20,10 @@ public class CardDisplay : MonoBehaviour, IPointerEnterHandler
     public TextMeshProUGUI LevelText;
     public Button UpgradeButton;
     public TextMeshProUGUI UpgradeCostText;
+    public GameObject AscensionGroup;
+    public UnityEngine.UI.Button AscendButton;
+    public TextMeshProUGUI EssenceText;
+    ShopManager _subscribedShop;
     
     [Header("Hover Flip Animation")]
     [Tooltip("Duration of the full 360-degree flip in seconds. Shorter = snappier.")]
@@ -91,6 +95,12 @@ public class CardDisplay : MonoBehaviour, IPointerEnterHandler
     public void Setup(CardDefinition card)
     {
         _assignedCard = card;
+        if (_subscribedShop != ShopManager.Instance)
+        {
+            if (_subscribedShop != null) _subscribedShop.OnCollectionChanged -= Refresh;
+            _subscribedShop = ShopManager.Instance;
+            if (_subscribedShop != null) _subscribedShop.OnCollectionChanged += Refresh;
+        }
 
         // 1.4.11 PATCH: distinguish two display contexts.
         // 
@@ -115,9 +125,13 @@ public class CardDisplay : MonoBehaviour, IPointerEnterHandler
             if (data != null) displayLevel = data.Level;
         }
 
-        if (NameText) NameText.text = card.CardName;
-        if (DescriptionText) DescriptionText.text = card.GetDescriptionAtLevel(displayLevel);
-        if (IconImage && card.Icon) IconImage.sprite = card.Icon;
+        bool ascended = CardManager.Instance != null && LevelUpUI.Instance != null
+            ? CardManager.Instance.IsAscended(card.ID) : ShopManager.Instance != null && ShopManager.Instance.GetCardData(card.ID)?.IsAscended == true;
+        if (NameText) NameText.text = ascended ? card.AscendedName : card.CardName;
+        if (DescriptionText) DescriptionText.text = ascended ? card.AscendedDescription : card.GetDescriptionAtLevel(displayLevel);
+        if (IconImage) IconImage.sprite = ascended && card.AscendedIcon != null ? card.AscendedIcon : card.Icon;
+        if (AscensionGroup != null) AscensionGroup.SetActive(false);
+        if (AscendButton != null) AscendButton.gameObject.SetActive(false);
 
         if (BackgroundImage != null)
         {
@@ -161,16 +175,28 @@ public class CardDisplay : MonoBehaviour, IPointerEnterHandler
             }
         }
 
-        SetLockedState(false);
+        bool locked = !card.IsBasic && ShopManager.Instance != null && ShopManager.Instance.GetCardData(card.ID)?.IsUnlocked != true;
+        SetLockedState(locked);
     }
 
     void UpdateLevelUI(CardSaveData data)
     {
+        bool ascensionAvailable = data.Level >= _assignedCard.MaxLevel && !data.IsAscended && _assignedCard.Ascension != CardAscension.None;
+        if (AscensionGroup) AscensionGroup.SetActive(ascensionAvailable);
+        if (AscendButton)
+        {
+            AscendButton.gameObject.SetActive(ascensionAvailable);
+            AscendButton.onClick.RemoveAllListeners();
+            AscendButton.onClick.AddListener(() => ShopManager.Instance.TryAscendCard(_assignedCard.ID));
+            AscendButton.interactable = ascensionAvailable && (ShopManager.Instance.InfiniteResources || ShopManager.Instance.GetEssence(_assignedCard.PackCategory) >= _assignedCard.AscensionCost);
+        }
+        if (EssenceText) EssenceText.text = (ShopManager.Instance.InfiniteResources ? "∞" : ShopManager.Instance.GetEssence(_assignedCard.PackCategory).ToString()) + "/" + _assignedCard.AscensionCost + " " + _assignedCard.PackCategory + " Essence";
         if (data.Level >= _assignedCard.MaxLevel)
         {
-            if (LevelText) LevelText.text = "MAX";
+            if (LevelText) LevelText.text = data.IsAscended ? "ASCENDED" : "MAX · Lv 6";
             if (UpgradeButton) UpgradeButton.gameObject.SetActive(false);
             if (ProgressSlider) ProgressSlider.gameObject.SetActive(false);
+            if (ProgressText) ProgressText.gameObject.SetActive(false);
         }
         else
         {
@@ -182,13 +208,14 @@ public class CardDisplay : MonoBehaviour, IPointerEnterHandler
 
             if (ProgressSlider)
             {
+                ProgressSlider.gameObject.SetActive(true);
                 ProgressSlider.maxValue = required;
                 ProgressSlider.value = current;
             }
-            if (ProgressText) ProgressText.text = $"{current}/{required}";
+            if (ProgressText) { ProgressText.gameObject.SetActive(true); ProgressText.text = ShopManager.Instance.InfiniteCopies ? $"∞/{required}" : $"{current}/{required}"; }
             if (UpgradeCostText) UpgradeCostText.text = cost + " G";
 
-            bool canUpgrade = (current >= required) && ShopManager.Instance.CanAfford(cost);
+            bool canUpgrade = (ShopManager.Instance.InfiniteCopies || current >= required) && ShopManager.Instance.CanAfford(cost);
 
             if (UpgradeButton)
             {
@@ -232,5 +259,15 @@ public class CardDisplay : MonoBehaviour, IPointerEnterHandler
         {
             if (IconImage != null) IconImage.color = Color.white;
         }
+    }
+
+    void Refresh() { if (_assignedCard != null) Setup(_assignedCard); }
+    void OnDestroy() { if (_subscribedShop != null) _subscribedShop.OnCollectionChanged -= Refresh; }
+    public void HideShopControls()
+    {
+        if (LevelGroup) LevelGroup.SetActive(false);
+        if (AscensionGroup) AscensionGroup.SetActive(false);
+        if (AscendButton) AscendButton.gameObject.SetActive(false);
+        if (ClickButton) ClickButton.interactable = false;
     }
 }

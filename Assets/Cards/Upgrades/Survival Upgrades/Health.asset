@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: sur_health
   CardName: Health
-  Description: Increases max health by {0}
+  Description: Increases maximum health by {0}.
   Icon: {fileID: 0}
   Rarity: 0
   PackCategory: 2
@@ -24,6 +24,13 @@ MonoBehaviour:
     AmountPerShopLevel: 2
     StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 1
   BaseUpgradeCost: 50
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 0
+  AscendedName: 
+  AscendedDescription: 
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 0
   BaseCost: 100

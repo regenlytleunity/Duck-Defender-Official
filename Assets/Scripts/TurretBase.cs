@@ -90,7 +90,7 @@ public abstract class TurretBase : MonoBehaviour
 
     void TickAction()
     {
-        float interval = GetCurrentInterval();
+        float interval = GetCurrentInterval() / (PlayerStats.Instance != null ? PlayerStats.Instance.BeneficialStatMultiplier : 1f);
         if (interval <= 0f) return;
 
         _tickTimer += Time.deltaTime;

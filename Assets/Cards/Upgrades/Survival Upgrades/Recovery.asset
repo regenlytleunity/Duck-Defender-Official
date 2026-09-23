@@ -14,16 +14,24 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: sur_recovery
   CardName: Recovery
-  Description: Heal {0} health every wave
+  Description: Heal {0} health after each wave.
   Icon: {fileID: 0}
   Rarity: 0
   PackCategory: 2
   Modifiers:
   - StatType: 57
-    BaseAmount: 2
+    BaseAmount: 1
     AmountPerShopLevel: 1
     StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 1
   BaseUpgradeCost: 50
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 14
+  AscendedName: Recovery +
+  AscendedDescription: Heal 1 health every 5 seconds. Each completed wave adds 2%
+    movement speed, damage and maximum health for this run.
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 0
   BaseCost: 100

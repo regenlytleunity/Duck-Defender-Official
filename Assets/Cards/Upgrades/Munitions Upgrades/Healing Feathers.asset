@@ -14,22 +14,31 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: mun_healing_feathers
   CardName: Healing Feathers
-  Description: Every {0} attacks fires a healing feather that deals 33% of feather
-    damage and heals {1} health
+  Description: Every {0} attacks, fires a feather dealing 50% feather damage and
+    healing 1 health on hit.
   Icon: {fileID: 0}
   Rarity: 1
   PackCategory: 0
   Modifiers:
   - StatType: 9
-    BaseAmount: 12
+    BaseAmount: 10
     AmountPerShopLevel: -1
-    StackMode: 2
+    StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 1
   - StatType: 10
     BaseAmount: 1
     AmountPerShopLevel: 0
     StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 1
   BaseUpgradeCost: 100
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 3
+  AscendedName: Vampire
+  AscendedDescription: Defeated enemies drop a healing orb restoring 10% of maximum
+    health.
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 0
   BaseCost: 100

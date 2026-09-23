@@ -26,12 +26,16 @@ public class PlayerHealth : MonoBehaviour
     private SpriteRenderer _spriteRen;
     private PlayerAnimator _animator;
     private PlayerController _controller;
+    private int _flatMaxHealth;
+    private float _maxHealthBonus;
+    public bool IsDead => _isDead;
 
     public int CurrentHealth => _currentHealth;
 
     void Start()
     {
         _currentHealth = MaxHealth;
+        _flatMaxHealth = MaxHealth;
         _spriteRen = GetComponent<SpriteRenderer>();
         _animator = GetComponent<PlayerAnimator>();
         _controller = GetComponent<PlayerController>();
@@ -51,6 +55,27 @@ public class PlayerHealth : MonoBehaviour
         if (RegenPerWave > 0) Heal(RegenPerWave);
     }
 
+    public void AddMaxHealth(int flat)
+    {
+        if (_flatMaxHealth == 0) _flatMaxHealth = MaxHealth;
+        _flatMaxHealth += flat;
+        RecalculateMaxHealth();
+    }
+
+    public void AddMaxHealthPercent(float bonus)
+    {
+        if (_flatMaxHealth == 0) _flatMaxHealth = MaxHealth;
+        _maxHealthBonus += bonus;
+        RecalculateMaxHealth();
+    }
+
+    void RecalculateMaxHealth()
+    {
+        int previous = MaxHealth;
+        MaxHealth = Mathf.Max(1, Mathf.RoundToInt(_flatMaxHealth * (1f + _maxHealthBonus)));
+        Heal(Mathf.Max(0, MaxHealth - previous));
+    }
+
     public void TakeDamage(int damage)
     {
         if (_isInvulnerable || _isDead || _currentHealth <= 0) return;
@@ -59,6 +84,8 @@ public class PlayerHealth : MonoBehaviour
         if (_controller != null && _controller.IsInvulnerable) return;
 
         _currentHealth -= damage;
+        if (PlayerStats.Instance != null && PlayerStats.Instance.HasAscension(CardAscension.Pincushion))
+            GetComponent<AscensionEffects>()?.ReleaseNeedles();
         UpdateUI();
 
         // 1.4.13: Play hurt SFX. Placed AFTER the invuln/death/blink early-outs so 
@@ -96,6 +123,18 @@ public class PlayerHealth : MonoBehaviour
     bool TryTriggerSecondWind()
     {
         if (PlayerStats.Instance == null) return false;
+        var stats = PlayerStats.Instance;
+        if (stats.HasAscension(CardAscension.Rebirth) && !stats.RebirthUsed)
+        {
+            stats.RebirthUsed = true;
+            stats.RebirthStatBonus += 2f;
+            AddMaxHealthPercent(2f);
+            _currentHealth = MaxHealth;
+            GetComponent<AscensionEffects>()?.Rebirth();
+            StartCoroutine(InvulnerabilityRoutine(5));
+            UpdateUI();
+            return true;
+        }
         if (!PlayerStats.Instance.IsSecondWindReady()) return false;
 
         // Restore % of max health
@@ -131,7 +170,7 @@ public class PlayerHealth : MonoBehaviour
         if (ThornsDamage > 0 && collision.gameObject.CompareTag("Enemy"))
         {
             EnemyBase enemy = collision.gameObject.GetComponent<EnemyBase>();
-            if (enemy != null) enemy.TakeDamage(ThornsDamage);
+            if (enemy != null) enemy.TakeDamage(Mathf.RoundToInt(PlayerStats.Instance != null ? PlayerStats.Instance.CalculateDamage(ThornsDamage, false) : ThornsDamage));
         }
     }
 

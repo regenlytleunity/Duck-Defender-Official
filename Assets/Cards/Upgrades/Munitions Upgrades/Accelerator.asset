@@ -14,16 +14,24 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: mun_accelerator
   CardName: Accelerator
-  Description: Increases projectile speed by {0}
+  Description: Increases feather projectile speed by {0}.
   Icon: {fileID: 0}
   Rarity: 0
   PackCategory: 0
   Modifiers:
   - StatType: 4
-    BaseAmount: 3
-    AmountPerShopLevel: 1.5
+    BaseAmount: 4
+    AmountPerShopLevel: 2
     StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 1
   BaseUpgradeCost: 50
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 1
+  AscendedName: Quantum Leap
+  AscendedDescription: Feathers cross their trajectory instantly, preserving hit
+    and penetration effects.
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 0
   BaseCost: 100

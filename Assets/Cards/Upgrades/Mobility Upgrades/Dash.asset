@@ -14,27 +14,36 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: mob_dash
   CardName: Dash
-  Description: Gain +{0} dashes, press [shift] to dash in direction of movement for
-    {1} seconds, cooldown of {2} seconds
+  Description: 'Dash in your movement direction for up to {0} seconds. Cooldown:
+    {1} seconds.'
   Icon: {fileID: 0}
   Rarity: 1
   PackCategory: 1
   Modifiers:
+  - StatType: 46
+    BaseAmount: 1
+    AmountPerShopLevel: 0.5
+    StackMode: 0
+    InRunStackAmount: 0
+    DisplayMultiplier: 1
+  - StatType: 47
+    BaseAmount: 7
+    AmountPerShopLevel: -1
+    StackMode: 0
+    InRunStackAmount: 0
+    DisplayMultiplier: 1
   - StatType: 45
     BaseAmount: 1
     AmountPerShopLevel: 0
     StackMode: 0
     InRunStackAmount: 0
-  - StatType: 46
-    BaseAmount: 0.15
-    AmountPerShopLevel: 0.05
-    StackMode: 0
-    InRunStackAmount: 0
-  - StatType: 47
-    BaseAmount: 5
-    AmountPerShopLevel: -0.3
-    StackMode: 2
-    InRunStackAmount: 0
+    DisplayMultiplier: 1
   BaseUpgradeCost: 100
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 0
+  AscendedName: 
+  AscendedDescription: 
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 0
   BaseCost: 100

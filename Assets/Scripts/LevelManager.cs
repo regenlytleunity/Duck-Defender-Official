@@ -57,6 +57,7 @@ public class LevelManager : MonoBehaviour
 
     public void OnWaveComplete()
     {
+        if (PlayerStats.Instance != null) PlayerStats.Instance.CompleteWave();
         // 1.4.11: Wave-end coin gift now spawns physical coins instead of silently adding to counter
         if (CoinsPerWave > 0)
         {

@@ -56,6 +56,12 @@ public class Projectile : MonoBehaviour
         // if PlayerStats.AirburstFeatherCount > 0. Always false for special feathers, buckshot,
         // turret shots, mini gun shots, and airburst sub-projectiles (prevents infinite cascade).
         public bool CanAirburst;
+        public CardAscension Variant;
+        public float DamageRatio;
+        public bool NonFeather;
+        public bool MarkTarget;
+        public bool InfinitePierce;
+        public int IgnoreEnemyID;
     }
 
     public BallisticData Stats;
@@ -67,6 +73,9 @@ public class Projectile : MonoBehaviour
     [Header("Visual FX")]
     public GameObject HitEffectPrefab;
     public GameObject ExplosionPrefab;
+    public Sprite TungstenSprite;
+    public Sprite NeedleSprite;
+    Sprite _defaultSprite;
 
     [Header("Sprite Orientation")]
     public float SpriteAngleOffset = -90f;
@@ -106,6 +115,9 @@ public class Projectile : MonoBehaviour
     private float _electricChainRadius;
     private bool _electricHitResolved;
     private WeaponPlayer _electricOwner;
+    bool _lingering;
+    bool _eruptionSpawned;
+    readonly System.Collections.Generic.List<RaycastHit2D> _instantHits = new System.Collections.Generic.List<RaycastHit2D>(32);
     private readonly System.Collections.Generic.List<Collider2D> _electricOverlapResults =
         new System.Collections.Generic.List<Collider2D>(32);
 
@@ -113,12 +125,16 @@ public class Projectile : MonoBehaviour
     {
         _rb = GetComponent<Rigidbody2D>();
         _spriteRenderer = GetComponent<SpriteRenderer>();
+        if (_spriteRenderer != null) _defaultSprite = _spriteRenderer.sprite;
         _defaultLocalScale = transform.localScale;
     }
 
     public void Initialize(BallisticData incomingStats)
     {
         Stats = incomingStats;
+        if (_spriteRenderer != null)
+            _spriteRenderer.sprite = Stats.Variant == CardAscension.Tungsten && TungstenSprite != null ? TungstenSprite
+                : Stats.NonFeather && NeedleSprite != null ? NeedleSprite : _defaultSprite;
         _pierceLeft = Stats.PierceCount;
         _ricochetLeft = Stats.RicochetCount;
 
@@ -126,6 +142,9 @@ public class Projectile : MonoBehaviour
 
         _spawnPosition = transform.position;
         _hitEnemyIDs.Clear();
+        if (Stats.IgnoreEnemyID != 0) _hitEnemyIDs.Add(Stats.IgnoreEnemyID);
+        _lingering = false;
+        _eruptionSpawned = false;
         _electricDamage = 0;
         _electricChainCount = 0;
         _electricChainRadius = 0f;
@@ -178,6 +197,8 @@ public class Projectile : MonoBehaviour
             _needsDelayedRetarget = false;
             StartCoroutine(DelayedTargetAcquisition());
         }
+        if (PlayerStats.Instance != null && !Stats.NonFeather && PlayerStats.Instance.HasAscension(CardAscension.QuantumLeap))
+            TraceInstant();
     }
 
     IEnumerator DelayedTargetAcquisition()
@@ -192,6 +213,7 @@ public class Projectile : MonoBehaviour
 
     void Update()
     {
+        if (_lingering) { _lifeTimer -= Time.deltaTime; if (_lifeTimer <= 0) Deactivate(); return; }
         if (Stats.HomingSpeed > 0 && _target != null && !Stats.IsBuckshotPellet)
         {
             if (_target.gameObject.activeInHierarchy)
@@ -244,10 +266,11 @@ public class Projectile : MonoBehaviour
 
         if (collision.CompareTag("Enemy"))
         {
-            int enemyID = collision.gameObject.GetInstanceID();
+            EnemyBase hitOwner = collision.GetComponentInParent<EnemyBase>();
+            int enemyID = hitOwner != null ? hitOwner.GetInstanceID() : collision.gameObject.GetInstanceID();
             if (_hitEnemyIDs.Contains(enemyID)) return;
 
-            EnemyBase enemy = collision.GetComponent<EnemyBase>();
+            EnemyBase enemy = hitOwner;
             if (enemy != null)
             {
                 _hitEnemyIDs.Add(enemyID);
@@ -270,24 +293,18 @@ public class Projectile : MonoBehaviour
 
         float baseMult = Stats.DamageMultiplier > 0 ? Stats.DamageMultiplier : 1.0f;
 
-        float moneyHighMult = 1.0f;
-        if (PlayerStats.Instance != null)
-        {
-            moneyHighMult = PlayerStats.Instance.GetCurrentMoneyHighMultiplier();
-        }
-
-        float specialDamageMultiplier = 1f;
-        if (Stats.IsMetalFeather) specialDamageMultiplier = 2f;
-
-        int baseDamage = Mathf.RoundToInt(Stats.Damage * baseMult * moneyHighMult *
-                                          _currentDamageMultiplier * specialDamageMultiplier);
-        if (baseDamage < 1) baseDamage = 1;
+        float ratio = (Stats.DamageRatio > 0 ? Stats.DamageRatio : 1f) * _currentDamageMultiplier;
+        float damage = PlayerStats.Instance != null
+            ? PlayerStats.Instance.CalculateDamage(Stats.Damage, !Stats.NonFeather, ratio, baseMult - 1f)
+            : Stats.Damage * baseMult * ratio;
+        int baseDamage = Mathf.Max(1, Mathf.RoundToInt(damage));
 
         int damageToDeal = baseDamage;
 
-        bool isCrit = Random.value < Stats.CritChance;
+        bool isCrit = !Stats.NonFeather && (enemy.IsMarked || Random.value < Stats.CritChance);
         if (isCrit) damageToDeal *= 2;
 
+        if (Stats.MarkTarget) enemy.IsMarked = true;
         enemy.TakeDamage(damageToDeal);
 
         float knockbackForce = Stats.Knockback;
@@ -296,13 +313,15 @@ public class Projectile : MonoBehaviour
 
         if (Stats.IsFrostyFeather && Stats.FreezeDuration > 0)
         {
-            enemy.ApplyFreeze(Stats.FreezeDuration);
+            if (Stats.Variant == CardAscension.AbsoluteZero) enemy.ApplyAbsoluteZero(Stats.FreezeDuration);
+            else enemy.ApplyFreeze(Stats.FreezeDuration);
         }
 
         if (Stats.IsPoisonFeather && Stats.PoisonDPS > 0)
         {
             float totalPoisonDamage = Stats.PoisonDPS * 3f;
-            enemy.ApplyPoison(totalPoisonDamage);
+            if (Stats.Variant == CardAscension.DeadlyToxin) enemy.ApplyDeadlyToxin();
+            else enemy.ApplyPoison(totalPoisonDamage);
         }
 
         if (!Stats.IsPoisonFeather && Stats.PoisonDamage > 0) enemy.ApplyPoison(Stats.PoisonDamage);
@@ -334,7 +353,7 @@ public class Projectile : MonoBehaviour
             {
                 Vector3 incomingDir = _rb.linearVelocity.normalized;
                 if (incomingDir.sqrMagnitude < 0.01f) incomingDir = transform.right;
-                wp.SpawnAirburst(enemy.transform.position, incomingDir, Stats.Damage, baseMult);
+                wp.SpawnAirburst(enemy.transform.position, incomingDir, Stats.Damage, baseMult, enemy.GetInstanceID());
             }
         }
 
@@ -348,6 +367,7 @@ public class Projectile : MonoBehaviour
             return;
         }
 
+        if (_lingering || Stats.InfinitePierce) return;
         if (_pierceLeft > 0)
         {
             _pierceLeft--;
@@ -356,8 +376,8 @@ public class Projectile : MonoBehaviour
         {
             _ricochetLeft--;
 
-            _currentDamageMultiplier *= RicochetDamageFalloff;
-            _currentSpeedMultiplier *= RicochetSpeedFalloff;
+            ApplyBounceScaling();
+            if (_lingering) return;
 
             Transform nextTarget = FindNearestEnemyExcluding();
 
@@ -399,6 +419,13 @@ public class Projectile : MonoBehaviour
         if (_electricHitResolved) return;
         _electricHitResolved = true;
         if (AudioManager.Instance != null) AudioManager.Instance.PlaySFX("Feather_Hit_Enemy");
+        if (Stats.Variant == CardAscension.Supercharged)
+        {
+            if (_electricOwner != null) _electricOwner.ShowElectricChain(firstTarget.transform.position + Vector3.up * 15, firstTarget.transform.position);
+            firstTarget.TakeDamage(Mathf.CeilToInt(firstTarget.MaxHealth));
+            Deactivate();
+            return;
+        }
 
         EnemyBase target = firstTarget;
         float damage = _electricDamage;
@@ -415,6 +442,8 @@ public class Projectile : MonoBehaviour
 
             // Keep the unrounded falloff for the next hop. EnemyBase's damage API uses whole HP.
             int hitDamage = Mathf.Max(1, Mathf.RoundToInt(damage));
+            bool critical = target.IsMarked || Random.value < Stats.CritChance;
+            if (critical) hitDamage *= 2;
             target.TakeDamage(hitDamage);
             if (GameUI.Instance != null) GameUI.Instance.ShowDamagePopup(hitPosition, hitDamage, false);
 
@@ -453,6 +482,7 @@ public class Projectile : MonoBehaviour
 
     void HandleGroundCollision()
     {
+        if (_lingering) return;
         // 1.4.11 PATCH: null-check AudioManager
         if (AudioManager.Instance != null)
         {
@@ -470,8 +500,8 @@ public class Projectile : MonoBehaviour
         {
             _ricochetLeft--;
 
-            _currentDamageMultiplier *= RicochetDamageFalloff;
-            _currentSpeedMultiplier *= RicochetSpeedFalloff;
+            ApplyBounceScaling();
+            if (_lingering) return;
 
             RaycastHit2D hit = Physics2D.Raycast(transform.position, -_rb.linearVelocity, 1.0f, LayerMask.GetMask("Ground"));
             if (hit.collider != null)
@@ -495,7 +525,12 @@ public class Projectile : MonoBehaviour
 
     void Explode()
     {
-        float actualRadius = Stats.ExplosionRadius / 3.0f;
+        float actualRadius = Stats.ExplosionRadius;
+        if (Stats.Variant == CardAscension.Volcano && !_eruptionSpawned)
+        {
+            _eruptionSpawned = true;
+            if (PlayerStats.Instance != null) PlayerStats.Instance.GetComponent<AscensionEffects>()?.Erupt(transform.position, actualRadius);
+        }
 
         if (ExplosionPrefab != null)
         {
@@ -513,11 +548,72 @@ public class Projectile : MonoBehaviour
                 float moneyHighMult = (PlayerStats.Instance != null) ? PlayerStats.Instance.GetCurrentMoneyHighMultiplier() : 1.0f;
                 float baseMult = Stats.DamageMultiplier > 0 ? Stats.DamageMultiplier : 1.0f;
 
-                int boomDamage = Mathf.CeilToInt(Stats.Damage * 0.5f * baseMult * moneyHighMult * _currentDamageMultiplier);
+                int boomDamage = Mathf.CeilToInt(PlayerStats.Instance != null
+                    ? PlayerStats.Instance.CalculateDamage(Stats.Damage, true, .5f * _currentDamageMultiplier, baseMult - 1)
+                    : Stats.Damage * .5f * baseMult * _currentDamageMultiplier);
 
                 if (e) e.TakeDamage(boomDamage);
             }
         }
+    }
+
+    void ApplyBounceScaling()
+    {
+        if (Stats.Variant == CardAscension.Tungsten)
+        {
+            if (_ricochetLeft <= 0)
+            {
+                _lingering = true; _lifeTimer = 1f;
+                _rb.linearVelocity = Vector2.zero; _rb.gravityScale = 0;
+            }
+            return;
+        }
+        float loss = PlayerStats.Instance != null ? PlayerStats.Instance.RicochetDamageLoss : .5f;
+        _currentDamageMultiplier *= 1f - Mathf.Clamp01(loss);
+        _currentSpeedMultiplier *= 1.5f;
+    }
+
+    void TraceInstant()
+    {
+        Vector2 origin = transform.position;
+        Vector2 direction = transform.right;
+        float remaining = Mathf.Max(30, Stats.Speed * _lifeTimer);
+        ContactFilter2D filter = new ContactFilter2D().NoFilter();
+        for (int segment = 0; segment < 32 && gameObject.activeSelf && !_lingering; segment++)
+        {
+            Physics2D.Raycast(origin, direction, filter, _instantHits, remaining);
+            bool found = false;
+            foreach (var hit in _instantHits)
+            {
+                if (hit.collider == null || hit.collider.gameObject == gameObject) continue;
+                var enemy = hit.collider.GetComponentInParent<EnemyBase>();
+                bool ground = hit.collider.CompareTag("Ground");
+                if (!ground && (enemy == null || !enemy.IsAlive || _hitEnemyIDs.Contains(enemy.GetInstanceID()))) continue;
+                transform.position = hit.point;
+                _rb.linearVelocity = direction * Stats.Speed * _currentSpeedMultiplier;
+                if (ground)
+                {
+                    if (_ricochetLeft > 0)
+                    {
+                        _ricochetLeft--; ApplyBounceScaling();
+                        direction = Vector2.Reflect(direction, hit.normal);
+                    }
+                    else { if (Stats.ExplosionRadius > 0) Explode(); Deactivate(); }
+                }
+                else if (_electricChainCount > 0) HitElectricChain(enemy);
+                else
+                {
+                    _hitEnemyIDs.Add(enemy.GetInstanceID()); HitEnemy(enemy);
+                    if (_rb.linearVelocity.sqrMagnitude > 0) direction = _rb.linearVelocity.normalized;
+                }
+                remaining -= hit.distance + .02f;
+                origin = hit.point + direction * .02f;
+                found = true;
+                break;
+            }
+            if (!found || remaining <= 0) break;
+        }
+        if (!_lingering) Deactivate();
     }
 
     void FindNearestTargetInFront()

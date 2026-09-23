@@ -14,21 +14,30 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: gad_medic_turret
   CardName: Medic
-  Description: Gain a medic turret that heals {0} health every {1} seconds
+  Description: A turret heals 1 health every {0} seconds.
   Icon: {fileID: 0}
   Rarity: 1
   PackCategory: 3
   Modifiers:
+  - StatType: 30
+    BaseAmount: 10
+    AmountPerShopLevel: -1
+    StackMode: 0
+    InRunStackAmount: 0
+    DisplayMultiplier: 1
   - StatType: 29
     BaseAmount: 1
-    AmountPerShopLevel: 0.2
-    StackMode: 2
+    AmountPerShopLevel: 0
+    StackMode: 0
     InRunStackAmount: 0
-  - StatType: 30
-    BaseAmount: 7
-    AmountPerShopLevel: -0.3
-    StackMode: 1
-    InRunStackAmount: 0
+    DisplayMultiplier: 1
   BaseUpgradeCost: 100
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 21
+  AscendedName: Savior
+  AscendedDescription: Every 7 seconds, places a healing aura lasting 5 seconds and
+    restoring 2 health per second while inside.
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 0
   BaseCost: 100

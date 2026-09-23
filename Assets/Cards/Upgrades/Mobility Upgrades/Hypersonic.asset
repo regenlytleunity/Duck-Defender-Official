@@ -14,16 +14,23 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: mob_hypersonic
   CardName: Hypersonic
-  Description: Coliding with enemies while moving at max speed deals {0} damage
+  Description: Colliding with enemies at maximum speed deals {0}% feather damage.
   Icon: {fileID: 0}
   Rarity: 1
   PackCategory: 1
   Modifiers:
   - StatType: 48
-    BaseAmount: 5
-    AmountPerShopLevel: 5
+    BaseAmount: 0.5
+    AmountPerShopLevel: 0.1
     StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 100
   BaseUpgradeCost: 100
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 0
+  AscendedName: 
+  AscendedDescription: 
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 0
   BaseCost: 100

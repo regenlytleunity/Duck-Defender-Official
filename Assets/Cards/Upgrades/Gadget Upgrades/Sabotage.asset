@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: gad_sabotage
   CardName: Sabotage
-  Description: Enemies spawn in missing {0}x less health
+  Description: Enemies spawn missing {0}% of their health.
   Icon: {fileID: 0}
   Rarity: 0
   PackCategory: 3
@@ -24,6 +24,13 @@ MonoBehaviour:
     AmountPerShopLevel: 0.05
     StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 100
   BaseUpgradeCost: 50
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 0
+  AscendedName: 
+  AscendedDescription: 
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 0
   BaseCost: 100

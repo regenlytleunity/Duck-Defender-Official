@@ -22,6 +22,10 @@ public class ShopManager : MonoBehaviour
     public int CurrentCoins;
 
     private PlayerData _playerData;
+    public event System.Action OnCollectionChanged;
+    public bool InfiniteResources => _playerData != null && _playerData.InfiniteGoldAndEssence;
+    public bool InfiniteCopies => _playerData != null && _playerData.InfiniteCopies;
+    public int GetEssence(CardPackType pack) => _playerData.GetEssence(pack);
 
     void Awake()
     {
@@ -55,11 +59,12 @@ public class ShopManager : MonoBehaviour
         if (changed) SaveSystem.SaveData(_playerData);
     }
 
-    public bool CanAfford(int cost) => CurrentCoins >= cost;
+    public bool CanAfford(int cost) => cost >= 0 && (InfiniteResources || CurrentCoins >= cost);
 
     public void SpendCoins(int amount)
     {
-        CurrentCoins -= amount;
+        if (!CanAfford(amount)) return;
+        if (!InfiniteResources) CurrentCoins -= amount;
         _playerData.TotalCoins = CurrentCoins;
         SaveSystem.SaveData(_playerData);
         if (MainMenuUI.Instance != null) MainMenuUI.Instance.UpdateCoinDisplay(CurrentCoins);
@@ -117,8 +122,11 @@ public class ShopManager : MonoBehaviour
         }
         else
         {
-            if (savedCard.Level < 5) savedCard.Duplicates++;
-            else CurrentCoins += 10;
+            CardDefinition definition = AllCards.Find(c => c != null && c.ID == cardID);
+            if (definition == null) return;
+            if (savedCard.Level < definition.MaxLevel && !savedCard.IsAscended)
+                savedCard.Duplicates = (int)System.Math.Min(int.MaxValue, (long)savedCard.Duplicates + 1);
+            else _playerData.AddEssence(definition.PackCategory, definition.EssencePerCopy);
         }
     }
 
@@ -127,20 +135,28 @@ public class ShopManager : MonoBehaviour
         CardSaveData savedCard = _playerData.CardCollection.Find(c => c.CardID == cardID);
         CardDefinition def = AllCards.Find(c => c.ID == cardID);
 
-        if (savedCard != null && def != null)
+        if (savedCard != null && def != null && !def.IsBasic && savedCard.IsUnlocked && !savedCard.IsAscended && savedCard.Level < def.MaxLevel)
         {
             int cost = def.GetUpgradeCost(savedCard.Level);
             int required = def.GetCardsRequired(savedCard.Level);
 
-            if (savedCard.Duplicates >= required && CurrentCoins >= cost)
+            if ((InfiniteCopies || savedCard.Duplicates >= required) && CanAfford(cost))
             {
-                CurrentCoins -= cost;
-                savedCard.Duplicates -= required;
+                if (!InfiniteResources) CurrentCoins -= cost;
+                if (!InfiniteCopies) savedCard.Duplicates -= required;
                 savedCard.Level++;
+                if (savedCard.Level >= def.MaxLevel)
+                {
+                    // Convert banked surplus too; no stranded copies at max level.
+                    long essence = (long)savedCard.Duplicates * def.EssencePerCopy;
+                    _playerData.AddEssence(def.PackCategory, (int)System.Math.Min(int.MaxValue, essence));
+                    savedCard.Duplicates = 0;
+                }
 
                 _playerData.TotalCoins = CurrentCoins;
                 SaveSystem.SaveData(_playerData);
                 if (MainMenuUI.Instance != null) MainMenuUI.Instance.UpdateCoinDisplay(CurrentCoins);
+                OnCollectionChanged?.Invoke();
 
                 return true;
             }
@@ -156,9 +172,66 @@ public class ShopManager : MonoBehaviour
 
     public void ResetProgress()
     {
-        _playerData = new PlayerData();
+        _playerData = PlayerData.CreateNew();
         SaveSystem.SaveData(_playerData);
         LoadEconomy();
         if (MainMenuUI.Instance != null) MainMenuUI.Instance.UpdateCoinDisplay(CurrentCoins);
+        OnCollectionChanged?.Invoke();
+    }
+
+    public bool TryAscendCard(string id)
+    {
+        var card = AllCards.Find(c => c != null && c.ID == id);
+        var saved = GetCardData(id);
+        if (card == null || saved == null || !saved.IsUnlocked || saved.IsAscended ||
+            saved.Level < card.MaxLevel || card.Ascension == CardAscension.None) return false;
+        if (!InfiniteResources && GetEssence(card.PackCategory) < card.AscensionCost) return false;
+        if (!InfiniteResources) _playerData.AddEssence(card.PackCategory, -card.AscensionCost);
+        saved.IsAscended = true;
+        SaveSystem.SaveData(_playerData);
+        OnCollectionChanged?.Invoke();
+        return true;
+    }
+
+    public List<CardDefinition> TryBuyPacks(ShopPackDefinition pack, int count)
+    {
+        if (pack == null || (count != 1 && count != 3) || pack.Cost < 0 ||
+            (long)pack.Cost * count > int.MaxValue ||
+            !AllCards.Any(c => c != null && c.PackCategory == pack.PackType)) return null;
+        int price = pack.Cost * count;
+        if (!CanAfford(price)) return null;
+        // Charge and grant together, before the cosmetic opening animation.
+        if (!InfiniteResources) CurrentCoins -= price;
+        _playerData.TotalCoins = CurrentCoins;
+        var cards = new List<CardDefinition>();
+        for (int i = 0; i < count; i++) cards.AddRange(OpenPack(pack.PackType));
+        SaveSystem.SaveData(_playerData);
+        OnCollectionChanged?.Invoke();
+        return cards;
+    }
+
+    public bool ExecuteDeveloperCode(string code)
+    {
+        bool max = code == "3619" || code == "5942";
+        bool unlock = code == "8672";
+        if (code != "9845" && code != "0381" && !max && !unlock) return false;
+        if (code == "9845" || code == "5942") _playerData.InfiniteGoldAndEssence = true;
+        if (code == "0381") _playerData.InfiniteCopies = true;
+        if (max || unlock || code == "0381")
+        {
+            foreach (var card in AllCards)
+            {
+                if (card == null || card.IsBasic) continue;
+                var saved = GetCardData(card.ID);
+                if (saved == null) { saved = new CardSaveData(card.ID); _playerData.CardCollection.Add(saved); }
+                saved.IsUnlocked = true;
+                if (max) { saved.Level = card.MaxLevel; saved.IsAscended = card.Ascension != CardAscension.None; saved.Duplicates = 0; }
+                // Unlock-all intentionally never downgrades already upgraded cards.
+            }
+        }
+        SaveSystem.SaveData(_playerData);
+        if (MainMenuUI.Instance != null) MainMenuUI.Instance.UpdateCoinDisplay(CurrentCoins);
+        OnCollectionChanged?.Invoke();
+        return true;
     }
 }

@@ -14,14 +14,23 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: bas_damage
   CardName: Damage Upgrade
-  Description: Increases damage by {0}
+  Description: Increases feather damage by {0}.
   Icon: {fileID: 0}
   Rarity: 0
   PackCategory: 4
   Modifiers:
   - StatType: 1
     BaseAmount: 1
-    AmountPerLevel: 0
+    AmountPerShopLevel: 0
+    StackMode: 0
+    InRunStackAmount: 0
+    DisplayMultiplier: 1
   BaseUpgradeCost: 50
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 0
+  AscendedName: 
+  AscendedDescription: 
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 0
   BaseCost: 100

@@ -14,17 +14,23 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: bas_health
   CardName: Health Upgrade
-  Description: Increases max mealth by {1} and health regen per wave by {0}
+  Description: Increases maximum health by {0}.
   Icon: {fileID: 0}
   Rarity: 0
   PackCategory: 4
   Modifiers:
-  - StatType: 57
-    BaseAmount: 1
-    AmountPerLevel: 0
   - StatType: 58
-    BaseAmount: 2
-    AmountPerLevel: 0
+    BaseAmount: 1
+    AmountPerShopLevel: 0
+    StackMode: 0
+    InRunStackAmount: 0
+    DisplayMultiplier: 1
   BaseUpgradeCost: 50
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 0
+  AscendedName: 
+  AscendedDescription: 
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 0
   BaseCost: 100

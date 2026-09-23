@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: mun_razor_sharp
   CardName: Razor Sharp Feathers
-  Description: Increases feather damage by {0} and grants a {1}x damage multiplier
+  Description: Increases feather damage by {0} and all damage by {1}%.
   Icon: {fileID: 0}
   Rarity: 0
   PackCategory: 0
@@ -24,11 +24,19 @@ MonoBehaviour:
     AmountPerShopLevel: 1
     StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 1
   - StatType: 2
-    BaseAmount: 0.02
-    AmountPerShopLevel: 0.02
+    BaseAmount: 0.05
+    AmountPerShopLevel: 0.05
     StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 100
   BaseUpgradeCost: 50
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 0
+  AscendedName: 
+  AscendedDescription: 
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 0
   BaseCost: 100

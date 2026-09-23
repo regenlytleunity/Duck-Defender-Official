@@ -14,9 +14,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: mun_electric_feathers
   CardName: Electric Feathers
-  Description: Every {0} attacks, fire an electric feather dealing normal attack
-    damage and chaining to up to {1} additional enemies. Each jump deals 50% of the
-    previous hit's damage.`
+  Description: Every {0} attacks, fires an electric feather chaining to {1} additional
+    enemies. Damage halves each jump.
   Icon: {fileID: 0}
   Rarity: 1
   PackCategory: 0
@@ -24,13 +23,22 @@ MonoBehaviour:
   - StatType: 80
     BaseAmount: 10
     AmountPerShopLevel: -1
-    StackMode: 1
+    StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 1
   - StatType: 81
     BaseAmount: 1
     AmountPerShopLevel: 1
-    StackMode: 1
+    StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 1
   BaseUpgradeCost: 100
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 5
+  AscendedName: Supercharged
+  AscendedDescription: Every 5 attacks, fires a feather calling lightning for 100%
+    of the struck enemy's maximum health.
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 1
   BaseCost: 100

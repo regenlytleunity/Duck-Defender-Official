@@ -7,6 +7,47 @@ using System.Collections;
 /// </summary>
 public abstract class EnemyBase : MonoBehaviour
 {
+    public static readonly System.Collections.Generic.List<EnemyBase> ActiveEnemies = new System.Collections.Generic.List<EnemyBase>();
+    public bool IsMarked { get; set; }
+    public float HealthRemaining => CurrentHealth;
+    float _permanentSlow;
+    float _zoneSlow;
+    float _zoneSlowUntil;
+    float _fractionalDamage;
+    bool _absoluteZero;
+    void OnEnable() { if (!ActiveEnemies.Contains(this)) ActiveEnemies.Add(this); }
+    void OnDisable() { ActiveEnemies.Remove(this); }
+
+    public static EnemyBase Nearest(Vector2 position, EnemyBase exclude = null)
+    {
+        EnemyBase nearest = null;
+        float distance = float.PositiveInfinity;
+        foreach (var enemy in ActiveEnemies)
+        {
+            if (enemy == null || enemy == exclude || !enemy.IsAlive) continue;
+            float d = ((Vector2)enemy.transform.position - position).sqrMagnitude;
+            if (d < distance) { distance = d; nearest = enemy; }
+        }
+        return nearest;
+    }
+
+    public void TakeFractionalDamage(float damage)
+    {
+        _fractionalDamage += Mathf.Max(0, damage);
+        int whole = Mathf.FloorToInt(_fractionalDamage + .00001f);
+        if (whole <= 0) return;
+        _fractionalDamage -= whole;
+        TakeDamage(whole);
+    }
+
+    public void ApplyZoneSlow(float fraction, float seconds = .3f)
+    {
+        if (Time.time >= _zoneSlowUntil) _zoneSlow = 0;
+        _zoneSlow = Mathf.Max(_zoneSlow, Mathf.Clamp01(fraction));
+        _zoneSlowUntil = Time.time + seconds;
+    }
+
+    public void Defeat() { if (IsAlive) Die(); }
     [Header("Base Stats")]
     public float BaseSpeed = 3f;
     public float BaseHealth = 2f;
@@ -109,6 +150,7 @@ public abstract class EnemyBase : MonoBehaviour
 
         Move();
         FacePlayer();
+        if (Rb != null && Time.time < _zoneSlowUntil) Rb.linearVelocity *= 1f - _zoneSlow;
 
         // 1.4.11: Apply slowing aura passively if player has it
         ApplySlowingAuraIfNearby();
@@ -214,6 +256,25 @@ public abstract class EnemyBase : MonoBehaviour
         StartCoroutine(PoisonRoutine(totalDamage));
     }
 
+    Coroutine _toxinRoutine;
+    public void ApplyDeadlyToxin()
+    {
+        if (!IsAlive) return;
+        if (_toxinRoutine != null) StopCoroutine(_toxinRoutine);
+        _toxinRoutine = StartCoroutine(DeadlyToxinRoutine());
+    }
+    IEnumerator DeadlyToxinRoutine()
+    {
+        for (int second = 0; second < 3 && IsAlive; second++)
+        {
+            yield return new WaitForSeconds(1);
+            if (!IsAlive) break;
+            if (Random.value < .1f) Nearest(transform.position, this)?.ApplyDeadlyToxin();
+            TakeFractionalDamage(PlayerStats.Instance != null ? PlayerStats.Instance.CalculateDamage(5, false) : 5);
+        }
+        _toxinRoutine = null;
+    }
+
     public void ApplySlow(float slowFactor)
     {
         if (_isDead) return;
@@ -229,6 +290,12 @@ public abstract class EnemyBase : MonoBehaviour
         _freezeRoutine = StartCoroutine(FreezeRoutine(duration));
     }
 
+    public void ApplyAbsoluteZero(float duration)
+    {
+        _absoluteZero = true;
+        ApplyFreeze(duration);
+    }
+
     IEnumerator FreezeRoutine(float duration)
     {
         IsFrozen = true;
@@ -236,6 +303,7 @@ public abstract class EnemyBase : MonoBehaviour
         UpdateColor();
         yield return new WaitForSeconds(duration);
         IsFrozen = false;
+        if (_absoluteZero) { _permanentSlow = .75f; RecalculateSlowedSpeed(); }
         _freezeRoutine = null;
         UpdateColor();
     }
@@ -247,14 +315,14 @@ public abstract class EnemyBase : MonoBehaviour
         float duration = 3.0f;
         float interval = 0.5f;
         int ticks = Mathf.FloorToInt(duration / interval);
-        int damagePerTick = Mathf.CeilToInt(totalDamage / ticks);
-        if (damagePerTick < 1) damagePerTick = 1;
+        float damagePerTick = totalDamage / ticks;
 
         for (int i = 0; i < ticks; i++)
         {
             if (_isDead) break;
 
-            TakeDamage(damagePerTick);
+            float damage = PlayerStats.Instance != null ? PlayerStats.Instance.CalculateDamage(damagePerTick, false) : damagePerTick;
+            TakeFractionalDamage(damage);
             UpdateColor();
             yield return new WaitForSeconds(0.1f);
             UpdateColor();
@@ -283,13 +351,13 @@ public abstract class EnemyBase : MonoBehaviour
         if (_slowStacks <= 0)
         {
             _slowStacks = 0;
-            CurrentSpeed = _originalSpeed;
+            CurrentSpeed = _originalSpeed * (1f - _permanentSlow);
         }
         else
         {
             float multiplier = Mathf.Pow(0.8f, _slowStacks);
             multiplier = Mathf.Max(multiplier, 0.1f);
-            CurrentSpeed = _originalSpeed * multiplier;
+            CurrentSpeed = _originalSpeed * Mathf.Min(multiplier, 1f - _permanentSlow);
         }
     }
 
@@ -326,6 +394,9 @@ public abstract class EnemyBase : MonoBehaviour
     {
         if (_isDead) return;
         _isDead = true;
+
+        if (PlayerStats.Instance != null && PlayerStats.Instance.HasAscension(CardAscension.Vampire))
+            PlayerStats.Instance.GetComponent<AscensionEffects>()?.DropHealingOrb(transform.position);
 
         if (LevelManager.Instance != null)
             LevelManager.Instance.AddXP(XPValue);

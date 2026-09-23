@@ -14,16 +14,24 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: sur_thorns
   CardName: Thorns
-  Description: Coliding with an enemy deals {0} damage
+  Description: Colliding with an enemy deals {0} damage.
   Icon: {fileID: 0}
   Rarity: 0
   PackCategory: 2
   Modifiers:
   - StatType: 56
-    BaseAmount: 2
+    BaseAmount: 1
     AmountPerShopLevel: 1
     StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 1
   BaseUpgradeCost: 50
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 15
+  AscendedName: Pincushion
+  AscendedDescription: Taking damage releases infinitely piercing needles left and
+    right for 5 damage each.
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 0
   BaseCost: 100

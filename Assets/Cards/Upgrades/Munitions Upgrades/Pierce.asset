@@ -14,16 +14,23 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: mun_pierce
   CardName: Pierce
-  Description: Feathers pierce {0} additional enemies
+  Description: Feathers pierce {0} additional enemies.
   Icon: {fileID: 0}
   Rarity: 1
   PackCategory: 0
   Modifiers:
   - StatType: 13
     BaseAmount: 1
-    AmountPerShopLevel: 0.2
+    AmountPerShopLevel: 1
     StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 1
   BaseUpgradeCost: 100
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 0
+  AscendedName: 
+  AscendedDescription: 
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 0
   BaseCost: 100

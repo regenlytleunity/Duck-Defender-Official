@@ -3803,7 +3803,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 76111fbcdc87d4007b103d6383b52ddf, type: 2}
   - {fileID: 11400000, guid: 57a5ed10b658443fdb2e13b59f47b69f, type: 2}
   - {fileID: 11400000, guid: e7b66bd1ac44647c2aba20b60cdfb302, type: 2}
-  CurrentCoins: 0
+  CurrentCoins: 100000
 --- !u!4 &1117626357
 Transform:
   m_ObjectHideFlags: 0
@@ -6102,6 +6102,13 @@ MonoBehaviour:
   ConfirmPanel: {fileID: 1180121706}
   ConfirmText: {fileID: 1460337380}
   YesButton: {fileID: 240685955}
+  BuyThreeButton: {fileID: 0}
+  BuyThreeText: {fileID: 0}
+  AdditionalPackImages: []
+  RevealGrid: {fileID: 0}
+  SingleCardSize: {x: 260, y: 360}
+  TripleCardSize: {x: 160, y: 220}
+  EssenceBalancesText: {fileID: 0}
   OpeningOverlay: {fileID: 1875181350}
   PackImage: {fileID: 929492739}
   SliceZone: {fileID: 1329819250}

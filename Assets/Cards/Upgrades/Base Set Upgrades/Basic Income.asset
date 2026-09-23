@@ -14,14 +14,23 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: bas_income
   CardName: Coins Upgrade
-  Description: Earn +{0} coins per wave
+  Description: Earn {0} additional coins per wave.
   Icon: {fileID: 0}
   Rarity: 0
   PackCategory: 4
   Modifiers:
   - StatType: 54
     BaseAmount: 10
-    AmountPerLevel: 0
+    AmountPerShopLevel: 0
+    StackMode: 0
+    InRunStackAmount: 0
+    DisplayMultiplier: 1
   BaseUpgradeCost: 50
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 0
+  AscendedName: 
+  AscendedDescription: 
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 0
   BaseCost: 100

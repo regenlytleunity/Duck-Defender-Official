@@ -134,7 +134,8 @@ public class MarksmanTurret : TurretBase
         }
 
         Projectile.BallisticData stats = new Projectile.BallisticData();
-        stats.Damage = Mathf.Max(1, Mathf.RoundToInt(playerDamage * 0.5f));
+        stats.Damage = playerDamage;
+        stats.DamageRatio = .5f;
         stats.DamageMultiplier = playerDamageMult;
         stats.Speed = ProjectileSpeed;
         stats.Knockback = 1f;
@@ -153,7 +154,8 @@ public class MarksmanTurret : TurretBase
         stats.IsMetalFeather = false;
         stats.IsExplosiveFeather = false;
         stats.IsBuckshotPellet = false;
-        stats.CanAirburst = false;  // 1.4.11: turret shots don't airburst
+        stats.CanAirburst = false;
+        stats.MarkTarget = PlayerStats.Instance != null && PlayerStats.Instance.HasAscension(CardAscension.Marksman);  // 1.4.11: turret shots don't airburst
 
         p.Initialize(stats);
         p.SetColor(new Color(0.7f, 0.9f, 1f, 1f));

@@ -14,16 +14,23 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: sur_coin_magnet
   CardName: Coin Magnet
-  Description: Increases coin pickup range by {0}
+  Description: Increases coin pickup radius by {0}.
   Icon: {fileID: 0}
   Rarity: 1
   PackCategory: 2
   Modifiers:
   - StatType: 59
-    BaseAmount: 1
-    AmountPerShopLevel: 0.5
+    BaseAmount: 5
+    AmountPerShopLevel: 2
     StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 1
   BaseUpgradeCost: 100
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 0
+  AscendedName: 
+  AscendedDescription: 
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 0
   BaseCost: 100

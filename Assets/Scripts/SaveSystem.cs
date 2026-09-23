@@ -26,7 +26,19 @@ public static class SaveSystem
     private static extern void SyncFiles();
     #endif
     
-    private static string SavePath => Path.Combine(Application.persistentDataPath, SaveFileName);
+    #if UNITY_EDITOR
+    public static string VerificationSavePath;
+    #endif
+    private static string SavePath
+    {
+        get
+        {
+            #if UNITY_EDITOR
+            if (!string.IsNullOrEmpty(VerificationSavePath)) return VerificationSavePath;
+            #endif
+            return Path.Combine(Application.persistentDataPath, SaveFileName);
+        }
+    }
     
     /// <summary>
     /// Saves player data to disk. On WebGL, additionally syncs to IndexedDB 
@@ -68,7 +80,7 @@ public static class SaveSystem
         if (!File.Exists(SavePath))
         {
             Debug.Log("[SaveSystem] No save file found. Starting fresh.");
-            return new PlayerData();
+            return PlayerData.CreateNew();
         }
         
         try
@@ -78,7 +90,7 @@ public static class SaveSystem
             if (string.IsNullOrWhiteSpace(json))
             {
                 Debug.LogWarning("[SaveSystem] Save file is empty. Starting fresh.");
-                return new PlayerData();
+                return PlayerData.CreateNew();
             }
             
             PlayerData data = JsonUtility.FromJson<PlayerData>(json);
@@ -86,9 +98,16 @@ public static class SaveSystem
             if (data == null)
             {
                 Debug.LogWarning("[SaveSystem] Save file parsed to null. Starting fresh.");
-                return new PlayerData();
+                return PlayerData.CreateNew();
             }
             
+            // Intentionally reset pre-rework progression once, preserving the new schema thereafter.
+            if (data.ProgressionVersion < PlayerData.CurrentVersion)
+            {
+                data = PlayerData.CreateNew();
+                SaveData(data);
+            }
+
             // Defensive: ensure card list isn't null if save was made by an older version
             if (data.CardCollection == null)
                 data.CardCollection = new System.Collections.Generic.List<CardSaveData>();
@@ -98,7 +117,7 @@ public static class SaveSystem
         catch (System.Exception e)
         {
             Debug.LogError($"[SaveSystem] Failed to load: {e.Message}. Starting fresh.");
-            return new PlayerData();
+            return PlayerData.CreateNew();
         }
     }
     

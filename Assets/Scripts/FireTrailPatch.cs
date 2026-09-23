@@ -66,7 +66,8 @@ public class FireTrailPatch : MonoBehaviour
     [Tooltip("If true, shows damage popups when the patch hits an enemy.")]
     public bool ShowDamagePopups = true;
 
-    private int _damagePerTick;
+    private float _damagePerTick;
+    public float SlowPercent;
     private float _duration;
     private float _timeSpawned;
     private float _nextTickTime;
@@ -83,13 +84,13 @@ public class FireTrailPatch : MonoBehaviour
     /// </summary>
     public void Initialize(int damagePerTick, float duration)
     {
-        _damagePerTick = Mathf.Max(1, damagePerTick);
+        _damagePerTick = Mathf.Max(0, damagePerTick) * Mathf.Max(.05f, DamageTickInterval);
         _duration = Mathf.Max(0.5f, duration);
         _timeSpawned = Time.time;
 
         // Tick immediately on spawn so enemies standing right where the patch dropped 
         // get hit before they can walk away.
-        _nextTickTime = Time.time;
+        _nextTickTime = Time.time + Mathf.Max(.05f, DamageTickInterval);
 
         ResolveDamageRadius();
         AdjustSpawnPosition();
@@ -163,7 +164,7 @@ public class FireTrailPatch : MonoBehaviour
     void Update()
     {
         float age = Time.time - _timeSpawned;
-        if (age >= _duration)
+        if (age > _duration + .001f)
         {
             Destroy(gameObject);
             return;
@@ -193,30 +194,12 @@ public class FireTrailPatch : MonoBehaviour
     /// </summary>
     void TickDamage()
     {
-        Collider2D[] hits = Physics2D.OverlapCircleAll(transform.position, _resolvedDamageRadius);
-        int damaged = 0;
-        
-        foreach (var hit in hits)
+        foreach (var enemy in EnemyBase.ActiveEnemies)
         {
-            if (hit == null) continue;
-            if (!hit.CompareTag("Enemy")) continue;
-
-            EnemyBase enemy = hit.GetComponent<EnemyBase>();
-            if (enemy == null) continue;
-
-            enemy.TakeDamage(_damagePerTick);
-            damaged++;
-
-            if (ShowDamagePopups && GameUI.Instance != null)
-            {
-                GameUI.Instance.ShowDamagePopup(enemy.transform.position, _damagePerTick, false);
-            }
-        }
-
-        if (DebugLog)
-        {
-            Debug.Log($"[FireTrailPatch] Tick at {transform.position} radius={_resolvedDamageRadius:F2}: " +
-                      $"damaged {damaged} enem{(damaged == 1 ? "y" : "ies")} for {_damagePerTick}");
+            if (enemy == null || !enemy.IsAlive || Vector2.Distance(transform.position, enemy.transform.position) > _resolvedDamageRadius) continue;
+            float damage = PlayerStats.Instance != null ? PlayerStats.Instance.CalculateDamage(_damagePerTick, false) : _damagePerTick;
+            enemy.TakeFractionalDamage(damage);
+            if (SlowPercent > 0) enemy.ApplyZoneSlow(SlowPercent, DamageTickInterval + .1f);
         }
     }
 

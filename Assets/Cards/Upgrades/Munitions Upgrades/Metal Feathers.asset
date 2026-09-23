@@ -14,22 +14,37 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: mun_metal_feathers
   CardName: Metal Feathers
-  Description: Every {0} attacks fires a metal feather that deals 200% of feather
-    damage and +{1} knockback to enemies
+  Description: Every {0} attacks, fires a heavy feather dealing {1}% feather damage
+    and knocking enemies back.
   Icon: {fileID: 0}
   Rarity: 1
   PackCategory: 0
   Modifiers:
   - StatType: 11
-    BaseAmount: 10
+    BaseAmount: 7
     AmountPerShopLevel: -1
-    StackMode: 2
-    InRunStackAmount: 0
-  - StatType: 12
-    BaseAmount: 2
-    AmountPerShopLevel: 1
     StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 1
+  - StatType: 83
+    BaseAmount: 1.5
+    AmountPerShopLevel: 0.5
+    StackMode: 0
+    InRunStackAmount: 0
+    DisplayMultiplier: 100
+  - StatType: 12
+    BaseAmount: 2
+    AmountPerShopLevel: 0
+    StackMode: 0
+    InRunStackAmount: 0
+    DisplayMultiplier: 1
   BaseUpgradeCost: 100
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 4
+  AscendedName: 100% Tungsten
+  AscendedDescription: Every 2 attacks, fires a heavy cube for 400% feather damage.
+    It bounces 3 times and then lingers for 1 second.
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 1
   BaseCost: 100

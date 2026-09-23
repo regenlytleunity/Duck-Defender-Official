@@ -14,16 +14,23 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: mun_faster_firing
   CardName: Faster Firing
-  Description: Decreases cooldown between attacks by {0} seconds
+  Description: Reduces attack cooldown by {0}%.
   Icon: {fileID: 0}
   Rarity: 0
   PackCategory: 0
   Modifiers:
   - StatType: 0
-    BaseAmount: 0.05
-    AmountPerShopLevel: 0.02
+    BaseAmount: 0.15
+    AmountPerShopLevel: 0.15
     StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 100
   BaseUpgradeCost: 50
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 0
+  AscendedName: 
+  AscendedDescription: 
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 0
   BaseCost: 100

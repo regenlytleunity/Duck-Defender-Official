@@ -120,6 +120,12 @@ public class PlayerController : MonoBehaviour
     private int _currentDashCount;
 
     private float _peakY;
+    bool _jumpedSinceLanding, _leftGroundSinceJump;
+    float _lastShockwaveTime = -100;
+    float _flightUntil = -1, _flightReady;
+    public bool IsGrounded => _isGrounded;
+    public float EffectiveMaxSpeed => MaxRunSpeed * (PlayerStats.Instance != null ? PlayerStats.Instance.SpeedMultiplier : 1f);
+    public bool IsFlying => Time.time < _flightUntil;
 
     private static readonly int AnimIsMoving = Animator.StringToHash("isMoving");
     private static readonly int AnimIsIdle = Animator.StringToHash("isIdle");
@@ -163,7 +169,7 @@ public class PlayerController : MonoBehaviour
 
     void Update()
     {
-        if (_isDead) return;
+        if (_isDead || Time.timeScale == 0) return;
 
         if (InputHelper.GetDashDown()) OnDashKeyPressed();
 
@@ -235,7 +241,13 @@ public class PlayerController : MonoBehaviour
         if (_isDead) return;
         if (_isDashing) return;
         ApplyMovement();
-        ApplyGravityModifiers();
+        if (IsFlying)
+        {
+            _rb.gravityScale = 0;
+            float vertical = InputHelper.GetVertical() < -.1f ? -1f : InputHelper.GetJumpHeld() ? 1f : 0f;
+            _rb.linearVelocity = new Vector2(_rb.linearVelocity.x, vertical * EffectiveMaxSpeed);
+        }
+        else ApplyGravityModifiers();
     }
 
     // ============================================================
@@ -285,6 +297,8 @@ public class PlayerController : MonoBehaviour
             AudioManager.Instance.PlaySFX("Player_Dash");
         }
 
+        if (PlayerStats.Instance.HasAscension(CardAscension.Wormhole))
+            GetComponent<AscensionEffects>()?.SpawnWormhole(transform.position);
         transform.position = targetPos;
 
         // Player is invulnerable for BlinkDuration seconds
@@ -295,7 +309,7 @@ public class PlayerController : MonoBehaviour
         _isBlinking = false;
 
         // Schedule next blink
-        _nextBlinkTime = Time.time + PlayerStats.Instance.BlinkInterval;
+        _nextBlinkTime = Time.time + PlayerStats.Instance.BlinkInterval * (PlayerStats.Instance.HasAscension(CardAscension.Wormhole) ? 2 : 1) / PlayerStats.Instance.BeneficialStatMultiplier;
     }
 
     // ============================================================
@@ -306,7 +320,7 @@ public class PlayerController : MonoBehaviour
     {
         if (PlayerStats.Instance == null || !PlayerStats.Instance.HasFireTrail) return;
         if (FireTrailPatchPrefab == null) return;
-        if (Mathf.Abs(xInput) < 0.1f && _isGrounded == false) return; // need movement or air motion
+        if (Mathf.Abs(_rb.linearVelocity.x) < .1f && Mathf.Abs(_rb.linearVelocity.y) < .1f) return; // need movement or air motion
         if (Time.time < _nextFireTrailDropTime) return;
 
         Vector3 dropPos = FeetPos != null ? FeetPos.position : transform.position;
@@ -314,6 +328,7 @@ public class PlayerController : MonoBehaviour
         FireTrailPatch ft = patch.GetComponent<FireTrailPatch>();
         if (ft != null)
         {
+            ft.SlowPercent = PlayerStats.Instance.HasAscension(CardAscension.ObsidianTrail) ? .5f : 0;
             ft.Initialize(
                 PlayerStats.Instance.FireTrailDamage,
                 PlayerStats.Instance.FireTrailDuration
@@ -330,7 +345,7 @@ public class PlayerController : MonoBehaviour
     private void OnDashKeyPressed()
     {
         if (_isDead || _isDashing) return;
-        if (Time.time < _lastDashTime + DashCooldown) return;
+        if (Time.time < _lastDashTime + DashCooldown / (PlayerStats.Instance != null ? PlayerStats.Instance.BeneficialStatMultiplier : 1f)) return;
         if (!CanPlayerDash()) return;
 
         bool isShockwaveDash = PlayerStats.Instance != null &&
@@ -389,11 +404,19 @@ public class PlayerController : MonoBehaviour
     public void SpawnMeteor()
     {
         if (CoinMeteorPrefab == null) return;
-        GameObject[] enemies = GameObject.FindGameObjectsWithTag("Enemy");
-        Vector3 targetPos = enemies.Length > 0
-            ? enemies[Random.Range(0, enemies.Length)].transform.position
-            : transform.position;
-        Instantiate(CoinMeteorPrefab, targetPos + new Vector3(0, 10, 0), Quaternion.identity);
+        var nearest = EnemyBase.Nearest(transform.position);
+        Vector3 targetPos = nearest != null ? nearest.transform.position : transform.position;
+        Instantiate(CoinMeteorPrefab, targetPos + Vector3.up * 10, Quaternion.identity);
+    }
+
+    public void SpawnSecondaryMeteor()
+    {
+        if (CoinMeteorPrefab == null) return;
+        Camera cam = Camera.main;
+        Vector3 position = cam != null ? cam.ViewportToWorldPoint(new Vector3(Random.value, Random.value, -cam.transform.position.z)) : transform.position;
+        position.z = 0;
+        var meteor = Instantiate(CoinMeteorPrefab, position + Vector3.up * 10, Quaternion.identity).GetComponent<Meteor>();
+        if (meteor != null) meteor.ConfigureSecondary();
     }
 
     void HandleDashPhysics()
@@ -414,21 +437,28 @@ public class PlayerController : MonoBehaviour
 
     void PerformShockwaveDamage()
     {
+        if (Time.time - _lastShockwaveTime < .1f) return;
+        _lastShockwaveTime = Time.time;
+        Vector3 position = GroundCheck != null ? GroundCheck.position : transform.position;
+        ShockwaveAt(position, 1);
+        if (PlayerStats.Instance != null && PlayerStats.Instance.HasAscension(CardAscension.Earthquake))
+            StartCoroutine(SecondaryShockwave(position));
+    }
+    IEnumerator SecondaryShockwave(Vector3 position)
+    {
+        yield return new WaitForSeconds(.3f);
+        ShockwaveAt(position, .5f);
+    }
+    void ShockwaveAt(Vector3 position, float fraction)
+    {
+        if (GroundSlamPrefab != null) Instantiate(GroundSlamPrefab, position, Quaternion.identity);
         if (AudioManager.Instance != null) AudioManager.Instance.PlaySFX("Shockwave_Ground_Impact");
-
-        Collider2D[] hits = Physics2D.OverlapCircleAll(GroundCheck.position, ShockwaveRadius);
-        foreach (var hit in hits)
+        foreach (var enemy in EnemyBase.ActiveEnemies)
         {
-            if (hit.CompareTag("Enemy"))
-            {
-                EnemyBase enemy = hit.GetComponent<EnemyBase>();
-                if (enemy != null)
-                {
-                    enemy.TakeDamage(Mathf.CeilToInt(ShockwaveDamage));
-                    Vector2 dir = (enemy.transform.position - GroundCheck.position).normalized;
-                    enemy.ApplyKnockback(dir * 10f);
-                }
-            }
+            if (enemy == null || !enemy.IsAlive || Vector2.Distance(position, enemy.transform.position) > ShockwaveRadius) continue;
+            float damage = PlayerStats.Instance != null ? PlayerStats.Instance.CalculateDamage(ShockwaveDamage, false, fraction) : ShockwaveDamage * fraction;
+            enemy.TakeFractionalDamage(damage);
+            enemy.ApplyKnockback(((Vector2)enemy.transform.position - (Vector2)position).normalized * 10);
         }
     }
 
@@ -436,6 +466,13 @@ public class PlayerController : MonoBehaviour
     {
         if (InputHelper.GetJumpDown())
         {
+            if (PlayerStats.Instance != null && PlayerStats.Instance.HasAscension(CardAscension.LearnToFly) && Time.time >= _flightReady)
+            {
+                _flightUntil = Time.time + 7;
+                _flightReady = _flightUntil + 10;
+                return;
+            }
+            if (IsFlying) return;
             // 1.4.11: standing on an enemy counts as grounded for jump purposes
             if (_isGrounded || _isStandingOnEnemy || _currentJumpCount < MaxJumps) Jump();
         }
@@ -446,8 +483,9 @@ public class PlayerController : MonoBehaviour
         if (AudioManager.Instance != null) AudioManager.Instance.PlaySFX("Player_Jump");
 
         _rb.linearVelocity = new Vector2(_rb.linearVelocity.x, 0);
-        _rb.AddForce(Vector2.up * JumpForce, ForceMode2D.Impulse);
+        _rb.AddForce(Vector2.up * JumpForce * (PlayerStats.Instance != null ? PlayerStats.Instance.BeneficialStatMultiplier : 1f), ForceMode2D.Impulse);
         _currentJumpCount++;
+        _jumpedSinceLanding = true;
         if (!_isGrounded && CloudBurstPrefab != null && FeetPos != null)
             Instantiate(CloudBurstPrefab, FeetPos.position, Quaternion.identity);
     }
@@ -495,7 +533,7 @@ public class PlayerController : MonoBehaviour
 
     private void ApplyMovement()
     {
-        float targetSpeed = _moveInput.x * MaxRunSpeed;
+        float targetSpeed = _moveInput.x * EffectiveMaxSpeed;
         float speedDif = targetSpeed - _rb.linearVelocity.x;
         float accelRate = (Mathf.Abs(targetSpeed) > 0.01f) ? Acceleration : GroundDeceleration;
         if (!_isGrounded) accelRate *= 0.8f;
@@ -527,6 +565,12 @@ public class PlayerController : MonoBehaviour
         // Standing-on-enemy is true when an enemy collider overlaps the GroundCheck point AND
         // we're moving downward or stationary (so side collisions don't count).
         _isStandingOnEnemy = CheckStandingOnEnemy();
+        if (!_isGrounded && _jumpedSinceLanding) _leftGroundSinceJump = true;
+        if (_isGrounded && !wasGrounded && _leftGroundSinceJump)
+        {
+            if (ShockwaveDamage > 0) PerformShockwaveDamage();
+            _jumpedSinceLanding = false; _leftGroundSinceJump = false;
+        }
 
         if ((_isGrounded || _isStandingOnEnemy) && !wasGrounded)
         {
@@ -581,17 +625,17 @@ public class PlayerController : MonoBehaviour
     void OnCollisionEnter2D(Collision2D collision)
     {
         if (PlayerStats.Instance == null) return;
-        if (PlayerStats.Instance.MaxSpeedDamage <= 0) return;
+        if (PlayerStats.Instance.HypersonicDamageFraction <= 0) return;
 
         if (!collision.collider.CompareTag("Enemy")) return;
 
         float currentSpeed = Mathf.Abs(_rb.linearVelocity.x);
-        if (currentSpeed < MaxRunSpeed * 0.9f) return;
+        if (currentSpeed < EffectiveMaxSpeed * 0.99f) return;
 
         EnemyBase enemy = collision.collider.GetComponent<EnemyBase>();
         if (enemy != null)
         {
-            int dmg = PlayerStats.Instance.MaxSpeedDamage;
+            int dmg = Mathf.Max(1, Mathf.RoundToInt(_weapon.FeatherDamage(PlayerStats.Instance.HypersonicDamageFraction)));
             enemy.TakeDamage(dmg);
 
             // Knock the enemy away from the player

@@ -14,22 +14,31 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: mun_minigun
   CardName: Minigun
-  Description: Gain an additional minigun attack that fires at double the player's
-    fire rate for {0} seconds before going on cooldown
+  Description: Adds a minigun starting at double fire rate and slowing as it heats
+    over {0} seconds. Full recovery takes {1} seconds.
   Icon: {fileID: 0}
   Rarity: 2
   PackCategory: 0
   Modifiers:
   - StatType: 19
-    BaseAmount: 5
+    BaseAmount: 3
     AmountPerShopLevel: 1
-    StackMode: 2
+    StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 1
   - StatType: 20
     BaseAmount: 5
-    AmountPerShopLevel: -1.2
-    StackMode: 1
+    AmountPerShopLevel: -0.5
+    StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 1
   BaseUpgradeCost: 250
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 8
+  AscendedName: Death-Ray
+  AscendedDescription: Attacking fires a continuous beam dealing 10 damage per second
+    to every enemy inside.
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 0
   BaseCost: 100

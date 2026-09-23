@@ -14,16 +14,23 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: sur_syphon
   CardName: Syphon
-  Description: Enemies drop {0}x more coins
+  Description: Enemies drop {0}% more coins.
   Icon: {fileID: 0}
   Rarity: 0
   PackCategory: 2
   Modifiers:
   - StatType: 55
-    BaseAmount: 0.25
-    AmountPerShopLevel: 0.05
+    BaseAmount: 0.5
+    AmountPerShopLevel: 0.2
     StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 100
   BaseUpgradeCost: 50
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 0
+  AscendedName: 
+  AscendedDescription: 
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 0
   BaseCost: 100

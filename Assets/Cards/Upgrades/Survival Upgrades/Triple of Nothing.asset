@@ -14,22 +14,30 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: sur_triple_or_nothing
   CardName: Triple or Nothing
-  Description: Every {0} coins colected gives a temporary triple shot attack for
-    the next {1} seconds
+  Description: Every {0} coins collected grants triple shot for {1} seconds.
   Icon: {fileID: 0}
   Rarity: 2
   PackCategory: 2
   Modifiers:
   - StatType: 66
-    BaseAmount: 15
-    AmountPerShopLevel: -1
-    StackMode: 2
+    BaseAmount: 30
+    AmountPerShopLevel: -2
+    StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 1
   - StatType: 67
-    BaseAmount: 3
-    AmountPerShopLevel: 0.5
-    StackMode: 1
+    BaseAmount: 2
+    AmountPerShopLevel: 0.1
+    StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 1
   BaseUpgradeCost: 250
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 19
+  AscendedName: Double Down
+  AscendedDescription: Every 20 coins, attacks fire 6 feathers with random damage,
+    speed, homing, piercing, angle and bounces for 2.5 seconds.
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 1
   BaseCost: 100

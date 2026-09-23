@@ -12,7 +12,7 @@ public class EnemyProjectile : MonoBehaviour
 
     void Update()
     {
-        transform.Translate(Vector2.right * Speed * Time.deltaTime);
+        transform.Translate(Vector2.right * Speed * PlayerStats.ProjectileSpeedFactor(transform.position) * Time.deltaTime);
 
         _timer -= Time.deltaTime;
         if (_timer <= 0) gameObject.SetActive(false);
@@ -20,6 +20,8 @@ public class EnemyProjectile : MonoBehaviour
 
     void OnTriggerEnter2D(Collider2D collision)
     {
+        var wall = collision.GetComponentInParent<DefenderWall>();
+        if (wall != null) { wall.TakeDamage(Damage); gameObject.SetActive(false); return; }
         if (collision.CompareTag("Player"))
         {
             // FIX: Get the health component and apply damage

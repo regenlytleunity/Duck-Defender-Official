@@ -14,22 +14,30 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: gad_feather_duplicator
   CardName: Feather Duplicator
-  Description: Fire {0} additional feathers with every attack, feather damage is
-    reduced by {1}x
+  Description: Every attack fires an extra feather dealing {0}% less damage.
   Icon: {fileID: 0}
   Rarity: 2
   PackCategory: 3
   Modifiers:
+  - StatType: 85
+    BaseAmount: 0.5
+    AmountPerShopLevel: -0.05
+    StackMode: 0
+    InRunStackAmount: 0
+    DisplayMultiplier: 100
   - StatType: 33
     BaseAmount: 1
     AmountPerShopLevel: 0
     StackMode: 0
     InRunStackAmount: 0
-  - StatType: 2
-    BaseAmount: -0.25
-    AmountPerShopLevel: 0.05
-    StackMode: 0
-    InRunStackAmount: 0
+    DisplayMultiplier: 1
   BaseUpgradeCost: 250
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 25
+  AscendedName: Divine Duplicator
+  AscendedDescription: Each attack calls an additional feather from above for 50%
+    feather damage.
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 0
   BaseCost: 100

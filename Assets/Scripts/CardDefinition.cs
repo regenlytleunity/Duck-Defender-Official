@@ -184,7 +184,17 @@ public enum StatType
 
     // Append new values to preserve existing serialized StatType indices.
     ElectricFeatherThreshold,
-    ElectricFeatherChainCount
+    ElectricFeatherChainCount,
+    BuckshotDamageFraction, MetalDamageFraction, RicochetDamageLoss,
+    DuplicatorDamageReduction, ElementalTargetCount, NonFeatherDamage
+}
+
+public enum CardAscension
+{
+    None, QuantumLeap, AbsoluteZero, Vampire, Tungsten, Supercharged, DeadlyToxin,
+    Volcano, DeathRay, Wormhole, LearnToFly, Untouchable, ObsidianTrail, Earthquake,
+    RecoveryPlus, Pincushion, AbsoluteExtinction, IllegalOperations, Rebirth,
+    DoubleDown, Marksman, Savior, Defender, CursorAura, Elemental, DivineDuplicator
 }
 
 public enum CardRarity { Common, Rare, Legendary, Corrupted }
@@ -231,6 +241,9 @@ public struct CardStatModifier
     [Tooltip("Only used when StackMode is Custom. Amount added per in-run re-pick. " +
              "0 = re-picking has no additional effect.")]
     public float InRunStackAmount;
+
+    [Tooltip("Description formatting only: use 100 for fractional percentages.")]
+    public float DisplayMultiplier;
 }
 
 [CreateAssetMenu(fileName = "NewCard", menuName = "DuckDefender/Card Definition")]
@@ -249,7 +262,17 @@ public class CardDefinition : ScriptableObject
 
     [Header("Leveling Config")]
     public int BaseUpgradeCost = 50;
-    public int MaxLevel = 5;
+    public int MaxLevel = 6;
+
+    [Header("Ascension")]
+    public CardAscension Ascension;
+    public string AscendedName;
+    [TextArea] public string AscendedDescription;
+    public Sprite AscendedIcon;
+    public int AscensionCost = 1000;
+    [Tooltip("Apply level-6 modifiers before the ascended effect. Only for supplementary ascensions.")]
+    public bool AscensionRetainsBase;
+    public bool IsBasic => PackCategory == CardPackType.BaseSet;
 
     [Header("Meta")]
     public int BaseCost = 100;
@@ -306,13 +329,25 @@ public class CardDefinition : ScriptableObject
 
     public int GetUpgradeCost(int currentLevel)
     {
-        return BaseUpgradeCost * currentLevel;
+        if (currentLevel < 1 || currentLevel >= MaxLevel) return 0;
+        int index = Mathf.Clamp(currentLevel - 1, 0, 4);
+        return Rarity == CardRarity.Legendary ? LegendaryCosts[index] : Rarity == CardRarity.Rare ? RareCosts[index] : CommonCosts[index];
     }
 
     public int GetCardsRequired(int currentLevel)
     {
-        return 2 * currentLevel;
+        if (currentLevel < 1 || currentLevel >= MaxLevel) return 0;
+        int index = Mathf.Clamp(currentLevel - 1, 0, 4);
+        return Rarity == CardRarity.Legendary ? LegendaryCopies[index] : Rarity == CardRarity.Rare ? RareCopies[index] : CommonCopies[index];
     }
+
+    static readonly int[] CommonCosts = { 100, 200, 350, 500, 750 };
+    static readonly int[] RareCosts = { 200, 350, 500, 750, 1250 };
+    static readonly int[] LegendaryCosts = { 350, 500, 750, 1250, 2000 };
+    static readonly int[] CommonCopies = { 2, 4, 8, 16, 32 };
+    static readonly int[] RareCopies = { 2, 4, 6, 10, 16 };
+    static readonly int[] LegendaryCopies = { 1, 2, 4, 6, 8 };
+    public int EssencePerCopy => Rarity == CardRarity.Legendary ? 4 : Rarity == CardRarity.Rare ? 2 : 1;
 
     public string GetDescriptionAtLevel(int level)
     {
@@ -321,7 +356,8 @@ public class CardDefinition : ScriptableObject
         object[] args = new object[Modifiers.Count];
         for (int i = 0; i < Modifiers.Count; i++)
         {
-            args[i] = GetAmountAtShopLevel(Modifiers[i], level);
+            float scale = Modifiers[i].DisplayMultiplier == 0 ? 1 : Modifiers[i].DisplayMultiplier;
+            args[i] = System.Math.Round(GetAmountAtShopLevel(Modifiers[i], level) * scale, 3);
         }
 
         try

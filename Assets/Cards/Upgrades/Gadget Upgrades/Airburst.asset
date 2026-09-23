@@ -14,8 +14,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: gad_airburst
   CardName: Airburst
-  Description: Feathers now fire {0} additional smaller feathers upon hiting and
-    enemy
+  Description: Feather hits release {0} smaller feathers for 33% feather damage;
+    they cannot hit the original enemy.
   Icon: {fileID: 0}
   Rarity: 0
   PackCategory: 3
@@ -25,6 +25,13 @@ MonoBehaviour:
     AmountPerShopLevel: 1
     StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 1
   BaseUpgradeCost: 50
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 0
+  AscendedName: 
+  AscendedDescription: 
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 0
   BaseCost: 100

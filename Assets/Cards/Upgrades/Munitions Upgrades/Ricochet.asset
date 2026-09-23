@@ -13,17 +13,31 @@ MonoBehaviour:
   m_Name: Ricochet
   m_EditorClassIdentifier: 
   ID: mun_ricochet
-  CardName: RicoChet
-  Description: Feathers bounce between +{0} walls and ememies
+  CardName: Ricochet
+  Description: Feathers bounce {0} times, losing {1}% damage and gaining 50% speed
+    each bounce.
   Icon: {fileID: 0}
   Rarity: 2
   PackCategory: 0
   Modifiers:
   - StatType: 14
     BaseAmount: 1
-    AmountPerShopLevel: 0.2
+    AmountPerShopLevel: 1
     StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 1
+  - StatType: 84
+    BaseAmount: 0.5
+    AmountPerShopLevel: -0.03
+    StackMode: 0
+    InRunStackAmount: 0
+    DisplayMultiplier: 100
   BaseUpgradeCost: 250
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 0
+  AscendedName: 
+  AscendedDescription: 
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 0
   BaseCost: 100

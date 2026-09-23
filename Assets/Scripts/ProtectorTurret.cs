@@ -23,6 +23,11 @@ public class ProtectorTurret : TurretBase
     {
         if (PlayerStats.Instance == null) return;
 
+        if (PlayerStats.Instance.HasAscension(CardAscension.Defender))
+        {
+            PlayerStats.Instance.GetComponent<AscensionEffects>()?.PlaceWalls();
+            return;
+        }
         Vector3 center = CenterOnPlayer && PlayerTransform != null
             ? PlayerTransform.position
             : transform.position;

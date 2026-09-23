@@ -14,17 +14,23 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: mun_sharp_eye
   CardName: Sharp Eye
-  Description: Feathers gain {0}x change to land a critical hit that deals double
-    damage
+  Description: Feathers have a {0}% chance to critically hit for double damage.
   Icon: {fileID: 0}
   Rarity: 0
   PackCategory: 0
   Modifiers:
   - StatType: 3
-    BaseAmount: 0.1
-    AmountPerShopLevel: 0.05
+    BaseAmount: 0.25
+    AmountPerShopLevel: 0.1
     StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 100
   BaseUpgradeCost: 50
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 0
+  AscendedName: 
+  AscendedDescription: 
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 0
   BaseCost: 100

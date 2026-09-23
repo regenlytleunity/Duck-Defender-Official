@@ -14,21 +14,29 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: mob_swiftness
   CardName: Swiftness
-  Description: Increases movement speed by {0} and aceleration by {1}
+  Description: Increases movement speed by {0} and acceleration by {1}.
   Icon: {fileID: 0}
   Rarity: 0
   PackCategory: 1
   Modifiers:
   - StatType: 38
     BaseAmount: 2
+    AmountPerShopLevel: 2
+    StackMode: 0
+    InRunStackAmount: 0
+    DisplayMultiplier: 1
+  - StatType: 39
+    BaseAmount: 1
     AmountPerShopLevel: 1
     StackMode: 0
     InRunStackAmount: 0
-  - StatType: 39
-    BaseAmount: 15
-    AmountPerShopLevel: 5
-    StackMode: 0
-    InRunStackAmount: 0
+    DisplayMultiplier: 1
   BaseUpgradeCost: 50
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 11
+  AscendedName: Untouchable
+  AscendedDescription: Move at 500% of your otherwise-current maximum movement speed.
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 0
   BaseCost: 100

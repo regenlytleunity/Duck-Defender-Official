@@ -14,22 +14,30 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: mun_explosive_feathers
   CardName: Explosive Feathers
-  Description: Every {0} attacks fires an explosive feathers that deals damage to
-    enemies in a radius of {1}
+  Description: Every {0} attacks, fires a feather that explodes in a radius of {1}.
   Icon: {fileID: 0}
   Rarity: 2
   PackCategory: 0
   Modifiers:
   - StatType: 15
-    BaseAmount: 7
+    BaseAmount: 10
     AmountPerShopLevel: -1
-    StackMode: 2
+    StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 1
   - StatType: 16
-    BaseAmount: 1.5
-    AmountPerShopLevel: 0.5
-    StackMode: 1
+    BaseAmount: 1
+    AmountPerShopLevel: 1
+    StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 1
   BaseUpgradeCost: 250
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 7
+  AscendedName: Volcano
+  AscendedDescription: Every 5 attacks, fires an explosive feather of radius 6, followed
+    by a secondary eruption and 3 seconds of lingering fire.
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 1
   BaseCost: 100

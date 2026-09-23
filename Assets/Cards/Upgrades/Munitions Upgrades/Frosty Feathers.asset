@@ -14,22 +14,31 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: mun_frosty_feathers
   CardName: Frosty Feathers
-  Description: 'Every {0}th attack fires a frosty feather that freezes  enemies for
-    {1} seconds '
+  Description: Every {0} attacks, fires a frosty feather that freezes enemies for
+    {1} seconds.
   Icon: {fileID: 0}
   Rarity: 0
   PackCategory: 0
   Modifiers:
   - StatType: 7
-    BaseAmount: 10
+    BaseAmount: 7
     AmountPerShopLevel: -1
-    StackMode: 2
+    StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 1
   - StatType: 8
-    BaseAmount: 3
-    AmountPerShopLevel: 1
-    StackMode: 1
+    BaseAmount: 1
+    AmountPerShopLevel: 0.25
+    StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 1
   BaseUpgradeCost: 100
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 2
+  AscendedName: Absolute Zero
+  AscendedDescription: Every 2 attacks, freezes enemies for 2.25 seconds. They remain
+    75% slower after thawing.
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 1
   BaseCost: 100

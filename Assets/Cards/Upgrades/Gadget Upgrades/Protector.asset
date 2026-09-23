@@ -14,22 +14,30 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: gad_protector_turret
   CardName: Protector
-  Description: Gain a protector turret thats sends out a shockwave every {1} seconds
-    that knocks back enemies in a radius of {0} around the player
+  Description: Every {0} seconds, a turret knocks enemies away in radius {1}.
   Icon: {fileID: 0}
   Rarity: 1
   PackCategory: 3
   Modifiers:
-  - StatType: 31
-    BaseAmount: 1
-    AmountPerShopLevel: 0.2
+  - StatType: 32
+    BaseAmount: 10
+    AmountPerShopLevel: -1
     StackMode: 0
     InRunStackAmount: 0
-  - StatType: 32
+    DisplayMultiplier: 1
+  - StatType: 31
     BaseAmount: 5
-    AmountPerShopLevel: -0.3
-    StackMode: 1
+    AmountPerShopLevel: 1
+    StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 1
   BaseUpgradeCost: 100
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 22
+  AscendedName: Defender
+  AscendedDescription: Every 30 seconds, places two walls with 5 health. Destroyed
+    walls release a knockback shockwave.
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 0
   BaseCost: 100

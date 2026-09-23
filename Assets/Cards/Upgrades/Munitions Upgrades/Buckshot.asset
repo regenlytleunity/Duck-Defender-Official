@@ -14,22 +14,36 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: mun_buckshot
   CardName: Buckshot
-  Description: Preform a buckshot attack every {0} attacks that fires {1} short ranged
-    feathers that deal 50% of feather damage
+  Description: Every {0} attacks, fires 4 short-range feathers dealing {1}% feather
+    damage each.
   Icon: {fileID: 0}
   Rarity: 1
   PackCategory: 0
   Modifiers:
   - StatType: 5
-    BaseAmount: 5
+    BaseAmount: 8
     AmountPerShopLevel: -1
-    StackMode: 2
-    InRunStackAmount: 0
-  - StatType: 6
-    BaseAmount: 2
-    AmountPerShopLevel: 1
     StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 1
+  - StatType: 82
+    BaseAmount: 0.4
+    AmountPerShopLevel: 0.1
+    StackMode: 0
+    InRunStackAmount: 0
+    DisplayMultiplier: 100
+  - StatType: 6
+    BaseAmount: 4
+    AmountPerShopLevel: 0
+    StackMode: 0
+    InRunStackAmount: 0
+    DisplayMultiplier: 1
   BaseUpgradeCost: 100
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 0
+  AscendedName: 
+  AscendedDescription: 
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 0
   BaseCost: 100

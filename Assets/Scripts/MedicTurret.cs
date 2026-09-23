@@ -36,6 +36,11 @@ public class MedicTurret : TurretBase
             if (_cachedPlayerHealth == null) return;
         }
 
+        if (PlayerStats.Instance.HasAscension(CardAscension.Savior))
+        {
+            PlayerStats.Instance.GetComponent<AscensionEffects>()?.SpawnHealingArea(_cachedPlayerHealth.transform.position);
+            return;
+        }
         int healAmount = Mathf.Max(1, PlayerStats.Instance.MedicHealAmount);
 
         bool atFullHealth = false;

@@ -14,16 +14,24 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: gad_lucky_talisman
   CardName: Lucky Talisman
-  Description: Increases chance of getting rarer cards by {0}x
+  Description: Increases the relative chance of Rare and Legendary run offers by
+    {0}%.
   Icon: {fileID: 0}
   Rarity: 0
   PackCategory: 3
   Modifiers:
   - StatType: 21
-    BaseAmount: 0.1
-    AmountPerShopLevel: 0.05
+    BaseAmount: 0.5
+    AmountPerShopLevel: 0.1
     StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 100
   BaseUpgradeCost: 50
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 0
+  AscendedName: 
+  AscendedDescription: 
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 0
   BaseCost: 100

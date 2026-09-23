@@ -14,22 +14,31 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: mun_poison_feathers
   CardName: Poison Feathers
-  Description: Every {0} attacks fires a poison feather that poisons enemies for
-    {1} damage per second
+  Description: Every {0} attacks, fires a feather poisoning enemies for {1} damage
+    per second for 3 seconds.
   Icon: {fileID: 0}
   Rarity: 1
   PackCategory: 0
   Modifiers:
   - StatType: 17
-    BaseAmount: 10
+    BaseAmount: 7
     AmountPerShopLevel: -1
-    StackMode: 2
-    InRunStackAmount: 0
-  - StatType: 18
-    BaseAmount: 1
-    AmountPerShopLevel: 1
     StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 1
+  - StatType: 18
+    BaseAmount: 1
+    AmountPerShopLevel: 0.5
+    StackMode: 0
+    InRunStackAmount: 0
+    DisplayMultiplier: 1
   BaseUpgradeCost: 100
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 6
+  AscendedName: Deadly Toxin
+  AscendedDescription: Every 2 attacks, poisons enemies for 5 damage per second for
+    3 seconds. Each second, poison has a 10% chance to spread to the nearest enemy.
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 1
   BaseCost: 100

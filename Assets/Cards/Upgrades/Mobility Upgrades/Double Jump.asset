@@ -14,14 +14,23 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: mob_double_jump
   CardName: Double Jump
-  Description: Increases amount of jumps by {0}
+  Description: Grants {0} additional jumps.
   Icon: {fileID: 0}
   Rarity: 1
   PackCategory: 1
   Modifiers:
   - StatType: 44
     BaseAmount: 1
-    AmountPerLevel: 0.2
+    AmountPerShopLevel: 1
+    StackMode: 0
+    InRunStackAmount: 0
+    DisplayMultiplier: 1
   BaseUpgradeCost: 100
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 0
+  AscendedName: 
+  AscendedDescription: 
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 0
   BaseCost: 100

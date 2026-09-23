@@ -15,6 +15,8 @@ public class Meteor : MonoBehaviour
 
     private Rigidbody2D _rb;
     private bool _hasExploded = false;
+    bool _secondary;
+    public void ConfigureSecondary() { _secondary = true; CoinsToDrop = 0; }
 
     void Awake()
     {
@@ -23,7 +25,8 @@ public class Meteor : MonoBehaviour
 
     void Start()
     {
-        _rb.linearVelocity = Vector2.down * FallSpeed; 
+        _rb.linearVelocity = Vector2.down * FallSpeed;
+        Destroy(gameObject, 20); 
     }
 
     void Update()
@@ -65,7 +68,8 @@ public class Meteor : MonoBehaviour
                 if (enemy != null)
                 {
                     // Logic: Deal 50% of THIS enemy's Max Health
-                    int damage = Mathf.CeilToInt(enemy.MaxHealth * 0.5f);
+                    float flat = PlayerStats.Instance != null ? PlayerStats.Instance.MeteorDamage : 10;
+                    int damage = Mathf.RoundToInt(PlayerStats.Instance != null ? PlayerStats.Instance.CalculateDamage(flat, false, _secondary ? .5f : 1f) : flat);
                     
                     enemy.TakeDamage(damage);
                     if (GameUI.Instance != null)
@@ -79,7 +83,8 @@ public class Meteor : MonoBehaviour
         {
             for (int i = 0; i < CoinsToDrop; i++)
             {
-                Instantiate(CoinPrefab, transform.position, Quaternion.identity);
+                var coin = Instantiate(CoinPrefab, transform.position, Quaternion.identity).GetComponent<Coin>();
+                if (coin != null) coin.SecondaryMeteorOnPickup = !_secondary && PlayerStats.Instance != null && PlayerStats.Instance.HasAscension(CardAscension.AbsoluteExtinction);
             }
         }
 

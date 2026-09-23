@@ -22,6 +22,69 @@ public class PlayerStats : MonoBehaviour
 {
     public static PlayerStats Instance;
 
+    [Header("Card Rework")]
+    public float GlobalDamageBonus;
+    public float NonFeatherFlatDamage;
+    public float HypersonicDamageFraction;
+    public float BuckshotDamageFraction = .4f;
+    public float MetalDamageFraction = 1.5f;
+    public float RicochetDamageLoss = .5f;
+    public float DuplicatorDamageReduction;
+    public int ElementalTargetCount = 1;
+    public float RunDamageBonus;
+    public float RunSpeedBonus;
+    public float RebirthStatBonus;
+    public bool RebirthUsed;
+    readonly HashSet<CardAscension> _ascensions = new HashSet<CardAscension>();
+    public bool HasAscension(CardAscension kind) => _ascensions.Contains(kind);
+    public float SpeedMultiplier => Mathf.Max(.05f, 1f + RunSpeedBonus + RebirthStatBonus + (HasAscension(CardAscension.Untouchable) ? 4f : 0f));
+    public float BeneficialStatMultiplier => 1f + RebirthStatBonus;
+    public static float ProjectileSpeedFactor(Vector2 position)
+    {
+        var stats = Instance;
+        if (stats == null || !stats.HasSlowingAura || Vector2.Distance(position, stats.transform.position) > stats.SlowingAuraRadius) return 1;
+        return Mathf.Max(.05f, 1f - stats.SlowingAuraSlowPercent);
+    }
+
+    public void ActivateAscension(CardAscension kind)
+    {
+        if (!_ascensions.Add(kind)) return;
+        switch (kind)
+        {
+            case CardAscension.ObsidianTrail:
+                HasFireTrail = true; FireTrailDamage = 10; FireTrailDuration = 4; break;
+            case CardAscension.CursorAura:
+                AuraDamage = 5; AuraRadius = 8; break;
+            case CardAscension.Savior:
+                HasMedic = true; MedicInterval = 7; break;
+            case CardAscension.Defender:
+                HasProtector = true; ProtectorInterval = 30; break;
+            case CardAscension.Elemental:
+                HasElementalTurret = true; ElementalTurretInterval = 10; ElementalTargetCount = 6; break;
+        }
+        NotifyTurretsChanged();
+        NotifySecondWindChanged();
+    }
+
+    // Flat additions precede a single additive percentage bucket. Explicit ratios
+    // (buckshot, crits, bounce falloff) are applied only once after that bucket.
+    public float CalculateDamage(float flat, bool feather, float ratio = 1f, float localBonus = 0f)
+    {
+        float baseDamage = flat + (feather ? 0 : NonFeatherFlatDamage);
+        float percent = GlobalDamageBonus + RunDamageBonus + RebirthStatBonus +
+            GetCurrentMoneyHighMultiplier() - 1f + localBonus;
+        return Mathf.Max(0f, baseDamage * Mathf.Max(0f, 1f + percent) * ratio);
+    }
+
+    public void CompleteWave()
+    {
+        if (!HasAscension(CardAscension.RecoveryPlus)) return;
+        RunDamageBonus += .02f;
+        RunSpeedBonus += .02f;
+        var health = GetComponent<PlayerHealth>();
+        if (health != null) health.AddMaxHealthPercent(.02f);
+    }
+
     // ============================================================
     // TECH / GADGET STATS
     // ============================================================
@@ -266,6 +329,7 @@ public class PlayerStats : MonoBehaviour
     void Awake()
     {
         Instance = this;
+        if (GetComponent<AscensionEffects>() == null) gameObject.AddComponent<AscensionEffects>();
     }
 
     void Update()
@@ -298,6 +362,8 @@ public class PlayerStats : MonoBehaviour
 
     public void ReportCoinsGained(int amount)
     {
+        if (amount <= 0) return;
+        if (HasAscension(CardAscension.IllegalOperations)) RunDamageBonus += amount * .0001f;
         CoinsCollectedRun += amount;
         OnCoinsGained?.Invoke(amount);
 

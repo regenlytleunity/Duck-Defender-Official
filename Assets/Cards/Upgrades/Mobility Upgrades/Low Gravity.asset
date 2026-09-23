@@ -14,16 +14,24 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: mob_low_gravity
   CardName: Low Gravity
-  Description: Player gravity scale {0}
+  Description: Sets gravity to {0}% of normal.
   Icon: {fileID: 0}
   Rarity: 0
   PackCategory: 1
   Modifiers:
   - StatType: 43
-    BaseAmount: 0.85
-    AmountPerShopLevel: -0.05
+    BaseAmount: 0.9
+    AmountPerShopLevel: -0.1
     StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 100
   BaseUpgradeCost: 50
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 10
+  AscendedName: Learn to Fly
+  AscendedDescription: Hold jump to fly upward and down to descend. Fly for 7 seconds,
+    then recover for 10 seconds.
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 0
   BaseCost: 100

@@ -14,16 +14,23 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: sur_interest
   CardName: Interest
-  Description: Earn {0} additional coins every wave
+  Description: Earn {0} additional coins per wave.
   Icon: {fileID: 0}
   Rarity: 0
   PackCategory: 2
   Modifiers:
   - StatType: 54
     BaseAmount: 20
-    AmountPerShopLevel: 5
+    AmountPerShopLevel: 15
     StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 1
   BaseUpgradeCost: 50
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 0
+  AscendedName: 
+  AscendedDescription: 
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 0
   BaseCost: 100

@@ -14,27 +14,38 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: sur_second_wind
   CardName: Second Wind
-  Description: Gain the ability to cheat death, upon dying heal for {1}x max health
-    and become invulnurable for {2} seconds, cooldown of {0} seconds
+  Description: 'Cheat death, restoring {0}% max health with 5 seconds of invulnerability.
+    Cooldown: {1} seconds.'
   Icon: {fileID: 0}
   Rarity: 2
   PackCategory: 2
   Modifiers:
-  - StatType: 68
-    BaseAmount: 120
-    AmountPerShopLevel: -15
-    StackMode: 1
-    InRunStackAmount: 0
   - StatType: 69
-    BaseAmount: 0.5
+    BaseAmount: 0.1
     AmountPerShopLevel: 0.1
-    StackMode: 2
-    InRunStackAmount: 0
-  - StatType: 70
-    BaseAmount: 2
-    AmountPerShopLevel: 1
     StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 100
+  - StatType: 68
+    BaseAmount: 120
+    AmountPerShopLevel: -5
+    StackMode: 0
+    InRunStackAmount: 0
+    DisplayMultiplier: 1
+  - StatType: 70
+    BaseAmount: 5
+    AmountPerShopLevel: 0
+    StackMode: 0
+    InRunStackAmount: 0
+    DisplayMultiplier: 1
   BaseUpgradeCost: 50
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 18
+  AscendedName: Rebirth
+  AscendedDescription: Once per run, lethal damage restores full health, defeats
+    on-screen enemies, and grants +200% to beneficial numeric stats (cooldowns become
+    three times faster).
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 0
   BaseCost: 100

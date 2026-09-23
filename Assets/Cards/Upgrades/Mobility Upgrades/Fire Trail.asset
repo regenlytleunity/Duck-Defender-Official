@@ -14,22 +14,30 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: mob_fire_trail
   CardName: Fire Trail
-  Description: Moving leaves a fire trail that deals {0} damage and extinguishes
-    after {1} seconds
+  Description: Moving leaves fire dealing {0} damage per second for {1} seconds.
   Icon: {fileID: 0}
   Rarity: 2
   PackCategory: 1
   Modifiers:
   - StatType: 51
-    BaseAmount: 2
-    AmountPerShopLevel: 2
+    BaseAmount: 1
+    AmountPerShopLevel: 1
     StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 1
   - StatType: 52
     BaseAmount: 1
     AmountPerShopLevel: 0.5
-    StackMode: 2
+    StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 1
   BaseUpgradeCost: 250
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 12
+  AscendedName: Obsidian Trail
+  AscendedDescription: Moving leaves fire and ice dealing 10 damage per second and
+    slowing by 50%. Patches last 4 seconds.
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 0
   BaseCost: 100

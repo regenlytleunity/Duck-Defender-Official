@@ -49,6 +49,7 @@ public class BouncyEnemyProjectile : MonoBehaviour
     private int _bouncesRemaining;
     private float _lifetimeRemaining;
     private bool _isActive;
+    float _slowFactor = 1;
     
     // Stored launch velocity - applied in OnEnable after the GameObject is active.
     // Setting velocity on an inactive Rigidbody2D doesn't always take effect.
@@ -81,6 +82,7 @@ public class BouncyEnemyProjectile : MonoBehaviour
         // This is critical - velocity assignments on inactive rigidbodies can be discarded.
         if (_hasPendingLaunch)
         {
+            _slowFactor = 1;
             _rb.gravityScale = 1f;
             _rb.linearVelocity = _pendingLaunchVelocity;
             _rb.angularVelocity = 0f;
@@ -121,6 +123,10 @@ public class BouncyEnemyProjectile : MonoBehaviour
     {
         if (!_isActive) return;
         
+        float factor = PlayerStats.ProjectileSpeedFactor(transform.position);
+        _rb.linearVelocity *= factor / _slowFactor;
+        _rb.gravityScale = factor * factor;
+        _slowFactor = factor;
         CheckForGroundBounce();
     }
     
@@ -199,6 +205,8 @@ public class BouncyEnemyProjectile : MonoBehaviour
     {
         if (!_isActive) return;
         
+        var wall = collision.GetComponentInParent<DefenderWall>();
+        if (wall != null) { wall.TakeDamage(Damage); Deactivate(); return; }
         if (collision.CompareTag("Player"))
         {
             HitPlayer(collision);
@@ -209,6 +217,8 @@ public class BouncyEnemyProjectile : MonoBehaviour
     {
         if (!_isActive) return;
         
+        var wall = collision.collider.GetComponentInParent<DefenderWall>();
+        if (wall != null) { wall.TakeDamage(Damage); Deactivate(); return; }
         // Handle solid-collider players too, just in case
         if (collision.collider.CompareTag("Player"))
         {

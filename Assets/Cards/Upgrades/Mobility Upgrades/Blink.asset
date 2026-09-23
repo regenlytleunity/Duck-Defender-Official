@@ -14,22 +14,31 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: mob_blink
   CardName: Blink
-  Description: Jump forwards while moving every {0} seconds for {1} seconds become
-    invulnerable while blinking
+  Description: While moving, blink every {0} seconds and become invulnerable for
+    {1} seconds.
   Icon: {fileID: 0}
   Rarity: 0
   PackCategory: 1
   Modifiers:
   - StatType: 41
-    BaseAmount: 3
+    BaseAmount: 4
     AmountPerShopLevel: -0.5
     StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 1
   - StatType: 42
-    BaseAmount: 0.05
-    AmountPerShopLevel: 0.02
+    BaseAmount: 0.2
+    AmountPerShopLevel: 0.2
     StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 1
   BaseUpgradeCost: 50
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 9
+  AscendedName: Wormhole
+  AscendedDescription: While moving, blink every 3 seconds with 1.2 seconds of invulnerability.
+    Leave a wormhole pulling enemies in and dealing 5 damage per second for 3 seconds.
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 1
   BaseCost: 100

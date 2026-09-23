@@ -14,22 +14,30 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: gad_damage_aura
   CardName: Damaging Aura
-  Description: Gain a powerful aura with a radius of {1} that deals {0} damage per
-    second to enemies inside
+  Description: An aura of radius {0} deals {1} damage per second.
   Icon: {fileID: 0}
   Rarity: 2
   PackCategory: 3
   Modifiers:
+  - StatType: 36
+    BaseAmount: 3
+    AmountPerShopLevel: 1
+    StackMode: 0
+    InRunStackAmount: 0
+    DisplayMultiplier: 1
   - StatType: 35
     BaseAmount: 1
-    AmountPerShopLevel: 2
+    AmountPerShopLevel: 0.5
     StackMode: 0
     InRunStackAmount: 0
-  - StatType: 36
-    BaseAmount: 0.8
-    AmountPerShopLevel: 0
-    StackMode: 0
-    InRunStackAmount: 0
+    DisplayMultiplier: 1
   BaseUpgradeCost: 250
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 23
+  AscendedName: Cursor Aura
+  AscendedDescription: A radius-8 aura follows the cursor or touch aim, dealing 5
+    damage per second.
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 0
   BaseCost: 100

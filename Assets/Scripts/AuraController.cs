@@ -42,6 +42,12 @@ public class AuraController : MonoBehaviour
 
     public void UpdateAura(float radius, float damage)
     {
+        if (PlayerStats.Instance != null && PlayerStats.Instance.HasAscension(CardAscension.CursorAura))
+        {
+            Camera cam = Camera.main;
+            if (cam != null) { Vector3 point = cam.ScreenToWorldPoint(InputHelper.GetMousePosition()); point.z = 0; transform.position = point; }
+        }
+        else if (PlayerStats.Instance != null) transform.position = PlayerStats.Instance.transform.position;
         _currentRadius = radius;
         _currentDamage = damage;
 
@@ -67,7 +73,7 @@ public class AuraController : MonoBehaviour
             _tickTimer += Time.deltaTime;
             if (_tickTimer >= 1.0f)
             {
-                _tickTimer = 0;
+                _tickTimer -= 1f;
                 PulseDamage();
             }
         }
@@ -75,20 +81,10 @@ public class AuraController : MonoBehaviour
 
     void PulseDamage()
     {
-        Collider2D[] hits = Physics2D.OverlapCircleAll(transform.position, _currentRadius);
-        foreach (var hit in hits)
-        {
-            if (hit.CompareTag("Enemy"))
-            {
-                EnemyBase enemy = hit.GetComponent<EnemyBase>();
-                if (enemy != null)
-                {
-                    enemy.TakeDamage(Mathf.CeilToInt(_currentDamage));
-                    if (GameUI.Instance != null)
-                        GameUI.Instance.ShowDamagePopup(enemy.transform.position, Mathf.CeilToInt(_currentDamage), false);
-                }
-            }
-        }
+        float damage = PlayerStats.Instance != null ? PlayerStats.Instance.CalculateDamage(_currentDamage, false) : _currentDamage;
+        foreach (var enemy in EnemyBase.ActiveEnemies)
+            if (enemy != null && enemy.IsAlive && Vector2.Distance(transform.position, enemy.transform.position) <= _currentRadius)
+                enemy.TakeFractionalDamage(damage);
     }
 
     void DrawCircle(float radius)

@@ -14,22 +14,31 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: mob_shockwave
   CardName: Shockwave
-  Description: Dash downwards by pressing [shift] and [s] unleashing a shockwave
-    with a radius of {0} that deals {1} damage
+  Description: Landing after a jump releases a shockwave of radius {0}, dealing {1}
+    damage.
   Icon: {fileID: 0}
   Rarity: 2
   PackCategory: 1
   Modifiers:
   - StatType: 49
-    BaseAmount: 1
-    AmountPerShopLevel: 0.2
+    BaseAmount: 3
+    AmountPerShopLevel: 1
     StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 1
   - StatType: 50
-    BaseAmount: 10
-    AmountPerShopLevel: 10
+    BaseAmount: 5
+    AmountPerShopLevel: 2
     StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 1
   BaseUpgradeCost: 250
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 13
+  AscendedName: Earthquake
+  AscendedDescription: Landing releases a radius-8 shockwave for 15 damage, followed
+    by a second for 50% damage.
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 1
   BaseCost: 100

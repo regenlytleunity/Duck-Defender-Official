@@ -14,16 +14,23 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: gad_big_feathers
   CardName: BIG Feathers
-  Description: Increases feather size by {0}x
+  Description: Feathers become {0}% larger and are affected by gravity.
   Icon: {fileID: 0}
   Rarity: 0
   PackCategory: 3
   Modifiers:
   - StatType: 24
-    BaseAmount: 0.25
-    AmountPerShopLevel: 0.05
+    BaseAmount: 0.5
+    AmountPerShopLevel: 0.1
     StackMode: 0
     InRunStackAmount: 0
+    DisplayMultiplier: 100
   BaseUpgradeCost: 50
-  MaxLevel: 5
+  MaxLevel: 6
+  Ascension: 0
+  AscendedName: 
+  AscendedDescription: 
+  AscendedIcon: {fileID: 0}
+  AscensionCost: 1000
+  AscensionRetainsBase: 0
   BaseCost: 100
