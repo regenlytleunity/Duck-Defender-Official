@@ -35,6 +35,7 @@ public class CardDisplay : MonoBehaviour, IPointerEnterHandler
 
     private CardDefinition _assignedCard;
     private bool _isLocked = false;
+    private bool _hideShopControls;
     
     // True while the flip animation is playing. New hovers during this time are 
     // ignored (per design choice - prevents choppy interruption mid-flip).
@@ -95,6 +96,7 @@ public class CardDisplay : MonoBehaviour, IPointerEnterHandler
     public void Setup(CardDefinition card)
     {
         _assignedCard = card;
+        if (LevelGroup) LevelGroup.SetActive(false);
         if (_subscribedShop != ShopManager.Instance)
         {
             if (_subscribedShop != null) _subscribedShop.OnCollectionChanged -= Refresh;
@@ -161,7 +163,7 @@ public class CardDisplay : MonoBehaviour, IPointerEnterHandler
         if (ShopManager.Instance != null)
         {
             CardSaveData data = ShopManager.Instance.GetCardData(card.ID);
-            if (data != null && LevelGroup != null)
+            if (data != null && !card.IsBasic && LevelGroup != null)
             {
                 if (LevelUpUI.Instance != null)
                 {
@@ -177,6 +179,7 @@ public class CardDisplay : MonoBehaviour, IPointerEnterHandler
 
         bool locked = !card.IsBasic && ShopManager.Instance != null && ShopManager.Instance.GetCardData(card.ID)?.IsUnlocked != true;
         SetLockedState(locked);
+        if (_hideShopControls) HideShopControls();
     }
 
     void UpdateLevelUI(CardSaveData data)
@@ -254,6 +257,8 @@ public class CardDisplay : MonoBehaviour, IPointerEnterHandler
             if (NameText != null) NameText.text = "???";
             if (DescriptionText != null) DescriptionText.text = "Locked";
             if (LevelGroup != null) LevelGroup.SetActive(false);
+            if (AscensionGroup) AscensionGroup.SetActive(false);
+            if (AscendButton) AscendButton.gameObject.SetActive(false);
         }
         else
         {
@@ -265,6 +270,7 @@ public class CardDisplay : MonoBehaviour, IPointerEnterHandler
     void OnDestroy() { if (_subscribedShop != null) _subscribedShop.OnCollectionChanged -= Refresh; }
     public void HideShopControls()
     {
+        _hideShopControls = true;
         if (LevelGroup) LevelGroup.SetActive(false);
         if (AscensionGroup) AscensionGroup.SetActive(false);
         if (AscendButton) AscendButton.gameObject.SetActive(false);

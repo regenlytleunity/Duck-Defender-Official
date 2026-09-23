@@ -63,7 +63,7 @@ public class LevelManager : MonoBehaviour
         {
             GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
             Vector3 spawnPos = playerObj != null ? playerObj.transform.position : Vector3.zero;
-            for (int i = 0; i < CoinsPerWave; i++)
+            for (int i = 0; i < PlayerStats.BoostCount(CoinsPerWave); i++)
             {
                 SpawnPassiveCoin(spawnPos);
             }
@@ -82,12 +82,13 @@ public class LevelManager : MonoBehaviour
     public void AddXP(int amount)
     {
         float totalMultiplier = XPMultiplier;
-        if (PlayerStats.Instance != null) totalMultiplier = PlayerStats.Instance.XPMultiplier;
+        if (PlayerStats.Instance != null) totalMultiplier = PlayerStats.Instance.XPMultiplier + PlayerStats.Instance.RebirthStatBonus;
 
         int finalXP = Mathf.RoundToInt(amount * totalMultiplier);
-        CurrentXP += finalXP;
+        CurrentXP = (int)System.Math.Min(int.MaxValue, (long)CurrentXP + Mathf.Max(0, finalXP));
 
-        if (CurrentXP >= TargetXP) LevelUp();
+        // Rebirth can defeat an entire screen in one frame. Preserve every earned choice.
+        while (TargetXP > 0 && CurrentXP >= TargetXP) LevelUp();
         UpdateUI();
     }
 
@@ -97,7 +98,8 @@ public class LevelManager : MonoBehaviour
     /// </summary>
     public void AddCoins(int amount)
     {
-        TotalCoins += amount;
+        if (amount <= 0) return;
+        TotalCoins = (int)System.Math.Min(int.MaxValue, (long)TotalCoins + amount);
         _playerData.TotalCoins = TotalCoins;
         SaveSystem.SaveData(_playerData);
         UpdateCoinUI();
@@ -119,7 +121,7 @@ public class LevelManager : MonoBehaviour
         if (PlayerStats.Instance.HasCoinMeteors)
         {
             _coinsForMeteor += amount;
-            int threshold = PlayerStats.Instance.MeteorThreshold;
+            int threshold = PlayerStats.Threshold(PlayerStats.Instance.MeteorThreshold);
             if (threshold <= 0) threshold = 10;
 
             while (_coinsForMeteor >= threshold)
@@ -133,12 +135,12 @@ public class LevelManager : MonoBehaviour
         if (PlayerStats.Instance.HasTripleshot)
         {
             _coinsForShot += amount;
-            int threshold = PlayerStats.Instance.TripleshotThreshold;
+            int threshold = PlayerStats.Threshold(PlayerStats.Instance.TripleshotThreshold);
             if (threshold <= 0) threshold = 15;
 
             if (_coinsForShot >= threshold)
             {
-                _coinsForShot = 0;
+                _coinsForShot %= threshold;
                 if (PlayerController.Instance != null) PlayerController.Instance.TriggerCoinShotBuff();
             }
         }
@@ -171,7 +173,7 @@ public class LevelManager : MonoBehaviour
 
         CurrentXP -= TargetXP;
         CurrentLevel++;
-        TargetXP = Mathf.RoundToInt(TargetXP * GrowthFactor);
+        TargetXP = (int)System.Math.Min(int.MaxValue, System.Math.Max(1, System.Math.Round((double)TargetXP * GrowthFactor)));
         if (LevelUpUI.Instance != null) LevelUpUI.Instance.ShowLevelUpOptions();
     }
 

@@ -84,7 +84,7 @@ public class TurretManager : MonoBehaviour
 
         // Second Wind angel: spawn if Second Wind is unlocked.
         // Visibility (alpha) is handled by SecondWindAngel itself based on cooldown.
-        if (PlayerStats.Instance.HasSecondWind && _activeAngel == null && SecondWindAngelPrefab != null)
+        if ((PlayerStats.Instance.HasSecondWind || PlayerStats.Instance.HasAscension(CardAscension.Rebirth)) && _activeAngel == null && SecondWindAngelPrefab != null)
         {
             GameObject angelObj = Instantiate(SecondWindAngelPrefab);
             _activeAngel = angelObj.GetComponent<SecondWindAngel>();

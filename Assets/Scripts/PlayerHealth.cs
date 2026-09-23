@@ -52,7 +52,7 @@ public class PlayerHealth : MonoBehaviour
 
     public void ApplyWaveRegen()
     {
-        if (RegenPerWave > 0) Heal(RegenPerWave);
+        if (RegenPerWave > 0) Heal(PlayerStats.BoostCount(RegenPerWave));
     }
 
     public void AddMaxHealth(int flat)
@@ -78,6 +78,7 @@ public class PlayerHealth : MonoBehaviour
 
     public void TakeDamage(int damage)
     {
+        if (damage <= 0) return;
         if (_isInvulnerable || _isDead || _currentHealth <= 0) return;
 
         // 1.4.11: Respect Blink invulnerability via PlayerController
@@ -128,6 +129,7 @@ public class PlayerHealth : MonoBehaviour
         {
             stats.RebirthUsed = true;
             stats.RebirthStatBonus += 2f;
+            stats.NotifySecondWindChanged();
             AddMaxHealthPercent(2f);
             _currentHealth = MaxHealth;
             GetComponent<AscensionEffects>()?.Rebirth();

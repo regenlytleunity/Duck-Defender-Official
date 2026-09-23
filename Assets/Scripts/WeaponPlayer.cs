@@ -106,6 +106,7 @@ public class WeaponPlayer : MonoBehaviour
     // === Mini Gun overheat state ===
     private float _miniGunHeat = 0f;
     private bool _miniGunOverheated = false;
+    bool _miniGunStarted;
     private float _lastMiniGunFireTime = -999f;
 
     public float MiniGunHeatNormalized
@@ -113,7 +114,7 @@ public class WeaponPlayer : MonoBehaviour
         get
         {
             if (PlayerStats.Instance == null || PlayerStats.Instance.MiniGunOverheatThreshold <= 0) return 0f;
-            return Mathf.Clamp01(_miniGunHeat / PlayerStats.Instance.MiniGunOverheatThreshold);
+            return Mathf.Clamp01(_miniGunHeat / PlayerStats.Boost(PlayerStats.Instance.MiniGunOverheatThreshold));
         }
     }
 
@@ -126,6 +127,7 @@ public class WeaponPlayer : MonoBehaviour
     {
         _mainCam = Camera.main;
         _baseFireInterval = FireRate;
+        _nextNormalFireTime = _nextMiniGunFireTime = Time.time;
 
         if (CurrentStats.Speed == 0) CurrentStats.Speed = 20f;
         if (CurrentStats.Damage == 0) CurrentStats.Damage = 1;
@@ -140,14 +142,18 @@ public class WeaponPlayer : MonoBehaviour
         if (Time.timeScale == 0) return;
         bool shootHeld = InputHelper.GetShootHeld();
 
-        if (shootHeld && Time.time >= _nextNormalFireTime)
+        if (!shootHeld) _nextNormalFireTime = Time.time;
+        int shotsThisFrame = 0;
+        while (shootHeld && Time.time >= _nextNormalFireTime && shotsThisFrame++ < 16)
         {
             ShootNormal();
-            _nextNormalFireTime = Time.time + EffectiveFireInterval;
+            _nextNormalFireTime += EffectiveFireInterval;
         }
+        if (shotsThisFrame > 16) _nextNormalFireTime = Time.time + EffectiveFireInterval;
 
         if (PlayerStats.Instance != null && PlayerStats.Instance.HasMiniGun)
         {
+            if (!_miniGunStarted) { _nextMiniGunFireTime = Time.time; _miniGunStarted = true; }
             UpdateMiniGun(shootHeld);
         }
     }
@@ -210,12 +216,13 @@ public class WeaponPlayer : MonoBehaviour
         var stats = PlayerStats.Instance;
         if (stats == null) return;
 
-        float threshold = Mathf.Max(0.5f, stats.MiniGunOverheatThreshold);
-        float recoveryRate = Mathf.Max(0.5f, stats.MiniGunRecoveryRate);
+        float threshold = Mathf.Max(0.5f, PlayerStats.Boost(stats.MiniGunOverheatThreshold));
+        float recoveryRate = Mathf.Max(0.1f, PlayerStats.Cooldown(stats.MiniGunRecoveryRate));
 
         bool isFiringNow = shootHeld && !_miniGunOverheated;
         if (!isFiringNow)
         {
+            _nextMiniGunFireTime = Time.time;
             float coolPerSec = threshold / recoveryRate;
             _miniGunHeat -= coolPerSec * Time.deltaTime;
             if (_miniGunHeat < 0) _miniGunHeat = 0;
@@ -228,30 +235,28 @@ public class WeaponPlayer : MonoBehaviour
 
         if (_miniGunOverheated) return;
         if (!shootHeld) return;
+        _miniGunHeat += Time.deltaTime;
+        if (_miniGunHeat >= threshold) { TriggerOverheat(); return; }
 
         float baseInterval = EffectiveFireInterval * 0.5f;
         float heatPercent = _miniGunHeat / threshold;
         float intervalScale = 1f + (heatPercent * 2f);
         float currentInterval = baseInterval * intervalScale;
 
-        if (Time.time < _nextMiniGunFireTime) return;
-
-        FireMiniGunFeather();
-        _nextMiniGunFireTime = Time.time + currentInterval;
-        _lastMiniGunFireTime = Time.time;
-
-        _miniGunHeat += currentInterval;
-
-        if (_miniGunHeat >= threshold)
+        int shotsThisFrame = 0;
+        while (Time.time >= _nextMiniGunFireTime && shotsThisFrame++ < 16)
         {
-            TriggerOverheat();
+            FireMiniGunFeather();
+            _nextMiniGunFireTime += currentInterval;
+            _lastMiniGunFireTime = Time.time;
         }
+        if (shotsThisFrame > 16) _nextMiniGunFireTime = Time.time + currentInterval;
     }
 
     void TriggerOverheat()
     {
         _miniGunOverheated = true;
-        _miniGunHeat = PlayerStats.Instance.MiniGunOverheatThreshold;
+        _miniGunHeat = PlayerStats.Boost(PlayerStats.Instance.MiniGunOverheatThreshold);
 
         if (OverheatPopupPrefab != null)
         {
@@ -274,6 +279,7 @@ public class WeaponPlayer : MonoBehaviour
 
     void FireMiniGunFeather()
     {
+        if (FirePoint == null) return;
         // 1.4.13: Mini Gun shares the Player_Shoot SFX. Plays once per individual 
         // mini gun feather, so a continuous mini-gun burst becomes a rapid stream 
         // of shot sounds (which sounds great with slice randomization to avoid 
@@ -312,15 +318,16 @@ public class WeaponPlayer : MonoBehaviour
         stats.IsMetalFeather = false;
         stats.IsExplosiveFeather = false;
         stats.IsBuckshotPellet = false;
-        stats.CanAirburst = false;
+        stats.CanAirburst = true;
         stats.Lifetime = 0;
 
         p.Initialize(stats);
         p.SetColor(MiniGunFeatherColor);
         p.SetVisualScale(MiniGunFeatherScale * GetCurrentFeatherSize());
         bulletObj.SetActive(true);
-        // Mini Gun has its own firing cadence; a successfully spawned shot is one attack.
-        TickElectricFeathers(angle);
+        for (int i = 1; i < PlayerStats.BoostCount(ParallelProjectiles); i++)
+            SpawnNormalFeather(angle, Vector3.up * (ParallelSpacing * i), true);
+        OnAttackFired(angle);
     }
 
     // ============================================================
@@ -341,38 +348,23 @@ public class WeaponPlayer : MonoBehaviour
         float baseAngle = ComputeAimAngle();
         Vector3 aimDir = ComputeAimDir();
 
-        var readyThisShot = TickAndCollectReadySpecials();
+        if (FireNormalPattern(baseAngle, aimDir)) OnAttackFired(baseAngle);
+    }
 
-        List<PlayerStats.SpecialFeatherInstance> readyBuckshots = new List<PlayerStats.SpecialFeatherInstance>();
-        List<PlayerStats.SpecialFeatherInstance> readyOthers = new List<PlayerStats.SpecialFeatherInstance>();
-        foreach (var feather in readyThisShot)
+    // A volley or a minigun shot counts once. Bonus feathers and turrets never recurse.
+    void OnAttackFired(float angle)
+    {
+        var ready = TickAndCollectReadySpecials();
+        var others = new List<PlayerStats.SpecialFeatherInstance>();
+        foreach (var feather in ready)
         {
-            if (feather.Type == PlayerStats.FeatherType.Buckshot)
-                readyBuckshots.Add(feather);
-            else
-                readyOthers.Add(feather);
+            if (feather.Type == PlayerStats.FeatherType.Buckshot) FireBuckshotCone(angle, feather);
+            else others.Add(feather);
         }
-
-        bool firedNormalAttack = FireNormalPattern(baseAngle, aimDir);
-        if (firedNormalAttack && PlayerStats.Instance != null && PlayerStats.Instance.HasAscension(CardAscension.DivineDuplicator))
-            FireDivineFeather();
-
-        foreach (var buck in readyBuckshots)
-        {
-            FireBuckshotCone(baseAngle, buck);
-        }
-
-        if (readyOthers.Count == 1)
-        {
-            SpawnSpecialFeather(baseAngle, Vector3.zero, readyOthers[0]);
-        }
-        else if (readyOthers.Count > 1)
-        {
-            StartCoroutine(FireStaggeredSpecials(readyOthers, baseAngle));
-        }
-
-        // Count the volley once, regardless of parallel/spread projectiles or bonus feathers.
-        if (firedNormalAttack) TickElectricFeathers(baseAngle);
+        if (others.Count == 1) SpawnSpecialFeather(angle, Vector3.zero, others[0]);
+        else if (others.Count > 1) StartCoroutine(FireStaggeredSpecials(others, angle));
+        TickElectricFeathers(angle);
+        if (PlayerStats.Instance != null && PlayerStats.Instance.HasAscension(CardAscension.DivineDuplicator)) FireDivineFeather();
     }
 
     List<PlayerStats.SpecialFeatherInstance> TickAndCollectReadySpecials()
@@ -386,7 +378,7 @@ public class WeaponPlayer : MonoBehaviour
             if (feather.Type == PlayerStats.FeatherType.Electric) continue;
             if (feather.Threshold <= 0) continue;
             feather.ShotCounter++;
-            if (feather.ShotCounter >= feather.Threshold)
+            if (feather.ShotCounter >= PlayerStats.Threshold(feather.Threshold))
             {
                 feather.ShotCounter = 0;
                 ready.Add(feather);
@@ -420,7 +412,7 @@ public class WeaponPlayer : MonoBehaviour
         Vector3 perpendicular = new Vector3(-aimDir.y, aimDir.x, 0).normalized;
         float effectiveSpacing = Mathf.Max(ParallelSpacing, MinParallelDistance);
 
-        int parallelCount = ParallelProjectiles;
+        int parallelCount = PlayerStats.BoostCount(ParallelProjectiles);
 
         List<Vector3> parallelOffsets = CalculateGroundAwareParallelOffsets(
             FirePoint.position,
@@ -429,7 +421,7 @@ public class WeaponPlayer : MonoBehaviour
             parallelCount
         );
 
-        int totalSpread = SpreadProjectiles + BonusSpreadProjectiles;
+        int totalSpread = PlayerStats.BoostCount(SpreadProjectiles + BonusSpreadProjectiles);
 
         List<float> spreadAngles = new List<float>();
         for (int i = 1; i <= totalSpread; i++)
@@ -522,7 +514,7 @@ public class WeaponPlayer : MonoBehaviour
     float GetCurrentFeatherSize()
     {
         if (PlayerStats.Instance == null) return 1f;
-        return Mathf.Max(0.5f, PlayerStats.Instance.FeatherSize);
+        return Mathf.Max(0.5f, PlayerStats.Instance.FeatherSize + PlayerStats.Instance.RebirthStatBonus);
     }
 
     // === Spawn helpers ===
@@ -559,7 +551,8 @@ public class WeaponPlayer : MonoBehaviour
         stats.IceSlowFactor = 0;
         stats.ExplosionRadius = 0;
         stats.ProjectileGravity = PlayerStats.Instance != null && PlayerStats.Instance.FeatherSize > 1 ? 1 : 0;
-        stats.DamageRatio = duplicate && PlayerStats.Instance != null ? 1f - PlayerStats.Instance.DuplicatorDamageReduction : 1f;
+        stats.DamageRatio = 1f;
+        stats.LocalDamageBonus = duplicate && PlayerStats.Instance != null ? -PlayerStats.Instance.DuplicatorDamageReduction : 0f;
         stats.Lifetime = 0;
 
         p.Initialize(stats);
@@ -581,7 +574,7 @@ public class WeaponPlayer : MonoBehaviour
         {
             if (feather.Type != PlayerStats.FeatherType.Electric || feather.Threshold <= 0) continue;
 
-            int threshold = Mathf.Clamp(feather.Threshold, 5, 10);
+            int threshold = PlayerStats.Threshold(feather.Threshold);
             feather.ShotCounter = Mathf.Min(feather.ShotCounter + 1, threshold);
             if (feather.ShotCounter >= threshold && SpawnElectricFeather(angle, feather))
                 feather.ShotCounter = 0;
@@ -602,8 +595,6 @@ public class WeaponPlayer : MonoBehaviour
         projectile.SpriteAngleOffset = ProjectileSpriteOffset;
 
         // Same non-critical damage formula as a normal feather, sampled now rather than on impact.
-        float baseMult = CurrentStats.DamageMultiplier > 0f ? CurrentStats.DamageMultiplier : 1f;
-        float moneyMult = PlayerStats.Instance != null ? PlayerStats.Instance.GetCurrentMoneyHighMultiplier() : 1f;
         int damage = Mathf.Max(1, Mathf.RoundToInt(FeatherDamage()));
 
         Projectile.BallisticData stats = new Projectile.BallisticData();
@@ -633,14 +624,14 @@ public class WeaponPlayer : MonoBehaviour
         var enemy = EnemyBase.Nearest(transform.position);
         Vector3 target = enemy != null ? enemy.transform.position : transform.position + (Vector3)AimDirection * 5;
         var stats = CurrentStats;
-        stats.DamageRatio = .5f; stats.CanAirburst = false; stats.ProjectileGravity = 0;
+        stats.DamageRatio = .5f; stats.CanAirburst = true; stats.ProjectileGravity = 0;
         Emit(target + Vector3.up * 10, -90, stats, Color.white, GetCurrentFeatherSize());
     }
 
     bool FireRandomVolley()
     {
         bool fired = false;
-        for (int i = 0; i < 6; i++)
+        for (int i = 0; i < PlayerStats.BoostCount(6); i++)
         {
             var stats = CurrentStats;
             stats.DamageRatio = Random.Range(.25f, 2f);
@@ -672,25 +663,26 @@ public class WeaponPlayer : MonoBehaviour
         return true;
     }
 
-    public void FireTurretElement(Vector3 position, Transform target, PlayerStats.FeatherType type, bool ascended)
+    public void FireTurretElement(Vector3 position, Transform target, PlayerStats.FeatherType type, bool ascended, ElementalTurret turret)
     {
         var stats = new Projectile.BallisticData { Damage = CurrentStats.Damage, DamageMultiplier = CurrentStats.DamageMultiplier,
-            DamageRatio = .5f, Speed = CurrentStats.Speed, CritChance = CurrentStats.CritChance };
+            DamageRatio = .5f, Speed = turret.ProjectileSpeed, CritChance = CurrentStats.CritChance, CanAirburst = true };
+        var owned = PlayerStats.Instance.SpecialFeathers.Find(f => f.Type == type);
         Color color = NormalFeatherColor;
         switch (type)
         {
             case PlayerStats.FeatherType.Frosty:
-                stats.IsFrostyFeather = true; stats.FreezeDuration = 2.25f; color = FrostyFeatherColor;
+                stats.IsFrostyFeather = true; stats.FreezeDuration = ascended ? 2.25f : owned != null ? owned.FreezeDuration : turret.DefaultFreezeDuration; color = turret.FrostyColor;
                 if (ascended) stats.Variant = CardAscension.AbsoluteZero; break;
             case PlayerStats.FeatherType.Metal:
-                stats.IsMetalFeather = true; stats.ProjectileGravity = 1; stats.BonusKnockback = 2; stats.DamageRatio = ascended ? 4 : 2;
-                color = MetalFeatherColor;
+                stats.IsMetalFeather = true; stats.ProjectileGravity = 1; stats.BonusKnockback = owned != null ? owned.BonusKnockback : turret.DefaultMetalKnockback; stats.DamageRatio = ascended ? 4 : .5f;
+                color = turret.MetalColor;
                 if (ascended) { stats.Variant = CardAscension.Tungsten; stats.RicochetCount = 3; } break;
             case PlayerStats.FeatherType.Poison:
-                stats.IsPoisonFeather = true; stats.PoisonDPS = 3.5f; color = PoisonFeatherColor;
+                stats.IsPoisonFeather = true; stats.PoisonDPS = owned != null ? owned.PoisonDPS : turret.DefaultPoisonDPS; color = turret.PoisonColor;
                 if (ascended) stats.Variant = CardAscension.DeadlyToxin; break;
             case PlayerStats.FeatherType.Explosive:
-                stats.IsExplosiveFeather = true; stats.ExplosionRadius = 6; color = ExplosiveFeatherColor;
+                stats.IsExplosiveFeather = true; stats.ExplosionRadius = ascended ? 6 : owned != null ? owned.ExplosionRadius : turret.DefaultExplosionRadius; color = turret.ExplosiveColor;
                 if (ascended) stats.Variant = CardAscension.Volcano; break;
             case PlayerStats.FeatherType.Electric:
                 stats.Variant = CardAscension.Supercharged; color = ElectricFeatherColor; break;
@@ -771,7 +763,7 @@ public class WeaponPlayer : MonoBehaviour
         stats.IsMetalFeather = false;
         stats.IsExplosiveFeather = false;
         stats.IsBuckshotPellet = false;
-        stats.CanAirburst = false;
+        stats.CanAirburst = true;
 
         Color featherColor = NormalFeatherColor;
 
@@ -825,7 +817,7 @@ public class WeaponPlayer : MonoBehaviour
 
     void FireBuckshotCone(float baseAngle, PlayerStats.SpecialFeatherInstance buckshot)
     {
-        int pelletCount = Mathf.Max(1, buckshot.BuckshotPellets);
+        int pelletCount = Mathf.Max(1, PlayerStats.BoostCount(buckshot.BuckshotPellets));
         float angleStep = (pelletCount > 1) ? BuckshotConeAngle / (pelletCount - 1) : 0f;
         float startAngle = baseAngle - (BuckshotConeAngle * 0.5f);
 
@@ -866,7 +858,7 @@ public class WeaponPlayer : MonoBehaviour
         stats.IceSlowFactor = 0;
         stats.ProjectileGravity = 0;
         stats.IsBuckshotPellet = true;
-        stats.CanAirburst = false;
+        stats.CanAirburst = true;
         stats.Lifetime = BuckshotLifetime;
 
         p.Initialize(stats);
@@ -882,7 +874,7 @@ public class WeaponPlayer : MonoBehaviour
     public void SpawnAirburst(Vector3 enemyPos, Vector3 incomingDirection, int sourceDamage, float sourceDamageMult, int ignoredEnemy = 0)
     {
         if (PlayerStats.Instance == null) return;
-        int count = PlayerStats.Instance.AirburstFeatherCount;
+        int count = PlayerStats.BoostCount(PlayerStats.Instance.AirburstFeatherCount);
         if (count <= 0) return;
 
         Vector3 spawnPos = enemyPos + incomingDirection.normalized * 0.2f;
@@ -922,7 +914,7 @@ public class WeaponPlayer : MonoBehaviour
         stats.PierceCount = 0;
         stats.RicochetCount = 0;
         stats.HomingSpeed = 0;
-        stats.CritChance = CurrentStats.CritChance * 0.5f;
+        stats.CritChance = CurrentStats.CritChance;
         stats.ExplosionRadius = 0;
         stats.IsBuckshotPellet = false;
         stats.CanAirburst = false;
@@ -955,7 +947,7 @@ public class WeaponPlayer : MonoBehaviour
         }
 
         float duration = 5.0f;
-        if (PlayerStats.Instance != null) duration = PlayerStats.Instance.TripleshotDuration;
+        if (PlayerStats.Instance != null) duration = PlayerStats.Boost(PlayerStats.Instance.TripleshotDuration);
 
         yield return new WaitForSeconds(duration);
 

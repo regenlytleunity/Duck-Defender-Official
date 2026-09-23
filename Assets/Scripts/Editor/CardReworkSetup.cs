@@ -6,6 +6,26 @@ using System.Linq;
 // Explicit authoring action: never runs automatically on import or on launch.
 public static class CardReworkSetup
 {
+    [MenuItem("Duck Defender/Card Rework/Configure Active Gameplay Scene")]
+    public static void ConfigureScene()
+    {
+        if (EditorApplication.isPlaying) throw new System.InvalidOperationException("Configure the scene outside Play Mode.");
+        var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+        var managers = scene.GetRootGameObjects().SelectMany(g => g.GetComponentsInChildren<CardManager>(true)).ToArray();
+        var players = scene.GetRootGameObjects().SelectMany(g => g.GetComponentsInChildren<PlayerStats>(true)).ToArray();
+        if (managers.Length == 0 || players.Length == 0) throw new System.InvalidOperationException("Open the gameplay scene containing CardManager and PlayerStats first.");
+        foreach (var manager in managers)
+        {
+            Undo.RecordObject(manager, "Configure reworked run offers");
+            manager.CommonRollWeight = .60f; manager.RareRollWeight = .30f;
+            manager.LegendaryRollWeight = .03f; manager.BasicRollWeight = .07f; manager.CorruptedRollWeight = 0;
+            EditorUtility.SetDirty(manager);
+        }
+        foreach (var player in players)
+            if (player.GetComponent<AscensionEffects>() == null) Undo.AddComponent<AscensionEffects>(player.gameObject);
+        UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(scene);
+        Debug.Log("[Card Rework] Scene odds configured and AscensionEffects attached. Assign its prefabs and save the scene.");
+    }
     static Dictionary<string, CardDefinition> _cards;
     static CardStatModifier M(StatType stat, float first, float growth = 0, bool percent = false)
         => new CardStatModifier { StatType = stat, BaseAmount = first, AmountPerShopLevel = growth,
@@ -92,8 +112,8 @@ public static class CardReworkSetup
         Set("gad_homing_feathers", "Homing Feathers", "Feathers home toward enemies with force {0}.", M(StatType.HomingSpeed, .5f, .5f));
 
         Set("bas_damage", "Damage Upgrade", "Increases feather damage by {0}.", M(StatType.Damage, 1));
-        Set("bas_health", "Health Upgrade", "Increases maximum health by {0}.", M(StatType.MaxHealth, 1));
-        Set("bas_income", "Coins Upgrade", "Earn {0} additional coins per wave.", M(StatType.CoinsPerWave, 1));
+        Set("bas_health", "Health Upgrade", "Increases maximum health by {0} and heals {1} additional health after each wave.", M(StatType.MaxHealth, 2), M(StatType.RegenPerWave, 1));
+        Set("bas_income", "Coins Upgrade", "Earn {0} additional coins per wave.", M(StatType.CoinsPerWave, 10));
         Set("bas_mobility", "Mobility Upgrade", "Increases movement speed and jump force by {0}.", M(StatType.MoveSpeed, 1), M(StatType.JumpForce, 1));
 
         Asc("mun_accelerator", CardAscension.QuantumLeap, "Quantum Leap", "Feathers cross their trajectory instantly, preserving hit and penetration effects.");

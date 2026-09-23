@@ -39,11 +39,17 @@ public class PlayerStats : MonoBehaviour
     public bool HasAscension(CardAscension kind) => _ascensions.Contains(kind);
     public float SpeedMultiplier => Mathf.Max(.05f, 1f + RunSpeedBonus + RebirthStatBonus + (HasAscension(CardAscension.Untouchable) ? 4f : 0f));
     public float BeneficialStatMultiplier => 1f + RebirthStatBonus;
+    // Read-time scaling also covers cards collected after Rebirth. Damage and maximum
+    // health use their own additive percentage buckets, so they must not call Boost.
+    public static float Boost(float value) => value * (Instance != null ? Instance.BeneficialStatMultiplier : 1f);
+    public static int BoostCount(int value) => Mathf.Max(0, Mathf.RoundToInt(Boost(value)));
+    public static float Cooldown(float seconds) => seconds / (Instance != null ? Instance.BeneficialStatMultiplier : 1f);
+    public static int Threshold(int count) => Mathf.Max(1, Mathf.CeilToInt(Cooldown(count)));
     public static float ProjectileSpeedFactor(Vector2 position)
     {
         var stats = Instance;
-        if (stats == null || !stats.HasSlowingAura || Vector2.Distance(position, stats.transform.position) > stats.SlowingAuraRadius) return 1;
-        return Mathf.Max(.05f, 1f - stats.SlowingAuraSlowPercent);
+        if (stats == null || !stats.HasSlowingAura || Vector2.Distance(position, stats.transform.position) > Boost(stats.SlowingAuraRadius)) return 1;
+        return Mathf.Max(.05f, 1f - Boost(stats.SlowingAuraSlowPercent));
     }
 
     public void ActivateAscension(CardAscension kind)
@@ -364,7 +370,7 @@ public class PlayerStats : MonoBehaviour
     {
         if (amount <= 0) return;
         if (HasAscension(CardAscension.IllegalOperations)) RunDamageBonus += amount * .0001f;
-        CoinsCollectedRun += amount;
+        CoinsCollectedRun = (int)Math.Min(int.MaxValue, (long)CoinsCollectedRun + amount);
         OnCoinsGained?.Invoke(amount);
 
         // 1.4.13: Each coin adds ONE stack with its own absolute expiration time.
@@ -377,7 +383,7 @@ public class PlayerStats : MonoBehaviour
         // independent timer.
         if (MoneyHighDuration > 0 && DamagePerCoin > 0 && amount > 0)
         {
-            float expiration = Time.time + MoneyHighDuration;
+            float expiration = Time.time + Boost(MoneyHighDuration);
             for (int i = 0; i < amount; i++)
             {
                 _moneyHighExpirations.Add(expiration);
@@ -483,8 +489,9 @@ public class PlayerStats : MonoBehaviour
     /// </summary>
     public bool IsSecondWindReady()
     {
+        if (HasAscension(CardAscension.Rebirth)) return !RebirthUsed;
         if (!HasSecondWind) return false;
-        return Time.time >= LastSecondWindUseTime + SecondWindCooldown;
+        return Time.time >= LastSecondWindUseTime + Cooldown(SecondWindCooldown);
     }
 
     /// <summary>

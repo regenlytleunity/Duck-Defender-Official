@@ -58,7 +58,7 @@ public class PlayerData
 public class CardSaveData
 {
     public string CardID;
-    public int Level;      // Current Level (1-5)
+    public int Level;      // Current Level (1-6)
     public int Duplicates; // Progress towards next level
     public bool IsUnlocked; 
     public bool IsAscended;

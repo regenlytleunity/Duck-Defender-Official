@@ -3,12 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 
 /// <summary>
-/// 1.4.11: No structural changes. CardPackType.Tech is gone, replaced by CardPackType.Gadget.
-/// Since cards are keyed by string ID in PlayerData, existing collection saves still load fine
-/// (the enum lives on the CardDefinition asset, not in the save file).
-/// 
-/// IMPORTANT: After update, re-author your ShopPackDefinition assets to point at the new Gadget 
-/// pack type if they were previously set to Tech.
+/// Owns pack purchases, the level-1 through level-6 collection, pack-specific
+/// essence, one-time ascensions and persistent developer resource flags.
 /// </summary>
 public class ShopManager : MonoBehaviour
 {
@@ -81,19 +77,18 @@ public class ShopManager : MonoBehaviour
             float roll = Random.value;
             CardRarity targetRarity = CardRarity.Common;
 
-            if (roll > 0.98f) targetRarity = CardRarity.Corrupted;
-            else if (roll > 0.95f) targetRarity = CardRarity.Legendary;
+            if (roll > 0.95f) targetRarity = CardRarity.Legendary;
             else if (roll > 0.60f) targetRarity = CardRarity.Rare;
 
             List<CardDefinition> validPool = AllCards
-                .Where(c => c != null && c.PackCategory == type && c.Rarity == targetRarity)
+                .Where(c => c != null && !c.IsBasic && c.PackCategory == type && c.Rarity == targetRarity)
                 .ToList();
 
             if (validPool.Count == 0)
             {
                 Debug.LogWarning($"[ShopManager] Pack '{type}' has no {targetRarity} cards - falling back to any rarity.");
                 validPool = AllCards
-                    .Where(c => c != null && c.PackCategory == type)
+                    .Where(c => c != null && !c.IsBasic && c.PackCategory == type)
                     .ToList();
             }
 
@@ -114,6 +109,8 @@ public class ShopManager : MonoBehaviour
 
     public void AddCardToCollection(string cardID)
     {
+        CardDefinition definition = AllCards.Find(c => c != null && c.ID == cardID);
+        if (definition == null || definition.IsBasic) return;
         CardSaveData savedCard = _playerData.CardCollection.Find(c => c.CardID == cardID);
 
         if (savedCard == null)
@@ -122,8 +119,7 @@ public class ShopManager : MonoBehaviour
         }
         else
         {
-            CardDefinition definition = AllCards.Find(c => c != null && c.ID == cardID);
-            if (definition == null) return;
+            if (!savedCard.IsUnlocked) { savedCard.IsUnlocked = true; savedCard.Level = 1; return; }
             if (savedCard.Level < definition.MaxLevel && !savedCard.IsAscended)
                 savedCard.Duplicates = (int)System.Math.Min(int.MaxValue, (long)savedCard.Duplicates + 1);
             else _playerData.AddEssence(definition.PackCategory, definition.EssencePerCopy);
@@ -133,7 +129,7 @@ public class ShopManager : MonoBehaviour
     public bool TryUpgradeCard(string cardID)
     {
         CardSaveData savedCard = _playerData.CardCollection.Find(c => c.CardID == cardID);
-        CardDefinition def = AllCards.Find(c => c.ID == cardID);
+        CardDefinition def = AllCards.Find(c => c != null && c.ID == cardID);
 
         if (savedCard != null && def != null && !def.IsBasic && savedCard.IsUnlocked && !savedCard.IsAscended && savedCard.Level < def.MaxLevel)
         {
@@ -197,7 +193,7 @@ public class ShopManager : MonoBehaviour
     {
         if (pack == null || (count != 1 && count != 3) || pack.Cost < 0 ||
             (long)pack.Cost * count > int.MaxValue ||
-            !AllCards.Any(c => c != null && c.PackCategory == pack.PackType)) return null;
+            AllCards == null || !AllCards.Any(c => c != null && !c.IsBasic && c.PackCategory == pack.PackType)) return null;
         int price = pack.Cost * count;
         if (!CanAfford(price)) return null;
         // Charge and grant together, before the cosmetic opening animation.

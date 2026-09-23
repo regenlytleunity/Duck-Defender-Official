@@ -38,7 +38,7 @@ public class Meteor : MonoBehaviour
     {
         if (_hasExploded) return;
 
-        if (collision.CompareTag("Ground") || collision.CompareTag("Enemy"))
+        if (collision.CompareTag("Ground") || collision.GetComponentInParent<EnemyBase>() != null)
         {
             Explode();
         }
@@ -49,7 +49,7 @@ public class Meteor : MonoBehaviour
         _hasExploded = true;
 
         float radius = 4.0f; 
-        if (PlayerStats.Instance != null) radius = PlayerStats.Instance.MeteorRadius;
+        if (PlayerStats.Instance != null) radius = PlayerStats.Boost(PlayerStats.Instance.MeteorRadius);
 
         // 1. Visuals
         if (ExplosionPrefab != null)
@@ -58,24 +58,16 @@ public class Meteor : MonoBehaviour
             boom.transform.localScale = Vector3.one * (radius / 3.0f); 
         }
 
-        // 2. Damage Logic (50% MAX HEALTH)
-        Collider2D[] hits = Physics2D.OverlapCircleAll(transform.position, radius);
-        foreach (var hit in hits)
+        // Apply once per enemy, even when it has multiple colliders.
+        float flat = PlayerStats.Instance != null ? PlayerStats.Instance.MeteorDamage : 10;
+        float damage = PlayerStats.Instance != null
+            ? PlayerStats.Instance.CalculateDamage(flat, false, _secondary ? .5f : 1f)
+            : flat * (_secondary ? .5f : 1f);
+        foreach (var enemy in EnemyBase.ActiveEnemies)
         {
-            if (hit.CompareTag("Enemy"))
-            {
-                EnemyBase enemy = hit.GetComponent<EnemyBase>();
-                if (enemy != null)
-                {
-                    // Logic: Deal 50% of THIS enemy's Max Health
-                    float flat = PlayerStats.Instance != null ? PlayerStats.Instance.MeteorDamage : 10;
-                    int damage = Mathf.RoundToInt(PlayerStats.Instance != null ? PlayerStats.Instance.CalculateDamage(flat, false, _secondary ? .5f : 1f) : flat);
-                    
-                    enemy.TakeDamage(damage);
-                    if (GameUI.Instance != null)
-                        GameUI.Instance.ShowDamagePopup(enemy.transform.position, damage, true); 
-                }
-            }
+            if (enemy == null || !enemy.IsAlive || Vector2.Distance(transform.position, enemy.transform.position) > radius) continue;
+            enemy.TakeFractionalDamage(damage);
+            if (GameUI.Instance != null) GameUI.Instance.ShowDamagePopup(enemy.transform.position, Mathf.RoundToInt(damage), false);
         }
 
         // 3. Drop Coins

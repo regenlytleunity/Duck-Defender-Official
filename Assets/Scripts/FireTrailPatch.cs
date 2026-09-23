@@ -66,11 +66,13 @@ public class FireTrailPatch : MonoBehaviour
     [Tooltip("If true, shows damage popups when the patch hits an enemy.")]
     public bool ShowDamagePopups = true;
 
-    private float _damagePerTick;
+    private float _damagePerSecond;
+    private float _elapsedDamageTime;
+    private float _damageAccumulator;
     public float SlowPercent;
     private float _duration;
     private float _timeSpawned;
-    private float _nextTickTime;
+    
     private float _resolvedDamageRadius;
 
     void Awake()
@@ -82,15 +84,12 @@ public class FireTrailPatch : MonoBehaviour
     /// Called by PlayerController right after instantiation. Sets damage, duration, and 
     /// self-adjusts spawn position so the patch sits ON the ground rather than sunk into it.
     /// </summary>
-    public void Initialize(int damagePerTick, float duration)
+    public void Initialize(int damagePerSecond, float duration)
     {
-        _damagePerTick = Mathf.Max(0, damagePerTick) * Mathf.Max(.05f, DamageTickInterval);
+        _damagePerSecond = Mathf.Max(0, damagePerSecond);
+        _elapsedDamageTime = _damageAccumulator = 0;
         _duration = Mathf.Max(0.5f, duration);
         _timeSpawned = Time.time;
-
-        // Tick immediately on spawn so enemies standing right where the patch dropped 
-        // get hit before they can walk away.
-        _nextTickTime = Time.time + Mathf.Max(.05f, DamageTickInterval);
 
         ResolveDamageRadius();
         AdjustSpawnPosition();
@@ -164,11 +163,15 @@ public class FireTrailPatch : MonoBehaviour
     void Update()
     {
         float age = Time.time - _timeSpawned;
-        if (age > _duration + .001f)
+        float elapsed = Mathf.Clamp(age, 0, _duration);
+        _damageAccumulator += elapsed - _elapsedDamageTime;
+        _elapsedDamageTime = elapsed;
+        if (_damageAccumulator >= Mathf.Max(.05f, DamageTickInterval) || age >= _duration)
         {
-            Destroy(gameObject);
-            return;
+            TickDamage(_damageAccumulator);
+            _damageAccumulator = 0;
         }
+        if (age >= _duration) { Destroy(gameObject); return; }
 
         // Fade out in the last 30% of life
         if (Renderer != null && age > _duration * 0.7f)
@@ -179,12 +182,6 @@ public class FireTrailPatch : MonoBehaviour
             Renderer.color = c;
         }
 
-        // Damage tick
-        if (Time.time >= _nextTickTime)
-        {
-            _nextTickTime = Time.time + DamageTickInterval;
-            TickDamage();
-        }
     }
 
     /// <summary>
@@ -192,12 +189,12 @@ public class FireTrailPatch : MonoBehaviour
     /// damage to each. Matches AuraController's pattern - works regardless of how the 
     /// prefab's collider is configured (or if it has one at all).
     /// </summary>
-    void TickDamage()
+    void TickDamage(float seconds)
     {
         foreach (var enemy in EnemyBase.ActiveEnemies)
         {
             if (enemy == null || !enemy.IsAlive || Vector2.Distance(transform.position, enemy.transform.position) > _resolvedDamageRadius) continue;
-            float damage = PlayerStats.Instance != null ? PlayerStats.Instance.CalculateDamage(_damagePerTick, false) : _damagePerTick;
+            float damage = PlayerStats.Instance != null ? PlayerStats.Instance.CalculateDamage(_damagePerSecond, false) * seconds : _damagePerSecond * seconds;
             enemy.TakeFractionalDamage(damage);
             if (SlowPercent > 0) enemy.ApplyZoneSlow(SlowPercent, DamageTickInterval + .1f);
         }

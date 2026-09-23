@@ -155,7 +155,7 @@ public class Coin : MonoBehaviour
             }
 
             float magnetRange = 3.0f;
-            if (PlayerStats.Instance != null) magnetRange = PlayerStats.Instance.MagnetRange;
+            if (PlayerStats.Instance != null) magnetRange = PlayerStats.Boost(PlayerStats.Instance.MagnetRange);
 
             float dist = Vector2.Distance(transform.position, _player.position);
             if (dist <= magnetRange)

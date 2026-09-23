@@ -32,8 +32,8 @@ public class ProtectorTurret : TurretBase
             ? PlayerTransform.position
             : transform.position;
 
-        float radius = Mathf.Max(0.1f, PlayerStats.Instance.ProtectorRadius);
-        float knockbackForce = Mathf.Max(0.1f, PlayerStats.Instance.ProtectorKnockback);
+        float radius = Mathf.Max(0.1f, PlayerStats.Boost(PlayerStats.Instance.ProtectorRadius));
+        float knockbackForce = Mathf.Max(0.1f, PlayerStats.Boost(PlayerStats.Instance.ProtectorKnockback));
 
         if (ShockwaveEffectPrefab != null)
         {

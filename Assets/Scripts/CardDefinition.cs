@@ -261,6 +261,7 @@ public class CardDefinition : ScriptableObject
     public List<CardStatModifier> Modifiers;
 
     [Header("Leveling Config")]
+    [Tooltip("Legacy serialized field; upgrade prices now come from the rarity tables below.")]
     public int BaseUpgradeCost = 50;
     public int MaxLevel = 6;
 
@@ -284,6 +285,7 @@ public class CardDefinition : ScriptableObject
     /// </summary>
     public float GetAmountAtShopLevel(CardStatModifier mod, int shopLevel)
     {
+        shopLevel = Mathf.Clamp(shopLevel, 1, MaxLevel);
         if (shopLevel <= 1) return mod.BaseAmount;
         return mod.BaseAmount + ((shopLevel - 1) * mod.AmountPerShopLevel);
     }

@@ -22,6 +22,8 @@ public abstract class TurretBase : MonoBehaviour
 
     [Header("Visual")]
     public SpriteRenderer TurretRenderer;
+    [Tooltip("Optional replacement artwork for this turret's ascended form.")]
+    public Sprite AscendedSprite;
 
     protected Transform PlayerTransform { get; private set; }
     protected Vector3 SlotOffset { get; private set; }
@@ -43,6 +45,13 @@ public abstract class TurretBase : MonoBehaviour
 
     public void Configure(Transform player, Vector3 slotOffset)
     {
+        var stats = player != null ? player.GetComponent<PlayerStats>() : null;
+        CardAscension ascension = TurretType == TurretSlotType.Marksman ? CardAscension.Marksman
+            : TurretType == TurretSlotType.Medic ? CardAscension.Savior
+            : TurretType == TurretSlotType.Protector ? CardAscension.Defender
+            : TurretType == TurretSlotType.Elemental ? CardAscension.Elemental : CardAscension.Rebirth;
+        if (stats != null && stats.HasAscension(ascension) && AscendedSprite != null && TurretRenderer != null)
+            TurretRenderer.sprite = AscendedSprite;
         PlayerTransform = player;
         SlotOffset = slotOffset;
         _lastPlayerPos = player != null ? player.position : Vector3.zero;

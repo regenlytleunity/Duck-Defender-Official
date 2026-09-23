@@ -556,31 +556,14 @@ Assets/Scripts/PlayerController.cs
 Assets/Scripts/Meteor.cs
 ```
 
-Default/fallback trigger threshold:
+Coin Meteor targets the nearest living enemy. Its selected card supplies a threshold of
+50 down to 35 coins and flat non-feather damage of 10 up to 35. Damage runs through
+PlayerStats.CalculateDamage and applies once per enemy, independent of collider count.
+MeteorRadius remains an authored runtime stat. Threshold handling preserves remainder.
 
-```text
-10
-```
-
-Threshold handling preserves overflow/remainder.
-
-Current Meteor damage:
-
-```text
-ceil(enemy.MaxHealth * 0.5)
-```
-
-Meteor currently reads:
-
-```text
-PlayerStats.MeteorRadius
-```
-
-but does not use:
-
-```text
-PlayerStats.MeteorDamage
-```
+Absolute Extinction retains the level-6 primary meteor. Each of its three dropped coins
+can summon a secondary meteor at a random viewport position. Secondary meteors deal
+50% damage and drop no coins, preventing recursive secondary-coin chains.
 
 ---
 
@@ -686,41 +669,48 @@ Custom          = 2
 
 ## Card Assets
 
-### Electric Feathers scripting
+### Current card rework
 
-Electric Feathers extends `PlayerStats.SpecialFeatherInstance` with the appended
-`FeatherType.Electric` and `ElectricChainCount`. The appended `StatType` values
-`ElectricFeatherThreshold` and `ElectricFeatherChainCount` preserve all existing
-serialized enum indices. `CardManager` applies the existing first-pick/re-pick
-model and caps this effect at a 5-attack interval and 6 additional chain targets.
+CardDefinition contains six permanent levels and optional CardAscension metadata on the
+same asset/ID. CardManager applies a collection card once per run at its saved level or
+ascended form. Basic cards remain repeatable at their original level-1 strength. The
+serialized InRunStackMode fields remain for compatibility but no longer drive repeated
+collection-card pickups.
 
-`WeaponPlayer` counts each successfully emitted normal volley once, and each
-independent Mini Gun shot once. Extra pellets, special feathers, airbursts, and
-turrets do not advance the electric counter. Electric projectiles reuse
-`ObjectPooler`; pool exhaustion keeps one activation pending until a later
-successful attack can emit it.
+New run-offer defaults are Common 60%, Rare 30%, Basic 7%, Legendary 3%. Unavailable
+rarities fall back to the eligible pool. When fewer than three collection cards remain,
+Basics fill the remaining choices. Lucky Talisman shifts Common probability toward
+Rare and Legendary. The serialized gameplay scene requires the configuration step in
+[CARD_REWORK_IMPLEMENTATION_GUIDE.md](CARD_REWORK_IMPLEMENTATION_GUIDE.md).
 
-The initial feather flies normally. Its damage snapshots normal non-critical
-attack damage, including the damage multiplier and Money High, when fired.
-`Projectile` resolves all subsequent jumps immediately on the first enemy hit,
-halving the unrounded damage per jump. Each hit uses the existing integer damage
-API (round to nearest, minimum 1), including enemy-specific damage reduction.
-Nearest living enemies within `WeaponPlayer.ElectricChainRadius` are selected
-through a reusable Physics2D overlap list and the existing Enemy tag/EnemyBase
-architecture. Targets cannot repeat; walls do not block chain jumps.
+The 25 ascensions are runtime flags in PlayerStats. AscensionEffects owns the player's
+beam, wormhole, volcanic eruption, healing areas, orbs and wall spawning. AscensionArea,
+HealingOrb and DefenderWall supply reusable effect behavior. Their prefabs are Inspector
+references; automatic addition of AscensionEffects does not populate them.
 
-Optional lightning uses reusable LineRenderer instances owned by `WeaponPlayer`,
-independent of projectile reuse. No new component script is required.
+PlayerStats.CalculateDamage combines flat damage with an additive percentage bucket.
+Explicit projectile ratios, crits and bounce falloff apply afterward. EnemyBase maintains
+an active enemy registry and fractional damage remainder for area effects/poison.
+PlayerHealth handles Rebirth once per run. Read-time stat helpers apply its beneficial
+scaling to later acquisitions as well. LevelUpUI queues multiple earned level choices.
 
-The card asset and visual prefab are not included with this scripting change.
-See [Electric Feathers setup](ELECTRIC_FEATHERS.md) for the required Editor work.
+Electric Feathers uses the existing pool. Successfully emitted normal volleys and minigun
+shots each count once for all special-feather intervals; extra feathers do not recurse.
+Electric damage snapshots normal attack damage at firing. Chain targets cannot repeat;
+unrounded damage halves per jump before integer hit conversion. Supercharged uses a
+maximum-health hit through the enemy's normal damage path. Optional chain/bolt visuals
+reuse WeaponPlayer-owned LineRenderers.
+
+Assets/Scripts/Editor/CardReworkSetup.cs provides explicit authoring/configuration menu
+commands. CardReworkVerification runs isolated checks with a temporary save and transient
+objects. CardReworkCombatProbe is guarded by UNITY_EDITOR and excluded from builds.
 
 ### Existing assets
 
 Current count:
 
 ```text
-50
+51
 ```
 
 Distribution:
@@ -729,7 +719,7 @@ Distribution:
 Base Set Upgrades:   4
 Gadget Upgrades:     12
 Mobility Upgrades:   9
-Munitions Upgrades:  13
+Munitions Upgrades:  14
 Survival Upgrades:   12
 ```
 
@@ -737,7 +727,7 @@ Rarity distribution:
 
 ```text
 Common:     24
-Rare:       13
+Rare:       14
 Legendary:  13
 Corrupted:  0
 ```
@@ -760,7 +750,7 @@ Responsibilities include:
 * unlocked-card filtering
 * run card pool
 * pickups
-* stacking
+* once-per-run selection and repeatable Basic effects
 * application of upgrades
 
 Applies effects into systems including:
@@ -817,32 +807,25 @@ Owns permanent economy and collection/upgrading behavior.
 
 `LoadEconomy()` calls `UnlockBaseSet()`.
 
-### Verified BaseSet Wiring Issue
+### Collection and pack wiring
 
-The `ShopManager` serialized in:
+MainMenu's ShopManager contains 47 collection cards and intentionally omits the four
+Basic cards. Its AvailablePacks omits Pack_BasePack. Basics are always eligible through
+the gameplay CardManager's 51-card list and are not purchasable or upgradeable.
 
-```text
-Assets/Scenes/MainMenu.unity
-```
+PlayerData.CreateNew unlocks eight specified collection starters independently of the
+shop list. ShopManager owns four essence balances, six-level upgrade prices/copy costs,
+1,000-essence ascensions and persistent developer resource flags. At maximum level,
+new duplicates and leftover copies convert to essence (Common 1, Rare 2, Legendary 4).
 
-currently has 46 `AllCards` references and omits all four BaseSet cards:
+TryBuyPacks accepts one or three packs, grants/saves three or nine cards before the
+visual reveal, and publishes OnCollectionChanged for collection/resource UI. Pack odds
+are 60% Common, 35% Rare and 5% Legendary. No Corrupted cards are rolled.
 
-```text
-Assets/Cards/Upgrades/Base Set Upgrades/Basic Damage.asset
-Assets/Cards/Upgrades/Base Set Upgrades/Basic Health.asset
-Assets/Cards/Upgrades/Base Set Upgrades/Basic Income.asset
-Assets/Cards/Upgrades/Base Set Upgrades/Basic Mobility.asset
-```
-
-No runtime population path was found.
-
-`AvailablePacks` also omits:
-
-```text
-Assets/Cards/Packs/Pack_BasePack.asset
-```
-
-Therefore BaseSet auto-unlock should not be assumed to function as intended.
+MainMenuUI contains the one-/three-pack controls and a three-column reveal grid, while
+CardDisplay contains the ascension button/balance bindings. DeveloperConsoleUI accepts
+the five four-digit codes. The new scene/prefab UI references still require the editor
+setup documented in the implementation guide.
 
 ---
 
@@ -867,6 +850,10 @@ Saved information includes:
 * permanent level
 * duplicate count
 * unlock state
+* ascension state
+* four pack-specific essence balances
+* developer resource flags
+* progression schema version
 
 Missing/corrupt data falls back to fresh player data.
 
@@ -887,6 +874,10 @@ IsUnlocked = true
 ```
 
 ---
+
+Version 2 is the card-rework schema. Loading an older save intentionally replaces it
+with the eight-starter profile once. Current-version saves preserve progression. An
+editor-only VerificationSavePath allows the isolated checks to avoid real player data.
 
 ## SaveOnQuit
 
@@ -1266,9 +1257,7 @@ This is a current behavior mismatch.
 
 ## BaseSet Shop Wiring
 
-BaseSet cards are omitted from the MainMenu `ShopManager.AllCards` serialized list.
-
-`Pack_BasePack.asset` is also omitted from `AvailablePacks`.
+Basic cards and their pack are intentionally omitted from the MainMenu shop. They remain in the gameplay CardManager list as repeatable fallback offers.
 
 ---
 

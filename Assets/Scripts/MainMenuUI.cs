@@ -31,6 +31,8 @@ public class MainMenuUI : MonoBehaviour
     public UnityEngine.UI.GridLayoutGroup RevealGrid;
     public Vector2 SingleCardSize = new Vector2(260, 360);
     public Vector2 TripleCardSize = new Vector2(160, 220);
+    [Tooltip("Full-size card canvas before fitting it into a reveal grid cell. Keeps fonts and fixed child artwork proportional.")]
+    public Vector2 CardReferenceSize = new Vector2(500, 700);
     public TextMeshProUGUI EssenceBalancesText;
     int _packCount = 1;
     bool _purchaseInProgress;
@@ -85,6 +87,7 @@ public class MainMenuUI : MonoBehaviour
     // --- NAVIGATION ---
 public void ShowPanel(GameObject panel)
 {
+    StopAllCoroutines();
     MenuPanel.SetActive(false);
     ShopPanel.SetActive(false);
     SettingsPanel.SetActive(false);
@@ -190,7 +193,7 @@ public void OpenShop()
 
 void OnPackClicked(ShopPackDefinition pack)
 {
-    AudioManager.Instance.PlaySFX("UI_button_Click");
+    if (AudioManager.Instance != null) AudioManager.Instance.PlaySFX("UI_button_Click");
     
     _selectedPack = pack;
     ConfirmPanel.SetActive(true);
@@ -198,6 +201,7 @@ void OnPackClicked(ShopPackDefinition pack)
     
     YesButton.onClick.RemoveAllListeners();
     YesButton.onClick.AddListener(BuyPack);
+    YesButton.interactable = ShopManager.Instance.CanAfford(pack.Cost);
     if (BuyThreeButton != null)
     {
         BuyThreeButton.onClick.RemoveAllListeners();
@@ -266,9 +270,9 @@ void Purchase(int count)
         }
 
         float dist = Vector2.Distance(currentPos, _lastMousePos);
-        
-        _sliceProgress += dist;
         _lastMousePos = currentPos;
+        if (!PointerOverPack(currentPos)) return;
+        _sliceProgress += dist;
 
         PackImage.transform.rotation = Quaternion.Euler(0, 0, Mathf.Sin(Time.time * 50) * 5);
 
@@ -276,6 +280,17 @@ void Purchase(int count)
         {
             CompleteSlice();
         }
+    }
+
+    bool PointerOverPack(Vector2 position)
+    {
+        Canvas canvas = PackImage.GetComponentInParent<Canvas>();
+        Camera camera = canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay ? canvas.worldCamera : null;
+        if (RectTransformUtility.RectangleContainsScreenPoint(PackImage.rectTransform, position, camera)) return true;
+        if (AdditionalPackImages != null)
+            foreach (var image in AdditionalPackImages)
+                if (image != null && image.gameObject.activeInHierarchy && RectTransformUtility.RectangleContainsScreenPoint(image.rectTransform, position, camera)) return true;
+        return false;
     }
 
     void CompleteSlice()
@@ -339,7 +354,21 @@ void Purchase(int count)
         {
             if (CardDisplayPrefab != null)
             {
-                GameObject cardObj = Instantiate(CardDisplayPrefab, CardRevealCenter);
+                Transform parent = CardRevealCenter;
+                if (RevealGrid != null)
+                {
+                    var slot = new GameObject("RevealSlot", typeof(RectTransform));
+                    slot.transform.SetParent(CardRevealCenter, false);
+                    parent = slot.transform;
+                }
+                GameObject cardObj = Instantiate(CardDisplayPrefab, parent);
+                if (RevealGrid != null)
+                {
+                    var rect = cardObj.GetComponent<RectTransform>();
+                    rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(.5f, .5f);
+                    rect.anchoredPosition = Vector2.zero;
+                    rect.sizeDelta = CardReferenceSize;
+                }
                 CardDisplay disp = cardObj.GetComponent<CardDisplay>();
                 if (disp != null)
                 {
@@ -366,7 +395,8 @@ void Purchase(int count)
         // --- 4. POP-IN ANIMATION ---
         for (int i = 0; i < spawnedCards.Count; i++)
         {
-            StartCoroutine(AnimatePop(spawnedCards[i].transform));
+            float fit = RevealGrid != null ? Mathf.Min(RevealGrid.cellSize.x / Mathf.Max(1, CardReferenceSize.x), RevealGrid.cellSize.y / Mathf.Max(1, CardReferenceSize.y)) : 1;
+            StartCoroutine(AnimatePop(spawnedCards[i].transform, fit));
             yield return new WaitForSeconds(0.5f);
         }
 
@@ -380,17 +410,17 @@ void Purchase(int count)
         }
     }
     
-    IEnumerator AnimatePop(Transform target)
+    IEnumerator AnimatePop(Transform target, float scale)
     {
         float timer = 0f;
         while(timer < 0.3f)
         {
             timer += Time.deltaTime;
             float progress = timer / 0.3f;
-            target.localScale = Vector3.Lerp(Vector3.zero, Vector3.one, progress);
+            target.localScale = Vector3.Lerp(Vector3.zero, Vector3.one * scale, progress);
             yield return null;
         }
-        target.localScale = Vector3.one;
+        target.localScale = Vector3.one * scale;
     }
 
     public void ResetGameData()

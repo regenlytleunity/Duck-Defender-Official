@@ -52,12 +52,11 @@ public class Projectile : MonoBehaviour
 
         public float Lifetime;
 
-        // 1.4.11: True only for "regular" player feathers. Triggers airburst on enemy hit
-        // if PlayerStats.AirburstFeatherCount > 0. Always false for special feathers, buckshot,
-        // turret shots, mini gun shots, and airburst sub-projectiles (prevents infinite cascade).
+        // Primary feathers can airburst. Child feathers and non-feather needles cannot recurse.
         public bool CanAirburst;
         public CardAscension Variant;
         public float DamageRatio;
+        public float LocalDamageBonus;
         public bool NonFeather;
         public bool MarkTarget;
         public bool InfinitePierce;
@@ -131,7 +130,21 @@ public class Projectile : MonoBehaviour
 
     public void Initialize(BallisticData incomingStats)
     {
+        // Pool growth may return an object whose Awake has not run yet.
+        if (_rb == null) Awake();
         Stats = incomingStats;
+        if (!Stats.NonFeather && PlayerStats.Instance != null && PlayerStats.Instance.FeatherSize > 1f)
+            Stats.ProjectileGravity = Mathf.Max(1f, Stats.ProjectileGravity);
+        Stats.Speed = PlayerStats.Boost(Stats.Speed);
+        Stats.Knockback = PlayerStats.Boost(Stats.Knockback);
+        Stats.BonusKnockback = PlayerStats.Boost(Stats.BonusKnockback);
+        Stats.PierceCount = PlayerStats.BoostCount(Stats.PierceCount);
+        Stats.RicochetCount = PlayerStats.BoostCount(Stats.RicochetCount);
+        Stats.HomingSpeed = PlayerStats.Boost(Stats.HomingSpeed);
+        Stats.CritChance = Mathf.Clamp01(PlayerStats.Boost(Stats.CritChance));
+        Stats.ExplosionRadius = PlayerStats.Boost(Stats.ExplosionRadius);
+        Stats.FreezeDuration = PlayerStats.Boost(Stats.FreezeDuration);
+        Stats.HealAmount = PlayerStats.BoostCount(Stats.HealAmount);
         if (_spriteRenderer != null)
             _spriteRenderer.sprite = Stats.Variant == CardAscension.Tungsten && TungstenSprite != null ? TungstenSprite
                 : Stats.NonFeather && NeedleSprite != null ? NeedleSprite : _defaultSprite;
@@ -264,14 +277,14 @@ public class Projectile : MonoBehaviour
             return;
         }
 
-        if (collision.CompareTag("Enemy"))
+        if (collision.GetComponentInParent<EnemyBase>() != null)
         {
             EnemyBase hitOwner = collision.GetComponentInParent<EnemyBase>();
             int enemyID = hitOwner != null ? hitOwner.GetInstanceID() : collision.gameObject.GetInstanceID();
             if (_hitEnemyIDs.Contains(enemyID)) return;
 
             EnemyBase enemy = hitOwner;
-            if (enemy != null)
+            if (enemy != null && enemy.IsAlive)
             {
                 _hitEnemyIDs.Add(enemyID);
                 HitEnemy(enemy);
@@ -295,7 +308,7 @@ public class Projectile : MonoBehaviour
 
         float ratio = (Stats.DamageRatio > 0 ? Stats.DamageRatio : 1f) * _currentDamageMultiplier;
         float damage = PlayerStats.Instance != null
-            ? PlayerStats.Instance.CalculateDamage(Stats.Damage, !Stats.NonFeather, ratio, baseMult - 1f)
+            ? PlayerStats.Instance.CalculateDamage(Stats.Damage, !Stats.NonFeather, ratio, baseMult - 1f + Stats.LocalDamageBonus)
             : Stats.Damage * baseMult * ratio;
         int baseDamage = Mathf.Max(1, Mathf.RoundToInt(damage));
 
@@ -329,7 +342,7 @@ public class Projectile : MonoBehaviour
 
         if (Stats.IsHealingFeather && Stats.HealAmount > 0)
         {
-            PlayerHealth ph = FindFirstObjectByType<PlayerHealth>();
+            PlayerHealth ph = PlayerStats.Instance != null ? PlayerStats.Instance.GetComponent<PlayerHealth>() : null;
             if (ph != null)
             {
                 ph.Heal(Stats.HealAmount);
@@ -348,7 +361,7 @@ public class Projectile : MonoBehaviour
         // and the player has the Airburst upgrade. Only normal feathers airburst (CanAirburst).
         if (Stats.CanAirburst && PlayerStats.Instance != null && PlayerStats.Instance.AirburstFeatherCount > 0)
         {
-            WeaponPlayer wp = FindFirstObjectByType<WeaponPlayer>();
+            WeaponPlayer wp = PlayerStats.Instance.GetComponent<WeaponPlayer>();
             if (wp != null)
             {
                 Vector3 incomingDir = _rb.linearVelocity.normalized;
@@ -409,8 +422,8 @@ public class Projectile : MonoBehaviour
     public void ConfigureElectricChain(int damage, int chainCount, float radius, WeaponPlayer owner)
     {
         _electricDamage = Mathf.Max(1, damage);
-        _electricChainCount = Mathf.Clamp(chainCount, 1, 6);
-        _electricChainRadius = Mathf.Max(0.1f, radius);
+        _electricChainCount = Mathf.Max(1, PlayerStats.BoostCount(chainCount));
+        _electricChainRadius = Mathf.Max(0.1f, PlayerStats.Boost(radius));
         _electricOwner = owner;
     }
 
@@ -418,6 +431,9 @@ public class Projectile : MonoBehaviour
     {
         if (_electricHitResolved) return;
         _electricHitResolved = true;
+        if (_electricOwner != null && PlayerStats.Instance != null && PlayerStats.Instance.AirburstFeatherCount > 0)
+            _electricOwner.SpawnAirburst(firstTarget.transform.position, _rb.linearVelocity.normalized,
+                _electricOwner.CurrentStats.Damage, _electricOwner.CurrentStats.DamageMultiplier, firstTarget.GetInstanceID());
         if (AudioManager.Instance != null) AudioManager.Instance.PlaySFX("Feather_Hit_Enemy");
         if (Stats.Variant == CardAscension.Supercharged)
         {
@@ -538,23 +554,13 @@ public class Projectile : MonoBehaviour
             boom.transform.localScale = Vector3.one * actualRadius;
         }
 
-        Collider2D[] hits = Physics2D.OverlapCircleAll(transform.position, actualRadius);
-        foreach (var hit in hits)
-        {
-            if (hit.CompareTag("Enemy"))
-            {
-                EnemyBase e = hit.GetComponent<EnemyBase>();
-
-                float moneyHighMult = (PlayerStats.Instance != null) ? PlayerStats.Instance.GetCurrentMoneyHighMultiplier() : 1.0f;
-                float baseMult = Stats.DamageMultiplier > 0 ? Stats.DamageMultiplier : 1.0f;
-
-                int boomDamage = Mathf.CeilToInt(PlayerStats.Instance != null
-                    ? PlayerStats.Instance.CalculateDamage(Stats.Damage, true, .5f * _currentDamageMultiplier, baseMult - 1)
-                    : Stats.Damage * .5f * baseMult * _currentDamageMultiplier);
-
-                if (e) e.TakeDamage(boomDamage);
-            }
-        }
+        float baseMult = Stats.DamageMultiplier > 0 ? Stats.DamageMultiplier : 1f;
+        float boomDamage = PlayerStats.Instance != null
+            ? PlayerStats.Instance.CalculateDamage(Stats.Damage, false, .5f * _currentDamageMultiplier, baseMult - 1)
+            : Stats.Damage * .5f * baseMult * _currentDamageMultiplier;
+        foreach (var enemy in EnemyBase.ActiveEnemies)
+            if (enemy != null && enemy.IsAlive && ((Vector2)enemy.transform.position - (Vector2)transform.position).sqrMagnitude <= actualRadius * actualRadius)
+                enemy.TakeFractionalDamage(boomDamage);
     }
 
     void ApplyBounceScaling()

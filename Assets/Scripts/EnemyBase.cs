@@ -96,6 +96,17 @@ public abstract class EnemyBase : MonoBehaviour
     private int _slowStacks = 0;
     private float _originalSpeed;
 
+    // Transform-driven fliers must use the same slow rules as Rigidbody movers.
+    protected float MovementSpeedFactor
+    {
+        get
+        {
+            float factor = _originalSpeed > 0 ? CurrentSpeed / _originalSpeed : 1f;
+            if (Time.time < _zoneSlowUntil) factor *= 1f - _zoneSlow;
+            return factor * PlayerStats.ProjectileSpeedFactor(transform.position);
+        }
+    }
+
     public virtual void Initialize(float waveDifficulty)
     {
         float tierMultiplier = 1f;
@@ -112,7 +123,7 @@ public abstract class EnemyBase : MonoBehaviour
         // Capped at 50% per outline (page 4): "Enemy missing health on spawn should get capped at 50%."
         if (PlayerStats.Instance != null && PlayerStats.Instance.EnemyHealthMissingPercent > 0f)
         {
-            float missingPct = Mathf.Clamp(PlayerStats.Instance.EnemyHealthMissingPercent, 0f, 0.5f);
+            float missingPct = Mathf.Clamp(PlayerStats.Boost(PlayerStats.Instance.EnemyHealthMissingPercent), 0f, 0.95f);
             int missingHP = Mathf.RoundToInt(MaxHealth * missingPct);
             CurrentHealth = Mathf.Max(1, (int)MaxHealth - missingHP);
         }
@@ -168,10 +179,10 @@ public abstract class EnemyBase : MonoBehaviour
         if (PlayerTarget == null) return;
 
         float dist = Vector2.Distance(transform.position, PlayerTarget.position);
-        if (dist > PlayerStats.Instance.SlowingAuraRadius) return;
+        if (dist > PlayerStats.Boost(PlayerStats.Instance.SlowingAuraRadius)) return;
 
         // Inside the slowing aura - apply the slow as a velocity damp
-        float slowPct = Mathf.Clamp(PlayerStats.Instance.SlowingAuraSlowPercent, 0f, 0.95f);
+        float slowPct = Mathf.Clamp(PlayerStats.Boost(PlayerStats.Instance.SlowingAuraSlowPercent), 0f, 0.95f);
         if (Rb != null)
         {
             Rb.linearVelocity = new Vector2(Rb.linearVelocity.x * (1f - slowPct), Rb.linearVelocity.y);
@@ -257,19 +268,20 @@ public abstract class EnemyBase : MonoBehaviour
     }
 
     Coroutine _toxinRoutine;
+    float _toxinUntil;
     public void ApplyDeadlyToxin()
     {
         if (!IsAlive) return;
-        if (_toxinRoutine != null) StopCoroutine(_toxinRoutine);
-        _toxinRoutine = StartCoroutine(DeadlyToxinRoutine());
+        _toxinUntil = Time.time + PlayerStats.Boost(3);
+        if (_toxinRoutine == null) _toxinRoutine = StartCoroutine(DeadlyToxinRoutine());
     }
     IEnumerator DeadlyToxinRoutine()
     {
-        for (int second = 0; second < 3 && IsAlive; second++)
+        while (IsAlive && Time.time < _toxinUntil - .001f)
         {
             yield return new WaitForSeconds(1);
             if (!IsAlive) break;
-            if (Random.value < .1f) Nearest(transform.position, this)?.ApplyDeadlyToxin();
+            if (Random.value < Mathf.Clamp01(PlayerStats.Boost(.1f))) Nearest(transform.position, this)?.ApplyDeadlyToxin();
             TakeFractionalDamage(PlayerStats.Instance != null ? PlayerStats.Instance.CalculateDamage(5, false) : 5);
         }
         _toxinRoutine = null;
@@ -312,10 +324,10 @@ public abstract class EnemyBase : MonoBehaviour
     {
         _isPoisoned = true;
 
-        float duration = 3.0f;
+        float duration = PlayerStats.Boost(3.0f);
         float interval = 0.5f;
         int ticks = Mathf.FloorToInt(duration / interval);
-        float damagePerTick = totalDamage / ticks;
+        float damagePerTick = totalDamage / 3f * interval;
 
         for (int i = 0; i < ticks; i++)
         {
@@ -409,7 +421,7 @@ public abstract class EnemyBase : MonoBehaviour
             int baseAmount = Random.Range(CoinDropRange.x, CoinDropRange.y + 1);
 
             float mult = 1.0f;
-            if (PlayerStats.Instance != null) mult = PlayerStats.Instance.CoinDropMultiplier;
+            if (PlayerStats.Instance != null) mult = PlayerStats.Instance.CoinDropMultiplier + PlayerStats.Instance.RebirthStatBonus;
 
             int finalAmount = Mathf.FloorToInt(baseAmount * mult);
             if (finalAmount < 1) finalAmount = 1;

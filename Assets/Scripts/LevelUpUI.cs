@@ -18,6 +18,8 @@ public class LevelUpUI : MonoBehaviour
 
     [Tooltip("How many cards to offer on level up.")]
     public int CardsToOffer = 3;
+    int _queuedOffers;
+    bool _offering;
 
     void Awake()
     {
@@ -27,6 +29,7 @@ public class LevelUpUI : MonoBehaviour
 
     public void ShowLevelUpOptions()
     {
+        if (_offering) { _queuedOffers++; return; }
         if (CardPrefab == null || CardContainer == null)
         {
             Debug.LogError("LevelUpUI: CardPrefab or CardContainer is not assigned!");
@@ -34,6 +37,7 @@ public class LevelUpUI : MonoBehaviour
         }
 
         Time.timeScale = 0f;
+        _offering = true;
         Panel.SetActive(true);
 
         ClearContainer();
@@ -63,6 +67,8 @@ public class LevelUpUI : MonoBehaviour
     /// </summary>
     public void SelectCard(CardDefinition card)
     {
+        if (!_offering || card == null) return;
+        _offering = false;
         // Play the level-up card-pick sound
         if (AudioManager.Instance != null)
             AudioManager.Instance.PlaySFX("Selected_Card");
@@ -71,6 +77,7 @@ public class LevelUpUI : MonoBehaviour
         ClearContainer();
         Panel.SetActive(false);
         Time.timeScale = 1f;
+        if (_queuedOffers > 0) { _queuedOffers--; ShowLevelUpOptions(); }
     }
 
     void ClearContainer()

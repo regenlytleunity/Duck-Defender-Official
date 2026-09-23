@@ -1,18 +1,9 @@
 using UnityEngine;
 using System.Collections.Generic;
-using System.Linq;
 
 /// <summary>
-/// 1.4.11 NEW: Elemental Turret.
-/// Fires ONE feather per tick at a random elemental variant: Frosty, Poison, Metal, or Explosive.
-/// Per outline (page 4): "Elemental turret fires only 1 feather at a time no matter how many enemies are on screen."
-/// 
-/// Targets the nearest enemy in range (uses LOS like Marksman). 
-/// Per outline (clarification 13): the 4 elemental feathers are Frosty / Poison / Metal / Explosive (not Healing or Buckshot).
-/// 
-/// Each elemental variant deals 50% of the player's damage (same as Marksman convention).
-/// Effect strength (freeze duration, poison DPS, etc.) is borrowed from the player's existing 
-/// SpecialFeatherInstances if any; otherwise sensible defaults are used.
+/// Wizard targets multiple visible enemies. Elemental replaces its projectiles with
+/// ascended variants; non-ascended effects use owned card strengths or Inspector defaults.
 /// </summary>
 public class ElementalTurret : TurretBase
 {
@@ -54,15 +45,16 @@ public class ElementalTurret : TurretBase
         _targets.Clear();
         foreach (var enemy in EnemyBase.ActiveEnemies)
         {
-            if (enemy == null || !enemy.IsAlive || Vector2.Distance(transform.position, enemy.transform.position) > TargetingRange) continue;
+            if (enemy == null || !enemy.IsAlive || Vector2.Distance(transform.position, enemy.transform.position) > PlayerStats.Boost(TargetingRange)) continue;
             if (IsOnScreen(Camera.main, enemy.transform) && HasLineOfSight(enemy.transform)) _targets.Add(enemy);
         }
         _targets.Sort((a, b) => (a.transform.position - transform.position).sqrMagnitude.CompareTo((b.transform.position - transform.position).sqrMagnitude));
-        int count = Mathf.Min(player.ElementalTargetCount, _targets.Count);
+        int count = Mathf.Min(PlayerStats.BoostCount(player.ElementalTargetCount), _targets.Count);
+        if (count > 0 && AudioManager.Instance != null) AudioManager.Instance.PlaySFX(FireSoundName);
         for (int i = 0; i < count; i++)
         {
             var type = ascended && Random.Range(0, 5) == 4 ? PlayerStats.FeatherType.Electric : PickRandomElement();
-            weapon.FireTurretElement(transform.position, _targets[i].transform, type, ascended);
+            weapon.FireTurretElement(transform.position, _targets[i].transform, type, ascended, this);
         }
     }
     readonly List<EnemyBase> _targets = new List<EnemyBase>();
@@ -77,26 +69,6 @@ public class ElementalTurret : TurretBase
             case 2: return PlayerStats.FeatherType.Metal;
             default: return PlayerStats.FeatherType.Explosive;
         }
-    }
-
-    Transform FindNearestVisibleEnemy()
-    {
-        GameObject[] allEnemies = GameObject.FindGameObjectsWithTag("Enemy");
-        Camera cam = Camera.main;
-        
-        return allEnemies
-            .Where(e => e != null && e.activeInHierarchy)
-            .Select(e => new
-            {
-                T = e.transform,
-                D = Vector2.Distance(transform.position, e.transform.position)
-            })
-            .Where(x => x.D <= TargetingRange)
-            .Where(x => IsOnScreen(cam, x.T))   // 1.4.11 PATCH
-            .Where(x => HasLineOfSight(x.T))
-            .OrderBy(x => x.D)
-            .Select(x => x.T)
-            .FirstOrDefault();
     }
 
     /// <summary>

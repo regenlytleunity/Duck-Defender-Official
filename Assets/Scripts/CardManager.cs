@@ -3,40 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 
 /// <summary>
-/// 1.4.11 REWRITE + 1.4.12 BUGFIX.
-/// 
-/// CardManager is the single source of truth for applying card effects.
-/// For each stat type, it knows where to write the value (PlayerStats, WeaponPlayer, PlayerController).
-///
-/// =====================================================================
-/// 1.4.12 BUGFIX: SET-style stats now correctly handle re-picks.
-/// =====================================================================
-/// 
-/// THE OLD BUG: SET-style stats (interval/threshold/cooldown values that live as 
-/// literal seconds or counts) were doing `field = amount` every pickup. That works 
-/// fine for the FIRST pickup (because GetAmountForPickup returns the full displayed 
-/// value), but breaks on re-picks (which return just a delta like -0.3 seconds).
-/// 
-/// The classic symptom: Mini Gun overheat threshold of 5s on first pickup, then 
-/// dropping to ~1s on the second pickup because the SET semantics overwrote 5s 
-/// with the re-pick delta of 1.
-/// 
-/// THE FIX: track which stats have been "initialized" this run in 
-/// _statsInitializedThisRun. The first card pickup that touches a SET-style stat 
-/// REPLACES the default value (which is the polite term for "writes the displayed 
-/// value into the field"); subsequent pickups ADD the delta on top.
-/// 
-/// ADDITIVE stats (Damage, FireRate, MoveSpeed, etc.) are unchanged - they always 
-/// just `+=` regardless of pickup index.
-/// 
-/// Spec recap (for reference when re-reading this file in 6 months):
-///   - MatchBaseValue: every pickup adds the full displayed value (e.g. each Faster
-///     Firing pickup reduces FireRate by 0.05). Pure additive.
-///   - MatchShopGrowth: first pickup writes the full shop-level value (e.g. sets 
-///     MarksmanInterval to 2.7s); re-picks add AmountPerShopLevel (-0.3s each time).
-///   - Custom: first pickup writes the full shop-level value; re-picks add 
-///     InRunStackAmount. If InRunStackAmount = 0, re-picks have no effect (the 
-///     `Mathf.Approximately(amount, 0f)` early-return handles that case).
+/// Applies each collection card once per run at its saved level or ascension.
+/// Basic cards repeat at their original strength. Legacy set-style helpers remain
+/// for serialized compatibility; collection cards no longer use stacking deltas.
 /// </summary>
 public class CardManager : MonoBehaviour
 {
@@ -98,7 +67,8 @@ public class CardManager : MonoBehaviour
     List<CardDefinition> GetUnlockedCardPool()
     {
         if (AllCards == null || AllCards.Count == 0) return new List<CardDefinition>();
-        PlayerData data = SaveSystem.LoadData();
+        EnsurePlayerDataLoaded();
+        PlayerData data = _cachedPlayerData;
 
         return AllCards
             .Where(c => c != null)
@@ -153,7 +123,7 @@ public class CardManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Returns the player's saved (shop) level for this card. 1 = base, 5 = fully upgraded.
+    /// Returns the player's saved (shop) level for this card. 1 = base, 6 = fully upgraded.
     /// Reads from ShopManager when available (main menu scene), falls back to SaveSystem 
     /// (game scene where ShopManager isn't present).
     /// </summary>

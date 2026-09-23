@@ -31,9 +31,9 @@ public class MarksmanTurret : TurretBase
         if (PlayerStats.Instance == null) return;
 
         int targetCount = Mathf.Clamp(
-            PlayerStats.Instance.MarksmanTargetCount,
+            PlayerStats.BoostCount(PlayerStats.Instance.MarksmanTargetCount),
             1,
-            MaxTargetsPerVolleyHardCap
+            PlayerStats.BoostCount(MaxTargetsPerVolleyHardCap)
         );
 
         List<Transform> targets = FindVisibleEnemies(targetCount);
@@ -67,7 +67,7 @@ public class MarksmanTurret : TurretBase
                 Obj = e,
                 Dist = Vector2.Distance(transform.position, e.transform.position)
             })
-            .Where(x => x.Dist <= TargetingRange)
+            .Where(x => x.Dist <= PlayerStats.Boost(TargetingRange))
             .Where(x => IsOnScreen(cam, x.Obj.transform))   // 1.4.11 PATCH
             .Where(x => HasLineOfSight(x.Obj.transform))
             .OrderBy(x => x.Dist)
@@ -154,8 +154,8 @@ public class MarksmanTurret : TurretBase
         stats.IsMetalFeather = false;
         stats.IsExplosiveFeather = false;
         stats.IsBuckshotPellet = false;
-        stats.CanAirburst = false;
-        stats.MarkTarget = PlayerStats.Instance != null && PlayerStats.Instance.HasAscension(CardAscension.Marksman);  // 1.4.11: turret shots don't airburst
+        stats.CanAirburst = true;
+        stats.MarkTarget = PlayerStats.Instance != null && PlayerStats.Instance.HasAscension(CardAscension.Marksman);
 
         p.Initialize(stats);
         p.SetColor(new Color(0.7f, 0.9f, 1f, 1f));

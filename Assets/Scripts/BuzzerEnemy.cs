@@ -84,7 +84,8 @@ public class BuzzerEnemy : EnemyBase
 
         float smoothing = _isRetreating ? MoveSmoothing * 1.5f : MoveSmoothing;
         
-        transform.position = Vector2.SmoothDamp(transform.position, desiredPos, ref _velocity, smoothing);
+        transform.position = Vector2.SmoothDamp(transform.position, desiredPos, ref _velocity, smoothing,
+            Mathf.Infinity, Time.fixedDeltaTime * MovementSpeedFactor);
 
         if (!_isRetreating && Time.time >= _nextShootTime)
         {
