@@ -1,5 +1,7 @@
 # Electric Feathers — Setup and Verification
 
+> Historical pre-rework notes. For the current card values, combat behavior and Unity setup, follow [the card rework implementation guide](CARD_REWORK_IMPLEMENTATION_GUIDE.md). The Electric Feathers card and electric-chain effect prefab now exist; do not create duplicate assets from the older instructions below. The rework also changes criticals, Airburst interactions and fractional damage, so the original mechanic and test expectations below are no longer the current specification.
+
 The scripting is implemented. The card asset, lightning prefab, artwork, and scene
 assignments must still be created/configured in Unity. No raw scene, prefab, card
 asset, or `.meta` files were authored for this feature.

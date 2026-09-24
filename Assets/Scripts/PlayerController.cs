@@ -272,6 +272,8 @@ public class PlayerController : MonoBehaviour
     {
         _isBlinking = true;
         IsInvulnerable = true;
+        // The card interval is measured between blinks, including invulnerability.
+        _nextBlinkTime = Time.time + PlayerStats.Instance.BlinkInterval * (PlayerStats.Instance.HasAscension(CardAscension.Wormhole) ? 2 : 1) / PlayerStats.Instance.BeneficialStatMultiplier;
 
         float blinkDirection = xInput > 0 ? 1f : -1f;
         Vector3 targetPos = transform.position + new Vector3(BlinkDistance * blinkDirection, 0, 0);
@@ -311,9 +313,6 @@ public class PlayerController : MonoBehaviour
 
         IsInvulnerable = false;
         _isBlinking = false;
-
-        // Schedule next blink
-        _nextBlinkTime = Time.time + PlayerStats.Instance.BlinkInterval * (PlayerStats.Instance.HasAscension(CardAscension.Wormhole) ? 2 : 1) / PlayerStats.Instance.BeneficialStatMultiplier;
     }
 
     // ============================================================

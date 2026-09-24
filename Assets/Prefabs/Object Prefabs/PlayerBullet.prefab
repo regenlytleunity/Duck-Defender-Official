@@ -151,12 +151,37 @@ MonoBehaviour:
     CritChance: 0
     ExplosionRadius: 0
     ProximityScaling: 0
-    Lifesteal: 0
     PoisonDamage: 0
     IceSlowFactor: 0
     ProjectileGravity: 0
+    IsHealingFeather: 0
+    HealAmount: 0
+    IsFrostyFeather: 0
+    FreezeDuration: 0
+    IsPoisonFeather: 0
+    PoisonDPS: 0
+    IsMetalFeather: 0
+    BonusKnockback: 0
+    IsExplosiveFeather: 0
+    IsBuckshotPellet: 0
+    Lifetime: 0
+    CanAirburst: 0
+    Variant: 0
+    DamageRatio: 0
+    LocalDamageBonus: 0
+    NonFeather: 0
+    MarkTarget: 0
+    InfinitePierce: 0
+    IgnoreEnemyID: 0
+  DefaultLifetime: 6
   HitEffectPrefab: {fileID: 8975628997566016872, guid: 51acf15de85ae4d8db4b00f78bb904e8, type: 3}
   ExplosionPrefab: {fileID: 1010016439873946870, guid: a6f172f41583449e6ba54fef38faab29, type: 3}
+  TungstenSprite: {fileID: 7482667652216324306, guid: 48e93eef0688c4a259cb0eddcd8661f7, type: 3}
+  NeedleSprite: {fileID: 0}
+  SpriteAngleOffset: -90
+  RicochetDamageFalloff: 0.5
+  RicochetSpeedFalloff: 1
+  HomingForwardBias: 2
 --- !u!50 &6055395491001789644
 Rigidbody2D:
   serializedVersion: 5

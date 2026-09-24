@@ -37,11 +37,15 @@ Project scripts currently compile into:
 
 ```text
 Assembly-CSharp
+Assembly-CSharp-Editor (project scripts under Assets/Scripts/Editor)
 ```
 
 No project `.asmdef` or `.asmref` files currently exist.
 
-No project-specific automated tests currently exist.
+Assets/Scripts/Editor/CardReworkVerification.cs provides repeatable isolated
+progression/combat checks through a Unity Editor menu. These use transient objects
+and a temporary save; they are not Play Mode or build verification. No project
+Unity Test Framework suite currently exists.
 
 No repository-specific automated build script currently exists.
 
