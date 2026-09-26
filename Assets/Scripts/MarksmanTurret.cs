@@ -32,9 +32,9 @@ public class MarksmanTurret : TurretBase
         if (PlayerStats.Instance == null) return;
 
         int targetCount = Mathf.Clamp(
-            PlayerStats.BoostCount(PlayerStats.Instance.MarksmanTargetCount),
+            Mathf.Max(0, PlayerStats.Instance.MarksmanTargetCount),
             1,
-            PlayerStats.BoostCount(MaxTargetsPerVolleyHardCap)
+            Mathf.Max(0, MaxTargetsPerVolleyHardCap)
         );
 
         List<Transform> targets = FindVisibleEnemies(targetCount);
@@ -58,7 +58,7 @@ public class MarksmanTurret : TurretBase
         _visibleTargets.Clear();
         if (maxCount <= 0) return _visibleTargets;
         Camera cam = Camera.main;
-        float range = PlayerStats.Boost(TargetingRange);
+        float range = TargetingRange;
         foreach (var enemy in EnemyBase.ActiveEnemies)
         {
             if (enemy == null || !enemy.IsAlive || (enemy.transform.position - transform.position).sqrMagnitude > range * range) continue;

@@ -168,15 +168,15 @@ public static class CardReworkVerification
             Near(stats.CalculateDamage(10, false), 16.8f, "non-feather flat damage before percent");
             Near(stats.CalculateDamage(10, true, 1, -.5f), 9, "duplicator penalty shares additive bucket");
             stats.RebirthStatBonus = PlayerStats.RebirthBonus;
-            Near(stats.CalculateDamage(10, true), 29, "Rebirth adds 150 percent once to damage");
-            Near(PlayerStats.Boost(6), 15, "Rebirth beneficial strength"); Near(PlayerStats.Cooldown(9), 3.6f, "Rebirth cooldown direction");
-            Check(PlayerStats.Threshold(7) == 3 && PlayerStats.BoostCount(6) == 15, "Rebirth threshold/count rounding");
+            Near(stats.CalculateDamage(10, true), 35, "Rebirth multiplies upgraded feather damage by 2.5");
+            Near(stats.CalculateDamage(10, false), 16.8f, "Rebirth leaves non-feather upgrade damage unchanged");
+            VerifyRebirthScope();
             var projectile = Component<Projectile>();
             projectile.Initialize(new Projectile.BallisticData { Damage = 10, Speed = 20, Variant = CardAscension.Tungsten, RicochetCount = 3, IgnoreEnemyID = 123, InfinitePierce = true });
             projectile.ConfigureElectricChain(10, 2, 4, weapon);
             projectile.Initialize(new Projectile.BallisticData { Damage = 10, Speed = 20 });
             Check(projectile.Stats.Variant == CardAscension.None && !projectile.Stats.InfinitePierce && Field<int>(projectile, "_electricChainCount") == 0 && Field<HashSet<int>>(projectile, "_hitEnemyIDs").Count == 0, "pooled projectile clears variant, ignore list, chain and piercing state");
-            Near(projectile.Stats.Speed, 50, "projectile stats scaled once on initialization");
+            Near(projectile.Stats.Speed, 20, "Rebirth does not boost projectile speed");
             stats.GlobalDamageBonus = stats.RunDamageBonus = stats.RebirthStatBonus = stats.NonFeatherFlatDamage = 0;
             stats.XPMultiplier = 1; levelManager.AddXP(370);
             Check(levelManager.CurrentLevel == 4 && levelManager.CurrentXP == 6 && levelManager.TargetXP == 173, "bulk XP preserves all level thresholds");
@@ -232,6 +232,84 @@ public static class CardReworkVerification
             SaveSystem.VerificationSavePath = oldPath; UnityEngine.Random.state = randomState;
             if (File.Exists(testPath)) File.Delete(testPath);
         }
+    }
+
+    static void VerifyRebirthScope()
+    {
+        var previousStats = PlayerStats.Instance;
+        var stats = Component<PlayerStats>(); PlayerStats.Instance = stats;
+        try
+        {
+            var weapon = stats.gameObject.AddComponent<WeaponPlayer>();
+            var controller = stats.gameObject.AddComponent<PlayerController>();
+            var health = stats.gameObject.AddComponent<PlayerHealth>();
+            weapon.FireRate = .16f; weapon.ParallelProjectiles = 2; weapon.SpreadProjectiles = 2;
+            weapon.BonusSpreadProjectiles = 2;
+            weapon.CurrentStats = new Projectile.BallisticData { Damage = 10, DamageMultiplier = 1, Speed = 20 };
+            stats.GlobalDamageBonus = 1; stats.FeatherSize = 1.6f; stats.RunSpeedBonus = .4f;
+            controller.MaxRunSpeed = 10; controller.Acceleration = 100; controller.JumpForce = 12;
+            health.MaxHealth = 20; health.AddMaxHealthPercent(.2f); health.Heal(health.MaxHealth);
+            float previousDamage = weapon.FeatherDamage();
+            float previousSpeed = controller.EffectiveMaxSpeed;
+            float previousSize = (float)Call(weapon, "GetCurrentFeatherSize");
+            float previousHeightFactor = controller.EffectiveJumpForce * controller.EffectiveJumpForce;
+            int previousHealth = health.MaxHealth;
+
+            stats.RebirthStatBonus = PlayerStats.RebirthBonus;
+            Call(health, "ApplyRebirthHealthBoost");
+            Near(weapon.FeatherDamage(), previousDamage * 2.5f, "current damage 20 becomes 50");
+            Near(weapon.EffectiveFireInterval, .16f / 2.5f, "current fire rate is 2.5 times faster");
+            Near((float)Call(weapon, "GetCurrentFeatherSize"), previousSize * 2.5f, "current feather size is multiplied");
+            Check(weapon.EffectiveParallelProjectiles == 5, "current normal feather count is multiplied");
+            Check(weapon.EffectiveSpreadProjectiles == 7, "core spread count is multiplied but temporary bonus feathers stay at two");
+            Near(controller.EffectiveMaxSpeed, previousSpeed * 2.5f, "current move speed is multiplied");
+            Near(controller.EffectiveAcceleration, 250, "current acceleration is multiplied");
+            Near(controller.EffectiveJumpForce * controller.EffectiveJumpForce / previousHeightFactor, 2.5f, "jump apex factor is 2.5, not 6.25");
+            Check(health.MaxHealth == Mathf.RoundToInt(previousHealth * 2.5f) && health.CurrentHealth == health.MaxHealth, "upgraded maximum health receives multiplier and fills");
+            Call(health, "ApplyRebirthHealthBoost");
+            Check(health.MaxHealth == 60, "health multiplier does not compound on repeated recalculation");
+            health.AddMaxHealth(4); Check(health.MaxHealth == 72, "later core health upgrades retain multiplier");
+            var roundedHealth = Component<PlayerHealth>(); roundedHealth.MaxHealth = 5; roundedHealth.AddMaxHealthPercent(.1f);
+            Check(roundedHealth.MaxHealth == 6, "health upgrades round before revival");
+            Call(roundedHealth, "ApplyRebirthHealthBoost");
+            Check(roundedHealth.MaxHealth == 15, "Rebirth multiplies the current rounded maximum health");
+            stats.FeatherSize += .4f; Near((float)Call(weapon, "GetCurrentFeatherSize"), 5, "later core feather size upgrades retain multiplier");
+
+            Near(stats.CalculateDamage(10, false), 20, "standalone upgrade damage receives no Rebirth multiplier");
+            var data = new Projectile.BallisticData { Damage = 10, Speed = 20, Knockback = 3, BonusKnockback = 2,
+                PierceCount = 4, RicochetCount = 3, HomingSpeed = 2, CritChance = .2f,
+                ExplosionRadius = 3, FreezeDuration = 4, HealAmount = 2 };
+            var projectile = Component<Projectile>(); projectile.Initialize(data);
+            Near(projectile.Stats.Speed, 20, "projectile speed stays unchanged");
+            Near(projectile.Stats.Knockback, 3, "knockback stays unchanged");
+            Near(projectile.Stats.BonusKnockback, 2, "Metal Feathers bonus knockback stays unchanged");
+            Check(projectile.Stats.PierceCount == 4 && projectile.Stats.RicochetCount == 3, "piercing and ricochets stay unchanged");
+            Near(projectile.Stats.HomingSpeed, 2, "homing stays unchanged");
+            Near(projectile.Stats.CritChance, .2f, "critical chance stays unchanged");
+            Near(projectile.Stats.ExplosionRadius, 3, "explosion radius stays unchanged");
+            Near(projectile.Stats.FreezeDuration, 4, "freeze duration stays unchanged");
+            Check(projectile.Stats.HealAmount == 2, "healing feather amount stays unchanged");
+            projectile.ConfigureElectricChain(10, 2, 4, weapon);
+            Check(Field<int>(projectile, "_electricChainCount") == 2, "electric target count stays unchanged");
+            Near(Field<float>(projectile, "_electricChainRadius"), 4, "electric chain radius stays unchanged");
+
+            stats.HasSlowingAura = true; stats.SlowingAuraRadius = 3; stats.SlowingAuraSlowPercent = .2f;
+            Near(PlayerStats.ProjectileSpeedFactor(stats.transform.position), .8f, "aura slow strength stays unchanged");
+            Near(PlayerStats.ProjectileSpeedFactor(stats.transform.position + Vector3.right * 4), 1, "aura radius stays unchanged");
+            stats.MiniGunOverheatThreshold = 4;
+            typeof(WeaponPlayer).GetField("_miniGunHeat", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(weapon, 2f);
+            Near(weapon.MiniGunHeatNormalized, .5f, "minigun heat threshold stays unchanged");
+            stats.SpecialFeathers.Add(new PlayerStats.SpecialFeatherInstance("rebirth-test", PlayerStats.FeatherType.Frosty, 7));
+            for (int shot = 1; shot <= 7; shot++)
+                Check(((List<PlayerStats.SpecialFeatherInstance>)Call(weapon, "TickAndCollectReadySpecials")).Count == (shot == 7 ? 1 : 0), "special feather threshold stays seven: shot " + shot);
+            stats.MoneyHighDuration = 3; stats.DamagePerCoin = .01f; stats.ReportCoinsGained(1);
+            var batches = (System.Collections.IList)typeof(PlayerStats).GetField("_moneyHighExpirations", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(stats);
+            Near((float)batches[0].GetType().GetField("Expiration").GetValue(batches[0]) - Time.time, 3, "profit damage duration stays unchanged");
+            stats.XPMultiplier = 2;
+            var level = Component<LevelManager>(); level.AddXP(10);
+            Check(level.CurrentXP == 20, "XP does not receive Rebirth bonus");
+        }
+        finally { PlayerStats.Instance = previousStats; }
     }
 
     static void VerifyPlaytestFixes(List<CardDefinition> cards, PlayerStats stats, WeaponPlayer weapon, PlayerController controller)

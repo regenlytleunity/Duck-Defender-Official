@@ -121,7 +121,7 @@ public class Coin : MonoBehaviour
         float delay = IsPassiveCoin ? Mathf.Min(.15f, DelayBeforeMagnet) : DelayBeforeMagnet;
         if (!_isFlyingToPlayer && Time.time - _spawnTime >= delay)
         {
-            float range = PlayerStats.Instance != null ? PlayerStats.Boost(PlayerStats.Instance.MagnetRange) : 3f;
+            float range = PlayerStats.Instance != null ? PlayerStats.Instance.MagnetRange : 3f;
             if (distance <= range || (IsPassiveCoin && Time.time - _spawnTime >= PassiveForceMagnetDelay))
             {
                 _isFlyingToPlayer = true;

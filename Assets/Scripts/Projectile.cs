@@ -145,16 +145,10 @@ public class Projectile : MonoBehaviour
         Stats = incomingStats;
         if (!Stats.NonFeather && PlayerStats.Instance != null && PlayerStats.Instance.FeatherSize > 1f)
             Stats.ProjectileGravity = Mathf.Max(1f, Stats.ProjectileGravity);
-        Stats.Speed = PlayerStats.Boost(Stats.Speed);
-        Stats.Knockback = PlayerStats.Boost(Stats.Knockback);
-        Stats.BonusKnockback = PlayerStats.Boost(Stats.BonusKnockback);
-        Stats.PierceCount = PlayerStats.BoostCount(Stats.PierceCount);
-        Stats.RicochetCount = PlayerStats.BoostCount(Stats.RicochetCount);
-        Stats.HomingSpeed = PlayerStats.Boost(Stats.HomingSpeed);
-        Stats.CritChance = Mathf.Clamp01(PlayerStats.Boost(Stats.CritChance));
-        Stats.ExplosionRadius = PlayerStats.Boost(Stats.ExplosionRadius);
-        Stats.FreezeDuration = PlayerStats.Boost(Stats.FreezeDuration);
-        Stats.HealAmount = PlayerStats.BoostCount(Stats.HealAmount);
+        Stats.PierceCount = Mathf.Max(0, Stats.PierceCount);
+        Stats.RicochetCount = Mathf.Max(0, Stats.RicochetCount);
+        Stats.CritChance = Mathf.Clamp01(Stats.CritChance);
+        Stats.HealAmount = Mathf.Max(0, Stats.HealAmount);
         bool usesSpecialSprite = Stats.Variant == CardAscension.Tungsten && TungstenSprite != null || Stats.NonFeather && NeedleSprite != null;
         if (_animator != null) _animator.enabled = _animatorEnabled && !usesSpecialSprite;
         if (_spriteRenderer != null)
@@ -445,8 +439,8 @@ public class Projectile : MonoBehaviour
     public void ConfigureElectricChain(int damage, int chainCount, float radius, WeaponPlayer owner)
     {
         _electricDamage = Mathf.Max(1, damage);
-        _electricChainCount = Mathf.Max(1, PlayerStats.BoostCount(chainCount));
-        _electricChainRadius = Mathf.Max(0.1f, PlayerStats.Boost(radius));
+        _electricChainCount = Mathf.Max(1, chainCount);
+        _electricChainRadius = Mathf.Max(0.1f, radius);
         _electricOwner = owner;
     }
 

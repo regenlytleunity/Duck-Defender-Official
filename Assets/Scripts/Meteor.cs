@@ -51,7 +51,7 @@ public class Meteor : MonoBehaviour
         _hasExploded = true;
 
         float radius = 4.0f; 
-        if (PlayerStats.Instance != null) radius = PlayerStats.Boost(PlayerStats.Instance.MeteorRadius);
+        if (PlayerStats.Instance != null) radius = PlayerStats.Instance.MeteorRadius;
 
         // 1. Visuals
         ObjectPooler.SpawnEffect(ExplosionPrefab, transform.position, Quaternion.identity, radius / 3f);

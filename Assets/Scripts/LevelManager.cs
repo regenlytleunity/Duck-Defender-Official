@@ -108,7 +108,7 @@ public class LevelManager : MonoBehaviour
         {
             GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
             Vector3 spawnPos = playerObj != null ? playerObj.transform.position : Vector3.zero;
-            for (int i = 0; i < PlayerStats.BoostCount(CoinsPerWave); i++)
+            for (int i = 0; i < Mathf.Max(0, CoinsPerWave); i++)
             {
                 SpawnPassiveCoin(spawnPos);
             }
@@ -127,7 +127,7 @@ public class LevelManager : MonoBehaviour
     public void AddXP(int amount)
     {
         float totalMultiplier = XPMultiplier;
-        if (PlayerStats.Instance != null) totalMultiplier = PlayerStats.Instance.XPMultiplier + PlayerStats.Instance.RebirthStatBonus;
+        if (PlayerStats.Instance != null) totalMultiplier = PlayerStats.Instance.XPMultiplier;
 
         int finalXP = Mathf.RoundToInt(amount * totalMultiplier);
         CurrentXP = (int)System.Math.Min(int.MaxValue, (long)CurrentXP + Mathf.Max(0, finalXP));
@@ -166,7 +166,7 @@ public class LevelManager : MonoBehaviour
         if (PlayerStats.Instance.HasCoinMeteors)
         {
             long earned = (long)_coinsForMeteor + amount;
-            int threshold = PlayerStats.Threshold(PlayerStats.Instance.MeteorThreshold);
+            int threshold = Mathf.Max(1, PlayerStats.Instance.MeteorThreshold);
             if (threshold <= 0) threshold = 10;
 
             _pendingMeteors += earned / threshold;
@@ -177,7 +177,7 @@ public class LevelManager : MonoBehaviour
         if (PlayerStats.Instance.HasTripleshot)
         {
             long earned = (long)_coinsForShot + amount;
-            int threshold = PlayerStats.Threshold(PlayerStats.Instance.TripleshotThreshold);
+            int threshold = Mathf.Max(1, PlayerStats.Instance.TripleshotThreshold);
             if (threshold <= 0) threshold = 15;
 
             if (earned >= threshold)

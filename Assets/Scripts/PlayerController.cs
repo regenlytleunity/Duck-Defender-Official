@@ -132,6 +132,10 @@ public class PlayerController : MonoBehaviour
     float _flightUntil = -1, _flightReady;
     public bool IsGrounded => _isGrounded;
     public float EffectiveMaxSpeed => MaxRunSpeed * (PlayerStats.Instance != null ? PlayerStats.Instance.SpeedMultiplier : 1f);
+    float RebirthMultiplier => PlayerStats.Instance != null ? PlayerStats.Instance.RebirthStatMultiplier : 1f;
+    public float EffectiveAcceleration => Acceleration * RebirthMultiplier;
+    // Jump apex scales with impulse squared. Keep gravity/upgraded jump counts unchanged.
+    public float EffectiveJumpForce => JumpForce * Mathf.Sqrt(RebirthMultiplier);
     float _prePhysicsSpeed;
     public bool IsFlying => Time.time < _flightUntil;
 
@@ -157,7 +161,7 @@ public class PlayerController : MonoBehaviour
         _animator = GetComponent<Animator>();
         _defaultGravity = _rb.gravityScale;
 
-        _currentDashCount = PlayerStats.BoostCount(MaxDashes);
+        _currentDashCount = Mathf.Max(0, MaxDashes);
 
         if (AuraChild == null) AuraChild = GetComponentInChildren<AuraController>();
 
@@ -185,7 +189,7 @@ public class PlayerController : MonoBehaviour
 
         if (AuraChild != null)
         {
-            float rad = (PlayerStats.Instance != null) ? PlayerStats.Boost(PlayerStats.Instance.AuraRadius) : AuraRadius;
+            float rad = (PlayerStats.Instance != null) ? PlayerStats.Instance.AuraRadius : AuraRadius;
             float dmg = (PlayerStats.Instance != null) ? PlayerStats.Instance.AuraDamage : AuraDamage;
             AuraChild.UpdateAura(rad, dmg);
         }
@@ -198,7 +202,7 @@ public class PlayerController : MonoBehaviour
         // Coins-per-second now spawns physical coins via LevelManager.SpawnPassiveCoin()
         if (PlayerStats.Instance != null && PlayerStats.Instance.CoinsPerSecond > 0)
         {
-            _coinAccumulator += PlayerStats.Boost(PlayerStats.Instance.CoinsPerSecond) * Time.deltaTime;
+            _coinAccumulator += PlayerStats.Instance.CoinsPerSecond * Time.deltaTime;
             if (_coinAccumulator >= 1.0f)
             {
                 int coinsToAdd = Mathf.FloorToInt(_coinAccumulator);
@@ -277,7 +281,7 @@ public class PlayerController : MonoBehaviour
         _isBlinking = true;
         IsInvulnerable = true;
         // The card interval is measured between blinks, including invulnerability.
-        _nextBlinkTime = Time.time + PlayerStats.Instance.BlinkInterval * (PlayerStats.Instance.HasAscension(CardAscension.Wormhole) ? 2 : 1) / PlayerStats.Instance.BeneficialStatMultiplier;
+        _nextBlinkTime = Time.time + PlayerStats.Instance.BlinkInterval * (PlayerStats.Instance.HasAscension(CardAscension.Wormhole) ? 2 : 1);
 
         Vector2 origin = _rb.position;
         Vector2 targetPos = GetBlinkDestination(xInput);
@@ -300,7 +304,7 @@ public class PlayerController : MonoBehaviour
         _rb.position = targetPos;
 
         // Player is invulnerable for BlinkDuration seconds
-        float duration = PlayerStats.Boost(PlayerStats.Instance.BlinkDuration);
+        float duration = PlayerStats.Instance.BlinkDuration;
         yield return new WaitForSeconds(duration);
 
         IsInvulnerable = false;
@@ -350,10 +354,10 @@ public class PlayerController : MonoBehaviour
         FireTrailPatch ft = patch.GetComponent<FireTrailPatch>();
         if (ft != null)
         {
-            ft.SlowPercent = PlayerStats.Instance.HasAscension(CardAscension.ObsidianTrail) ? Mathf.Min(.95f, PlayerStats.Boost(.5f)) : 0;
+            ft.SlowPercent = PlayerStats.Instance.HasAscension(CardAscension.ObsidianTrail) ? .5f : 0;
             ft.Initialize(
                 PlayerStats.Instance.FireTrailDamage,
-                PlayerStats.Boost(PlayerStats.Instance.FireTrailDuration)
+                PlayerStats.Instance.FireTrailDuration
             );
         }
 
@@ -367,7 +371,7 @@ public class PlayerController : MonoBehaviour
     private void OnDashKeyPressed()
     {
         if (_isDead || _isDashing) return;
-        if (Time.time < _lastDashTime + DashCooldown / (PlayerStats.Instance != null ? PlayerStats.Instance.BeneficialStatMultiplier : 1f)) return;
+        if (Time.time < _lastDashTime + DashCooldown) return;
         if (!CanPlayerDash()) return;
 
         bool isShockwaveDash = PlayerStats.Instance != null &&
@@ -450,7 +454,7 @@ public class PlayerController : MonoBehaviour
             EndDash();
             return;
         }
-        float speed = Mathf.Min(Mathf.Max(.1f, PlayerStats.Boost(DashSpeed)), Physics2D.maxTranslationSpeed);
+        float speed = Mathf.Min(Mathf.Max(.1f, DashSpeed), Physics2D.maxTranslationSpeed);
         float step = Mathf.Min(_dashDistanceLeft, speed * Time.fixedDeltaTime);
         float clear = ClearTravelDistance(_dashDir, step);
         bool blocked = clear < step - .0001f;
@@ -481,7 +485,7 @@ public class PlayerController : MonoBehaviour
         EnemyBase.CopyActiveEnemies(_shockwaveTargets);
         foreach (var enemy in _shockwaveTargets)
         {
-            if (enemy == null || !enemy.IsAlive || Vector2.Distance(position, enemy.transform.position) > PlayerStats.Boost(ShockwaveRadius)) continue;
+            if (enemy == null || !enemy.IsAlive || Vector2.Distance(position, enemy.transform.position) > ShockwaveRadius) continue;
             float damage = PlayerStats.Instance != null ? PlayerStats.Instance.CalculateDamage(ShockwaveDamage, false, fraction) : ShockwaveDamage * fraction;
             enemy.TakeFractionalDamage(damage);
             enemy.ApplyKnockback(((Vector2)enemy.transform.position - (Vector2)position).normalized * 10);
@@ -494,13 +498,13 @@ public class PlayerController : MonoBehaviour
         {
             if (PlayerStats.Instance != null && PlayerStats.Instance.HasAscension(CardAscension.LearnToFly) && Time.time >= _flightReady)
             {
-                _flightUntil = Time.time + PlayerStats.Boost(7);
-                _flightReady = _flightUntil + PlayerStats.Cooldown(10);
+                _flightUntil = Time.time + 7;
+                _flightReady = _flightUntil + 10;
                 return;
             }
             if (IsFlying) return;
             // 1.4.11: standing on an enemy counts as grounded for jump purposes
-            if (_isGrounded || _isStandingOnEnemy || _currentJumpCount < PlayerStats.BoostCount(MaxJumps)) Jump();
+            if (_isGrounded || _isStandingOnEnemy || _currentJumpCount < Mathf.Max(0, MaxJumps)) Jump();
         }
     }
 
@@ -509,7 +513,7 @@ public class PlayerController : MonoBehaviour
         if (AudioManager.Instance != null) AudioManager.Instance.PlaySFX("Player_Jump");
 
         _rb.linearVelocity = new Vector2(_rb.linearVelocity.x, 0);
-        _rb.AddForce(Vector2.up * JumpForce * (PlayerStats.Instance != null ? PlayerStats.Instance.BeneficialStatMultiplier : 1f), ForceMode2D.Impulse);
+        _rb.AddForce(Vector2.up * EffectiveJumpForce, ForceMode2D.Impulse);
         _currentJumpCount++;
         _jumpedSinceLanding = true;
         if (!_isGrounded && CloudBurstPrefab != null && FeetPos != null)
@@ -560,7 +564,7 @@ public class PlayerController : MonoBehaviour
     private void ApplyMovement()
     {
         float targetSpeed = _moveInput.x * EffectiveMaxSpeed;
-        float accelRate = (Mathf.Abs(targetSpeed) > 0.01f) ? PlayerStats.Boost(Acceleration) : PlayerStats.Boost(GroundDeceleration);
+        float accelRate = (Mathf.Abs(targetSpeed) > 0.01f) ? EffectiveAcceleration : GroundDeceleration;
         if (!_isGrounded) accelRate *= 0.8f;
         // Bounded acceleration avoids force-feedback overshoot/oscillation after stat boosts.
         _rb.linearVelocity = new Vector2(Mathf.MoveTowards(_rb.linearVelocity.x, targetSpeed,
@@ -573,7 +577,7 @@ public class PlayerController : MonoBehaviour
     /// </summary>
     private void ApplyGravityModifiers()
     {
-        float playerGravMult = PlayerStats.Instance != null ? PlayerStats.Cooldown(PlayerStats.Instance.PlayerGravityMultiplier) : 1f;
+        float playerGravMult = PlayerStats.Instance != null ? PlayerStats.Instance.PlayerGravityMultiplier : 1f;
 
         if (_rb.linearVelocity.y < 0)
             _rb.gravityScale = _defaultGravity * FallGravityMultiplier * playerGravMult;
@@ -593,7 +597,7 @@ public class PlayerController : MonoBehaviour
         // we're moving downward or stationary (so side collisions don't count).
         _isStandingOnEnemy = CheckStandingOnEnemy();
         if ((_isGrounded || _isStandingOnEnemy) && !_isDashing)
-            _currentDashCount = PlayerStats.BoostCount(MaxDashes);
+            _currentDashCount = Mathf.Max(0, MaxDashes);
         if (!_isGrounded && _jumpedSinceLanding) _leftGroundSinceJump = true;
         if (_isGrounded && !wasGrounded && _leftGroundSinceJump)
         {
@@ -605,7 +609,7 @@ public class PlayerController : MonoBehaviour
         {
             _peakY = transform.position.y;
             _currentJumpCount = 0;
-            _currentDashCount = PlayerStats.BoostCount(MaxDashes);
+            _currentDashCount = Mathf.Max(0, MaxDashes);
         }
     }
 

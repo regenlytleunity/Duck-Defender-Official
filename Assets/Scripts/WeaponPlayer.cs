@@ -87,7 +87,11 @@ public class WeaponPlayer : MonoBehaviour
     float _baseFireInterval;
     float _fireReduction;
     public Vector2 AimDirection => ComputeAimDir();
-    public float EffectiveFireInterval => Mathf.Max(.005f, FireRate / (PlayerStats.Instance != null ? PlayerStats.Instance.BeneficialStatMultiplier : 1f));
+    float RebirthMultiplier => PlayerStats.Instance != null ? PlayerStats.Instance.RebirthStatMultiplier : 1f;
+    public float EffectiveFireInterval => Mathf.Max(.005f, FireRate / RebirthMultiplier);
+    public int EffectiveParallelProjectiles => Mathf.Max(0, Mathf.RoundToInt(ParallelProjectiles * RebirthMultiplier));
+    // Temporary Triple or Nothing projectiles are an upgrade effect, not a core-stat increase.
+    public int EffectiveSpreadProjectiles => Mathf.Max(0, Mathf.RoundToInt(SpreadProjectiles * RebirthMultiplier) + BonusSpreadProjectiles);
     public void ApplyFireRateReduction(float fraction)
     {
         if (_baseFireInterval <= 0) _baseFireInterval = FireRate;
@@ -114,7 +118,7 @@ public class WeaponPlayer : MonoBehaviour
         get
         {
             if (PlayerStats.Instance == null || PlayerStats.Instance.MiniGunOverheatThreshold <= 0) return 0f;
-            return Mathf.Clamp01(_miniGunHeat / PlayerStats.Boost(PlayerStats.Instance.MiniGunOverheatThreshold));
+            return Mathf.Clamp01(_miniGunHeat / PlayerStats.Instance.MiniGunOverheatThreshold);
         }
     }
 
@@ -216,8 +220,8 @@ public class WeaponPlayer : MonoBehaviour
         var stats = PlayerStats.Instance;
         if (stats == null) return;
 
-        float threshold = Mathf.Max(0.5f, PlayerStats.Boost(stats.MiniGunOverheatThreshold));
-        float recoveryRate = Mathf.Max(0.1f, PlayerStats.Cooldown(stats.MiniGunRecoveryRate));
+        float threshold = Mathf.Max(0.5f, stats.MiniGunOverheatThreshold);
+        float recoveryRate = Mathf.Max(0.1f, stats.MiniGunRecoveryRate);
 
         bool isFiringNow = shootHeld && !_miniGunOverheated;
         if (!isFiringNow)
@@ -256,7 +260,7 @@ public class WeaponPlayer : MonoBehaviour
     void TriggerOverheat()
     {
         _miniGunOverheated = true;
-        _miniGunHeat = PlayerStats.Boost(PlayerStats.Instance.MiniGunOverheatThreshold);
+        _miniGunHeat = PlayerStats.Instance.MiniGunOverheatThreshold;
 
         if (OverheatPopupPrefab != null)
         {
@@ -325,7 +329,7 @@ public class WeaponPlayer : MonoBehaviour
         p.SetColor(MiniGunFeatherColor);
         p.SetVisualScale(MiniGunFeatherScale * GetCurrentFeatherSize());
         bulletObj.SetActive(true);
-        for (int i = 1; i < PlayerStats.BoostCount(ParallelProjectiles); i++)
+        for (int i = 1; i < EffectiveParallelProjectiles; i++)
             SpawnNormalFeather(angle, Vector3.up * (ParallelSpacing * i), true);
         OnAttackFired(angle);
     }
@@ -378,7 +382,7 @@ public class WeaponPlayer : MonoBehaviour
             if (feather.Type == PlayerStats.FeatherType.Electric) continue;
             if (feather.Threshold <= 0) continue;
             feather.ShotCounter++;
-            if (feather.ShotCounter >= PlayerStats.Threshold(feather.Threshold))
+            if (feather.ShotCounter >= Mathf.Max(1, feather.Threshold))
             {
                 feather.ShotCounter = 0;
                 ready.Add(feather);
@@ -412,7 +416,7 @@ public class WeaponPlayer : MonoBehaviour
         Vector3 perpendicular = new Vector3(-aimDir.y, aimDir.x, 0).normalized;
         float effectiveSpacing = Mathf.Max(ParallelSpacing, MinParallelDistance);
 
-        int parallelCount = PlayerStats.BoostCount(ParallelProjectiles);
+        int parallelCount = EffectiveParallelProjectiles;
 
         List<Vector3> parallelOffsets = CalculateGroundAwareParallelOffsets(
             FirePoint.position,
@@ -421,7 +425,7 @@ public class WeaponPlayer : MonoBehaviour
             parallelCount
         );
 
-        int totalSpread = PlayerStats.BoostCount(SpreadProjectiles + BonusSpreadProjectiles);
+        int totalSpread = EffectiveSpreadProjectiles;
 
         List<float> spreadAngles = new List<float>();
         for (int i = 1; i <= totalSpread; i++)
@@ -514,7 +518,7 @@ public class WeaponPlayer : MonoBehaviour
     float GetCurrentFeatherSize()
     {
         if (PlayerStats.Instance == null) return 1f;
-        return Mathf.Max(0.5f, PlayerStats.Instance.FeatherSize + PlayerStats.Instance.RebirthStatBonus);
+        return Mathf.Max(0.5f, PlayerStats.Instance.FeatherSize) * RebirthMultiplier;
     }
 
     // === Spawn helpers ===
@@ -574,7 +578,7 @@ public class WeaponPlayer : MonoBehaviour
         {
             if (feather.Type != PlayerStats.FeatherType.Electric || feather.Threshold <= 0) continue;
 
-            int threshold = PlayerStats.Threshold(feather.Threshold);
+            int threshold = Mathf.Max(1, feather.Threshold);
             feather.ShotCounter = Mathf.Min(feather.ShotCounter + 1, threshold);
             if (feather.ShotCounter >= threshold && SpawnElectricFeather(angle, feather))
                 feather.ShotCounter = 0;
@@ -636,7 +640,7 @@ public class WeaponPlayer : MonoBehaviour
     bool FireRandomVolley()
     {
         bool fired = false;
-        for (int i = 0; i < PlayerStats.BoostCount(6); i++)
+        for (int i = 0; i < 6; i++)
         {
             var stats = CurrentStats;
             stats.DamageRatio = Random.Range(.25f, 2f);
@@ -822,7 +826,7 @@ public class WeaponPlayer : MonoBehaviour
 
     void FireBuckshotCone(float baseAngle, PlayerStats.SpecialFeatherInstance buckshot)
     {
-        int pelletCount = Mathf.Max(1, PlayerStats.BoostCount(buckshot.BuckshotPellets));
+        int pelletCount = Mathf.Max(1, buckshot.BuckshotPellets);
         float angleStep = (pelletCount > 1) ? BuckshotConeAngle / (pelletCount - 1) : 0f;
         float startAngle = baseAngle - (BuckshotConeAngle * 0.5f);
 
@@ -879,7 +883,7 @@ public class WeaponPlayer : MonoBehaviour
     public void SpawnAirburst(Vector3 enemyPos, Vector3 incomingDirection, int sourceDamage, float sourceDamageMult, int ignoredEnemy = 0)
     {
         if (PlayerStats.Instance == null) return;
-        int count = PlayerStats.BoostCount(PlayerStats.Instance.AirburstFeatherCount);
+        int count = Mathf.Max(0, PlayerStats.Instance.AirburstFeatherCount);
         if (count <= 0) return;
 
         Vector3 spawnPos = enemyPos + incomingDirection.normalized * 0.2f;
@@ -953,7 +957,7 @@ public class WeaponPlayer : MonoBehaviour
         }
 
         float duration = 5.0f;
-        if (PlayerStats.Instance != null) duration = PlayerStats.Boost(PlayerStats.Instance.TripleshotDuration);
+        if (PlayerStats.Instance != null) duration = PlayerStats.Instance.TripleshotDuration;
 
         yield return new WaitForSeconds(duration);
 

@@ -28,6 +28,7 @@ public class PlayerHealth : MonoBehaviour
     private PlayerController _controller;
     private int _flatMaxHealth;
     private float _maxHealthBonus;
+    private float _rebirthHealthMultiplier = 1f;
     public bool IsDead => _isDead;
 
     public int CurrentHealth => _currentHealth;
@@ -52,7 +53,7 @@ public class PlayerHealth : MonoBehaviour
 
     public void ApplyWaveRegen()
     {
-        if (RegenPerWave > 0) Heal(PlayerStats.BoostCount(RegenPerWave));
+        if (RegenPerWave > 0) Heal(Mathf.Max(0, RegenPerWave));
     }
 
     public void AddMaxHealth(int flat)
@@ -72,8 +73,16 @@ public class PlayerHealth : MonoBehaviour
     void RecalculateMaxHealth()
     {
         int previous = MaxHealth;
-        MaxHealth = Mathf.Max(1, Mathf.RoundToInt(_flatMaxHealth * (1f + _maxHealthBonus)));
+        int upgradedHealth = Mathf.Max(1, Mathf.RoundToInt(_flatMaxHealth * (1f + _maxHealthBonus)));
+        MaxHealth = Mathf.Max(1, Mathf.RoundToInt(upgradedHealth * _rebirthHealthMultiplier));
         Heal(Mathf.Max(0, MaxHealth - previous));
+    }
+
+    void ApplyRebirthHealthBoost()
+    {
+        if (_flatMaxHealth == 0) _flatMaxHealth = MaxHealth;
+        _rebirthHealthMultiplier = 1f + PlayerStats.RebirthBonus;
+        RecalculateMaxHealth();
     }
 
     public void TakeDamage(int damage)
@@ -130,7 +139,7 @@ public class PlayerHealth : MonoBehaviour
             stats.RebirthUsed = true;
             stats.RebirthStatBonus += PlayerStats.RebirthBonus;
             stats.NotifySecondWindChanged();
-            AddMaxHealthPercent(PlayerStats.RebirthBonus);
+            ApplyRebirthHealthBoost();
             _currentHealth = MaxHealth;
             GetComponent<AscensionEffects>()?.Rebirth();
             StartCoroutine(InvulnerabilityRoutine(5));

@@ -38,19 +38,14 @@ public class PlayerStats : MonoBehaviour
     public bool RebirthUsed;
     readonly HashSet<CardAscension> _ascensions = new HashSet<CardAscension>();
     public bool HasAscension(CardAscension kind) => _ascensions.Contains(kind);
-    public float SpeedMultiplier => Mathf.Max(.05f, 1f + RunSpeedBonus + RebirthStatBonus + (HasAscension(CardAscension.Untouchable) ? 4f : 0f));
-    public float BeneficialStatMultiplier => 1f + RebirthStatBonus;
-    // Read-time scaling also covers cards collected after Rebirth. Damage and maximum
-    // health use their own additive percentage buckets, so they must not call Boost.
-    public static float Boost(float value) => value * (Instance != null ? Instance.BeneficialStatMultiplier : 1f);
-    public static int BoostCount(int value) => Mathf.Max(0, Mathf.RoundToInt(Boost(value)));
-    public static float Cooldown(float seconds) => seconds / (Instance != null ? Instance.BeneficialStatMultiplier : 1f);
-    public static int Threshold(int count) => Mathf.Max(1, Mathf.CeilToInt(Cooldown(count)));
+    // Rebirth is applied explicitly to core stats, never as a generic upgrade scaler.
+    public float RebirthStatMultiplier => 1f + Mathf.Max(0, RebirthStatBonus);
+    public float SpeedMultiplier => Mathf.Max(.05f, 1f + RunSpeedBonus + (HasAscension(CardAscension.Untouchable) ? 4f : 0f)) * RebirthStatMultiplier;
     public static float ProjectileSpeedFactor(Vector2 position)
     {
         var stats = Instance;
-        if (stats == null || !stats.HasSlowingAura || Vector2.Distance(position, stats.transform.position) > Boost(stats.SlowingAuraRadius)) return 1;
-        return Mathf.Max(.05f, 1f - Boost(stats.SlowingAuraSlowPercent));
+        if (stats == null || !stats.HasSlowingAura || Vector2.Distance(position, stats.transform.position) > stats.SlowingAuraRadius) return 1;
+        return Mathf.Max(.05f, 1f - stats.SlowingAuraSlowPercent);
     }
 
     public void ActivateAscension(CardAscension kind)
@@ -77,12 +72,13 @@ public class PlayerStats : MonoBehaviour
 
     // Flat additions precede a single additive percentage bucket. Explicit ratios
     // (buckshot, crits, bounce falloff) are applied only once after that bucket.
+    // Rebirth then multiplies current feather damage only; standalone upgrade damage is unchanged.
     public float CalculateDamage(float flat, bool feather, float ratio = 1f, float localBonus = 0f)
     {
         float baseDamage = flat + (feather ? 0 : NonFeatherFlatDamage);
-        float percent = GlobalDamageBonus + RunDamageBonus + RebirthStatBonus +
+        float percent = GlobalDamageBonus + RunDamageBonus +
             GetCurrentMoneyHighMultiplier() - 1f + localBonus;
-        return Mathf.Max(0f, baseDamage * Mathf.Max(0f, 1f + percent) * ratio);
+        return Mathf.Max(0f, baseDamage * Mathf.Max(0f, 1f + percent) * ratio * (feather ? RebirthStatMultiplier : 1f));
     }
 
     public void CompleteWave()
@@ -392,7 +388,7 @@ public class PlayerStats : MonoBehaviour
         // independent timer.
         if (MoneyHighDuration > 0 && DamagePerCoin > 0 && amount > 0)
         {
-            float expiration = Time.time + Boost(MoneyHighDuration);
+            float expiration = Time.time + MoneyHighDuration;
             _moneyHighExpirations.Add(new CoinDamageBatch { Expiration = expiration, Count = amount });
             _moneyHighStackCount += amount;
             _nextMoneyHighExpiration = Mathf.Min(_nextMoneyHighExpiration, expiration);
@@ -499,7 +495,7 @@ public class PlayerStats : MonoBehaviour
     {
         if (HasAscension(CardAscension.Rebirth)) return !RebirthUsed;
         if (!HasSecondWind) return false;
-        return Time.time >= LastSecondWindUseTime + Cooldown(SecondWindCooldown);
+        return Time.time >= LastSecondWindUseTime + SecondWindCooldown;
     }
 
     /// <summary>

@@ -1,6 +1,6 @@
 # Duck Defender card rework — implementation and Unity setup
 
-Updated 25 September 2026. The latest performance and bug-fix setup is in [CARD_REWORK_LATE_GAME_FIXES.md](CARD_REWORK_LATE_GAME_FIXES.md); earlier balance changes are in [CARD_REWORK_PLAYTEST_FIXES.md](CARD_REWORK_PLAYTEST_FIXES.md). Based on **Upgrade redistribution and Rebalance.pdf** and your seven clarifications. The clarification that the six listed values represent **levels 1–6** takes precedence over the PDF's older level-5 wording.
+Updated 26 September 2026. Rebirth's restricted stat boost and verification are in [REBIRTH_STAT_SCOPE.md](REBIRTH_STAT_SCOPE.md). Performance and bug-fix setup is in [CARD_REWORK_LATE_GAME_FIXES.md](CARD_REWORK_LATE_GAME_FIXES.md); earlier balance changes are in [CARD_REWORK_PLAYTEST_FIXES.md](CARD_REWORK_PLAYTEST_FIXES.md). Based on **Upgrade redistribution and Rebalance.pdf** and your seven clarifications. The clarification that the six listed values represent **levels 1–6** takes precedence over the PDF's older level-5 wording.
 
 ## 1. What has been implemented
 
@@ -260,7 +260,7 @@ The console is enabled in the Unity Editor and Development Builds. Enable **Allo
 
 ## 9. Combat calculation and implementation decisions
 
-Flat feather damage and flat non-feather damage are tracked separately. Damage percentages share an additive bucket: global damage, timed profit, permanent run growth and Rebirth. Feather Duplicator's penalty is subtracted in that same bucket. Explicit ratios such as 33% Airburst, 50% healing feather, 400% Tungsten, critical doubling and bounce decay apply after it. Fractional area/poison damage accumulates on the enemy; it does not round every small tick up to one full HP. Direct projectile hits retain the existing integer HP rounding with a minimum of 1.
+Flat feather damage and flat non-feather damage are tracked separately. Damage percentages share an additive bucket: global damage, timed profit and permanent run growth. Feather Duplicator's penalty is subtracted in that same bucket. Explicit ratios such as 33% Airburst, 50% healing feather, 400% Tungsten, critical doubling and bounce decay apply after it. Rebirth multiplies the resulting feather damage by 2.5; it does not multiply non-feather upgrade damage. Fractional area/poison damage accumulates on the enemy; it does not round every small tick up to one full HP. Direct projectile hits retain the existing integer HP rounding with a minimum of 1.
 
 Ordinary volleys and successfully spawned minigun shots each advance special-feather counters once. Pellets, bonus feathers, airburst children and turret fire do not recursively advance counters. Primary feather families can release Airburst; child feathers cannot recursively release more and cannot hit their source enemy. BIG Feathers adds gravity to feather projectiles; needles remain non-feather damage.
 
@@ -268,9 +268,11 @@ Minigun remains an additional attack, starts at twice normal fire rate and slows
 
 ### Rebirth's numeric policy
 
-Rebirth is once per run. It adds +150% to the additive damage, movement-speed and max-health percentage buckets, heals the new maximum, grants a five-second safety window and defeats currently visible living enemies. The existing angel indicates whether it remains available.
+Rebirth is once per run. On lethal damage it multiplies the current upgraded values of **fire rate, feather size, maximum health, normal feather count, movement speed, acceleration, jump height and feather damage by 2.5**. For example, base damage 10 upgraded to 20 becomes 50. It restores health to the new maximum, grants a five-second safety window and defeats currently visible living enemies. The existing angel indicates whether it remains available.
 
-Other beneficial strengths, counts, ranges and durations use a factor of 2.5 at read/spawn time; lower-is-better cooldowns and trigger thresholds divide by 2.5, with thresholds rounded up to at least one. This covers attack/turret cadence, projectile speed/crit/homing/pierce/bounces/knockback, jump/dash/flight, aura ranges, healing, passive income and coin attraction. XP and enemy coin-drop multipliers receive an additive +150 percentage points. Probability/slow caps prevent invalid values. Fixed identities such as two walls, two needle directions, explicit damage ratios and one Rebirth charge remain fixed. Blink and Dash travel distances are also fixed; Rebirth can increase Dash speed without extending its distance. Cards acquired after Rebirth also receive the bonus. Existing timed instances keep their already-created lifetime/shape.
+The fire interval divides by 2.5, retaining its existing minimum. Jump impulse multiplies by sqrt(2.5) so height, rather than impulse, increases by 150%; gravity stays unchanged. Health and normal feather counts use the existing nearest-integer rounding. Health rounds ordinary upgrades first, then applies Rebirth to that current integer maximum. Ordinary parallel/spread feather counts scale; temporary Triple or Nothing feathers and fixed special-projectile counts do not. Core-stat upgrades collected after revival continue to receive the multiplier without compounding it.
+
+Upgrade-specific values remain unchanged: turret cadence/targets, special-feather trigger intervals, Airburst/Buckshot/electric counts, projectile speed/crit/homing/piercing/bounces/knockback, status durations, auras, regeneration, income, XP, coin attraction, dash, Blink and flight. Minigun keeps its heating, recovery and slowdown; its firing interval still derives from the boosted core fire rate. Existing effects that derive damage from feather damage or maximum health continue to use those boosted core values, while their own ratios stay unchanged. Standalone non-feather damage receives no Rebirth multiplier. This supersedes the earlier blanket-beneficial-stat policy in the September 24/25 historical reports.
 
 ### Values the outline did not specify
 
@@ -442,7 +444,7 @@ The following tables are generated from the updated definitions. Values are in o
 | Coin Meteor → Absolute Extinction | Retains base | Every 35 coins, a meteor deals 35 damage and drops 3 coins. These coins each summon a random secondary meteor for 50% damage; secondary meteors drop no coins. |
 | Powerful Profit → Illegal Operations | Replacement | Each collected coin permanently adds 0.01% damage for the remainder of this run. |
 | Recovery → Recovery + | Replacement | Heal 1 health every 5 seconds. Each completed wave adds 2% movement speed, damage and maximum health for this run. |
-| Second Wind → Rebirth | Replacement | Once per run, lethal damage restores full health, defeats on-screen enemies, and grants +150% to beneficial numeric stats (cooldowns become 2.5 times faster). |
+| Second Wind → Rebirth | Replacement | Once per run, lethal damage restores full health, defeats on-screen enemies, and multiplies current fire rate, feather size, max health, normal feather count, movement speed, acceleration, jump height, and feather damage by 2.5. Other upgrade stats are unchanged. |
 | Thorns → Pincushion | Replacement | Taking damage releases infinitely piercing needles left and right for 5 damage each. |
 | Triple or Nothing → Double Down | Retains base | Every 20 coins, attacks fire 6 feathers with random damage, speed, homing, piercing, angle and bounces for 2.5 seconds. |
 
@@ -483,12 +485,12 @@ This manifest records the original rework through the 23 September handoff, star
 | `Assets/Scripts/PlayerController.cs` | Reworked movement, flight, Blink/Wormhole cadence, trails, Earthquake, meteor targeting and full-speed collision damage. |
 | `Assets/Scripts/PlayerData.cs` | Version-2 progression, eight starters, four essence balances, ascension ownership and persistent developer flags. |
 | `Assets/Scripts/PlayerHealth.cs` | Combined max-health modifiers, Rebirth once-per-run survival, Pincushion and shared thorns/regen calculations. |
-| `Assets/Scripts/PlayerStats.cs` | Central additive damage policy, ascension flags, beneficial-stat helpers, growth bonuses and explicit new stat fields. |
+| `Assets/Scripts/PlayerStats.cs` | Central additive damage policy, ascension flags, explicit Rebirth scaling for core stats, growth bonuses and new stat fields. |
 | `Assets/Scripts/Projectile.cs` | Pooled variant reset, ascended feathers, Quantum Leap, marked criticals, Airburst exclusion, collision deduplication and ricochet/Tungsten behavior. |
-| `Assets/Scripts/ProtectorTurret.cs` | Defender wall spawning and boosted ordinary shockwaves. |
+| `Assets/Scripts/ProtectorTurret.cs` | Defender wall spawning and ordinary shockwaves using their own upgrade values. |
 | `Assets/Scripts/SaveSystem.cs` | One-time old-schema progression reset and an editor-only temporary verification save override. |
 | `Assets/Scripts/ShopManager.cs` | Five paid upgrades to level 6, max-copy essence conversion, ascension purchases, one/three-pack transactions and developer commands. |
-| `Assets/Scripts/TurretBase.cs` | Rebirth cadence and optional ascended sprite selection on existing turret prefabs. |
+| `Assets/Scripts/TurretBase.cs` | Turret cadence independent of Rebirth and optional ascended sprite selection on existing turret prefabs. |
 | `Assets/Scripts/TurretManager.cs` | Keep the existing angel available for unused Rebirth as well as ordinary Second Wind. |
 | `Assets/Scripts/WeaponPlayer.cs` | Percentage fire cadence, elapsed-time minigun heat slowdown, bounded high-rate firing, special-feather counters and ascended shot variants. |
 

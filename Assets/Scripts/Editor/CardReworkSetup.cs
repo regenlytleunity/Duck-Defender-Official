@@ -6,6 +6,20 @@ using System.Linq;
 // Explicit authoring action: never runs automatically on import or on launch.
 public static class CardReworkSetup
 {
+    public const string RebirthDescription = "Once per run, lethal damage restores full health, defeats on-screen enemies, and multiplies current fire rate, feather size, max health, normal feather count, movement speed, acceleration, jump height, and feather damage by 2.5. Other upgrade stats are unchanged.";
+
+    [MenuItem("Duck Defender/Card Rework/Update Rebirth Description")]
+    public static void UpdateRebirthDescription()
+    {
+        if (EditorApplication.isPlaying) throw new System.InvalidOperationException("Update the card outside Play Mode.");
+        var card = AssetDatabase.FindAssets("t:CardDefinition", new[] { "Assets/Cards/Upgrades" })
+            .Select(g => AssetDatabase.LoadAssetAtPath<CardDefinition>(AssetDatabase.GUIDToAssetPath(g)))
+            .First(c => c.ID == "sur_second_wind");
+        Undo.RecordObject(card, "Update Rebirth description");
+        card.AscendedDescription = RebirthDescription;
+        EditorUtility.SetDirty(card); AssetDatabase.SaveAssetIfDirty(card);
+    }
+
     [MenuItem("Duck Defender/Card Rework/Apply September Playtest Balance")]
     public static void ApplyPlaytestBalance()
     {
@@ -26,7 +40,7 @@ public static class CardReworkSetup
         cards[ids[2]].AscendedDescription = "Immediately and every 20 seconds, drops two walls with 5 health that settle on the ground. Destroyed walls release a knockback shockwave.";
         cards[ids[3]].AscensionRetainsBase = true;
         cards[ids[3]].AscendedDescription = "Fires two parallel feathers, with the duplicate dealing 25% less damage, plus a third feather falling at the cursor for 50% feather damage.";
-        cards[ids[4]].AscendedDescription = "Once per run, lethal damage restores full health, defeats on-screen enemies, and grants +150% to beneficial numeric stats (cooldowns become 2.5 times faster).";
+        cards[ids[4]].AscendedDescription = RebirthDescription;
         foreach (var id in ids) { EditorUtility.SetDirty(cards[id]); AssetDatabase.SaveAssetIfDirty(cards[id]); }
         Debug.Log("[Card Rework] Updated five playtest balance definitions; other cards and artwork preserved.");
     }
@@ -158,7 +172,7 @@ public static class CardReworkSetup
         Asc("sur_thorns", CardAscension.Pincushion, "Pincushion", "Taking damage releases infinitely piercing needles left and right for 5 damage each.");
         Asc("sur_coin_meteor", CardAscension.AbsoluteExtinction, "Absolute Extinction", "Every 35 coins, a meteor deals 35 damage and drops 3 coins. These coins each summon a random secondary meteor for 50% damage; secondary meteors drop no coins.", true);
         Asc("sur_powerful_profit", CardAscension.IllegalOperations, "Illegal Operations", "Each collected coin permanently adds 0.01% damage for the remainder of this run.");
-        Asc("sur_second_wind", CardAscension.Rebirth, "Rebirth", "Once per run, lethal damage restores full health, defeats on-screen enemies, and grants +150% to beneficial numeric stats (cooldowns become 2.5 times faster).");
+        Asc("sur_second_wind", CardAscension.Rebirth, "Rebirth", RebirthDescription);
         Asc("sur_triple_or_nothing", CardAscension.DoubleDown, "Double Down", "Every 20 coins, attacks fire 6 feathers with random damage, speed, homing, piercing, angle and bounces for 2.5 seconds.", true);
         Asc("gad_marksman_turret", CardAscension.Marksman, "Marksman", "A turret fires at 6 enemies every second, marking targets. Feather hits on marked enemies always critically hit.", true);
         Asc("gad_medic_turret", CardAscension.Savior, "Savior", "Every 7 seconds, places a healing aura lasting 5 seconds and restoring 2 health per second while inside.");

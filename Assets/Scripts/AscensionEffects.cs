@@ -39,7 +39,7 @@ public class AscensionEffects : MonoBehaviour
         if (_stats.HasAscension(CardAscension.RecoveryPlus))
         {
             _recoveryTimer += Time.deltaTime;
-            if (_recoveryTimer >= PlayerStats.Cooldown(5)) { _recoveryTimer -= PlayerStats.Cooldown(5); _health.Heal(PlayerStats.BoostCount(1)); }
+            if (_recoveryTimer >= 5) { _recoveryTimer -= 5; _health.Heal(1); }
         }
         bool beam = _stats.HasAscension(CardAscension.DeathRay) && InputHelper.GetShootHeld() && _weapon != null;
         if (DeathRayVisual != null) DeathRayVisual.enabled = beam;
@@ -49,8 +49,8 @@ public class AscensionEffects : MonoBehaviour
         if (DeathRayVisual != null)
         {
             DeathRayVisual.useWorldSpace = true; DeathRayVisual.positionCount = 2;
-            DeathRayVisual.SetPosition(0, origin); DeathRayVisual.SetPosition(1, origin + (Vector3)dir * PlayerStats.Boost(BeamLength));
-            DeathRayVisual.startWidth = DeathRayVisual.endWidth = PlayerStats.Boost(BeamWidth);
+            DeathRayVisual.SetPosition(0, origin); DeathRayVisual.SetPosition(1, origin + (Vector3)dir * BeamLength);
+            DeathRayVisual.startWidth = DeathRayVisual.endWidth = BeamWidth;
         }
         _beamTick += Time.deltaTime;
         if (_beamTick < .1f) return;
@@ -60,7 +60,7 @@ public class AscensionEffects : MonoBehaviour
             if (enemy == null || !enemy.IsAlive) continue;
             Vector2 delta = enemy.transform.position - origin;
             float along = Vector2.Dot(delta, dir);
-            if (along >= 0 && along <= PlayerStats.Boost(BeamLength) && Mathf.Abs(delta.x * dir.y - delta.y * dir.x) <= PlayerStats.Boost(BeamWidth) * .5f)
+            if (along >= 0 && along <= BeamLength && Mathf.Abs(delta.x * dir.y - delta.y * dir.x) <= BeamWidth * .5f)
                 enemy.TakeFractionalDamage(_stats.CalculateDamage(10, false) * _beamTick);
         }
         _beamTick = 0;
@@ -74,12 +74,12 @@ public class AscensionEffects : MonoBehaviour
     }
     public void SpawnWormhole(Vector3 position)
     {
-        var area = SpawnArea(WormholePrefab, position, PlayerStats.Boost(WormholeRadius), PlayerStats.Boost(3), 5, 0, PlayerStats.Boost(WormholePull), true);
+        var area = SpawnArea(WormholePrefab, position, WormholeRadius, 3, 5, 0, WormholePull, true);
         area.ConfigureCircleVisual(true);
     }
     public void SpawnHealingArea(Vector3 position)
     {
-        var area = SpawnArea(HealingAreaPrefab, position, PlayerStats.Boost(HealingAreaRadius), PlayerStats.Boost(5), 0, PlayerStats.Boost(2), 0, true);
+        var area = SpawnArea(HealingAreaPrefab, position, HealingAreaRadius, 5, 0, 2, 0, true);
         area.ConfigureCircleVisual(false);
     }
     static AscensionArea SpawnArea(AscensionArea prefab, Vector3 position, float radius, float seconds, float damage, float healing = 0, float pull = 0, bool circleFallback = false)
@@ -100,7 +100,7 @@ public class AscensionEffects : MonoBehaviour
         foreach (var enemy in _damageTargets)
             if (enemy != null && enemy.IsAlive && ((Vector2)enemy.transform.position - (Vector2)position).sqrMagnitude <= radius * radius)
                 enemy.TakeFractionalDamage(_stats.CalculateDamage(VolcanoEruptionDamage, false));
-        SpawnArea(VolcanoFirePrefab, position, radius, PlayerStats.Boost(3), VolcanoFireDPS);
+        SpawnArea(VolcanoFirePrefab, position, radius, 3, VolcanoFireDPS);
     }
     public void PlaceWalls()
     {
@@ -109,7 +109,7 @@ public class AscensionEffects : MonoBehaviour
         {
             if (_walls[i] != null) Destroy(_walls[i].gameObject);
             _walls[i] = Instantiate(WallPrefab, transform.position + Vector3.right * (i == 0 ? -WallOffset : WallOffset), Quaternion.identity);
-            _walls[i].Health = PlayerStats.BoostCount(5);
+            _walls[i].Health = 5;
             var playerColliders = GetComponentsInChildren<Collider2D>();
             var wallCollider = _walls[i].GetComponent<Collider2D>();
             foreach (var collider in playerColliders) Physics2D.IgnoreCollision(collider, wallCollider);

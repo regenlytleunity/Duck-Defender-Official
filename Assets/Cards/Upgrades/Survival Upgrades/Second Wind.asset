@@ -43,8 +43,9 @@ MonoBehaviour:
   Ascension: 18
   AscendedName: Rebirth
   AscendedDescription: Once per run, lethal damage restores full health, defeats
-    on-screen enemies, and grants +150% to beneficial numeric stats (cooldowns become
-    2.5 times faster).
+    on-screen enemies, and multiplies current fire rate, feather size, max health,
+    normal feather count, movement speed, acceleration, jump height, and feather
+    damage by 2.5. Other upgrade stats are unchanged.
   AscendedIcon: {fileID: 0}
   AscensionCost: 1000
   AscensionRetainsBase: 0

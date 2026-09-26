@@ -45,11 +45,11 @@ public class ElementalTurret : TurretBase
         _targets.Clear();
         foreach (var enemy in EnemyBase.ActiveEnemies)
         {
-            if (enemy == null || !enemy.IsAlive || Vector2.Distance(transform.position, enemy.transform.position) > PlayerStats.Boost(TargetingRange)) continue;
+            if (enemy == null || !enemy.IsAlive || Vector2.Distance(transform.position, enemy.transform.position) > TargetingRange) continue;
             if (IsOnScreen(Camera.main, enemy.transform) && HasLineOfSight(enemy.transform)) _targets.Add(enemy);
         }
         _targets.Sort((a, b) => (a.transform.position - transform.position).sqrMagnitude.CompareTo((b.transform.position - transform.position).sqrMagnitude));
-        int count = Mathf.Min(PlayerStats.BoostCount(player.ElementalTargetCount), _targets.Count);
+        int count = Mathf.Min(Mathf.Max(0, player.ElementalTargetCount), _targets.Count);
         if (count > 0 && AudioManager.Instance != null) AudioManager.Instance.PlaySFX(FireSoundName);
         for (int i = 0; i < count; i++)
         {

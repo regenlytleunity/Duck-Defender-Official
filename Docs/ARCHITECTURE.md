@@ -715,9 +715,14 @@ walls immediately on acquisition and then every 20 seconds.
 PlayerStats.CalculateDamage combines flat damage with an additive percentage bucket.
 Explicit projectile ratios, crits and bounce falloff apply afterward. EnemyBase maintains
 an active enemy registry and fractional damage remainder for area effects/poison.
-PlayerHealth handles Rebirth once per run. Read-time stat helpers apply its beneficial
-scaling (+150%, with a 2.5 multiplier for beneficial strengths/cooldown speed) to later
-acquisitions as well. LevelUpUI queues multiple earned level choices. Damage-dealing
+PlayerHealth handles Rebirth once per run. Its +150% boost multiplies current upgraded
+fire rate, feather size, maximum health, normal feather count, movement speed,
+acceleration, jump height and feather damage by 2.5. Only those core stats receive the
+multiplier, including later acquisitions; upgrade-specific strengths, cooldowns,
+counts, ranges and rewards remain unchanged. Jump impulse scales by sqrt(2.5), with
+gravity unchanged. PlayerHealth keeps the health multiplier separate from ordinary
+percentage bonuses; PlayerStats.CalculateDamage applies Rebirth only to feather damage.
+LevelUpUI queues multiple earned level choices. Damage-dealing
 area loops copy the active enemy registry into reusable per-effect buffers so death
 callbacks cannot invalidate iteration.
 
@@ -1400,7 +1405,7 @@ Do not convert these into facts without verification.
 
 Dash consumes a world-distance budget in FixedUpdate and sweeps the player's body
 against terrain before each move. DashDistance is 3–8 units across the six card
-levels. Speed/Rebirth change travel speed, not distance. The old DashDuration field
+levels. DashSpeed changes travel speed, not distance; Rebirth changes neither. The old DashDuration field
 and enum value remain compatible; the new enum value is appended. Blink ignores
 artificial horizontal blocking normals from a tiny resting overlap with a flat floor.
 
