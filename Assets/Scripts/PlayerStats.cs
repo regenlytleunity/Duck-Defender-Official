@@ -21,6 +21,7 @@ using System.Collections.Generic;
 public class PlayerStats : MonoBehaviour
 {
     public static PlayerStats Instance;
+    public const float RebirthBonus = 1.5f;
 
     [Header("Card Rework")]
     public float GlobalDamageBonus;
@@ -64,7 +65,9 @@ public class PlayerStats : MonoBehaviour
             case CardAscension.Savior:
                 HasMedic = true; MedicInterval = 7; break;
             case CardAscension.Defender:
-                HasProtector = true; ProtectorInterval = 30; break;
+                HasProtector = true; ProtectorInterval = 20;
+                if (Application.isPlaying) GetComponent<AscensionEffects>()?.PlaceWalls();
+                break;
             case CardAscension.Elemental:
                 HasElementalTurret = true; ElementalTurretInterval = 10; ElementalTargetCount = 6; break;
         }
@@ -170,7 +173,10 @@ public class PlayerStats : MonoBehaviour
     /// Stacks are pruned on read AND in Update, so even if Update somehow stalled, the 
     /// next damage roll would clean expired stacks out automatically.
     /// </summary>
-    private List<float> _moneyHighExpirations = new List<float>();
+    struct CoinDamageBatch { public float Expiration; public int Count; }
+    private readonly List<CoinDamageBatch> _moneyHighExpirations = new List<CoinDamageBatch>();
+    int _moneyHighStackCount;
+    float _nextMoneyHighExpiration = float.PositiveInfinity;
 
     // ============================================================
     // 1.4.11 MINI GUN
@@ -350,19 +356,22 @@ public class PlayerStats : MonoBehaviour
 
     void PruneExpiredMoneyHighStacks()
     {
-        if (_moneyHighExpirations.Count == 0) return;
+        if (_moneyHighExpirations.Count == 0 || Time.time < _nextMoneyHighExpiration) return;
 
         float now = Time.time;
+        _nextMoneyHighExpiration = float.PositiveInfinity;
         for (int i = _moneyHighExpirations.Count - 1; i >= 0; i--)
         {
-            if (_moneyHighExpirations[i] <= now)
+            if (_moneyHighExpirations[i].Expiration <= now)
             {
+                _moneyHighStackCount -= _moneyHighExpirations[i].Count;
                 _moneyHighExpirations.RemoveAt(i);
                 if (LogMoneyHighEvents)
                 {
-                    Debug.Log($"[MoneyHigh] Stack expired. Remaining: {_moneyHighExpirations.Count}");
+                    Debug.Log($"[MoneyHigh] Batch expired. Remaining stacks: {_moneyHighStackCount}");
                 }
             }
+            else _nextMoneyHighExpiration = Mathf.Min(_nextMoneyHighExpiration, _moneyHighExpirations[i].Expiration);
         }
     }
 
@@ -384,14 +393,13 @@ public class PlayerStats : MonoBehaviour
         if (MoneyHighDuration > 0 && DamagePerCoin > 0 && amount > 0)
         {
             float expiration = Time.time + Boost(MoneyHighDuration);
-            for (int i = 0; i < amount; i++)
-            {
-                _moneyHighExpirations.Add(expiration);
-            }
+            _moneyHighExpirations.Add(new CoinDamageBatch { Expiration = expiration, Count = amount });
+            _moneyHighStackCount += amount;
+            _nextMoneyHighExpiration = Mathf.Min(_nextMoneyHighExpiration, expiration);
             if (LogMoneyHighEvents)
             {
                 Debug.Log($"[MoneyHigh] Added {amount} stack(s), each expires at " +
-                          $"{expiration:F2} (in {MoneyHighDuration:F2}s). Total active: {_moneyHighExpirations.Count}");
+                          $"{expiration:F2} (in {MoneyHighDuration:F2}s). Total active: {_moneyHighStackCount}");
             }
         }
     }
@@ -422,7 +430,7 @@ public class PlayerStats : MonoBehaviour
         float mult = 1.0f;
         if (DamagePerCoin > 0 && _moneyHighExpirations.Count > 0)
         {
-            mult += (DamagePerCoin * _moneyHighExpirations.Count);
+            mult += (DamagePerCoin * _moneyHighStackCount);
         }
         return mult;
     }
@@ -436,7 +444,7 @@ public class PlayerStats : MonoBehaviour
         get
         {
             PruneExpiredMoneyHighStacks();
-            return _moneyHighExpirations.Count;
+            return _moneyHighStackCount;
         }
     }
 

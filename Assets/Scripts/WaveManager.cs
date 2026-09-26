@@ -34,6 +34,13 @@ public class WaveManager : MonoBehaviour
     public int ExtraSpawnWaveInterval = 5;
     [Tooltip("Maximum extra enemies per multi-spawn")]
     public int MaxExtraSpawns = 4;
+
+    [Header("Spawn work budget")]
+    [Min(1)] public int MaxConcurrentEnemies = 40;
+    [Min(.01f)] public float MinimumTimeBetweenEnemies = .04f;
+    public int SpawnedEnemiesAlive => Mathf.Max(0, _enemiesAlive - _enemiesRemainingToSpawn);
+    public int QueuedEnemies => _enemiesRemainingToSpawn;
+    bool HasSpawnCapacity => SpawnedEnemiesAlive < Mathf.Max(1, MaxConcurrentEnemies);
     
     [Header("Difficulty Tier Scaling")]
     [Tooltip("How many waves per difficulty tier. Every N waves, non-speed scaling multiplies.")]
@@ -109,7 +116,7 @@ public class WaveManager : MonoBehaviour
             
             if (Random.value < multiChance)
             {
-                int extraSpawnsThisWave = BaseExtraSpawns + (_currentWave / ExtraSpawnWaveInterval);
+                int extraSpawnsThisWave = BaseExtraSpawns + (_currentWave / Mathf.Max(1, ExtraSpawnWaveInterval));
                 extraSpawnsThisWave = Mathf.Min(extraSpawnsThisWave, MaxExtraSpawns);
                 
                 int extras = Random.Range(1, extraSpawnsThisWave + 1);
@@ -120,8 +127,15 @@ public class WaveManager : MonoBehaviour
             
             for (int i = 0; i < spawnCount; i++)
             {
-                SpawnEnemy();
+                // Never catch up with a same-frame burst after a pause or a slow frame.
+                while (Time.timeScale == 0 || !HasSpawnCapacity) yield return null;
+                if (!SpawnEnemy())
+                {
+                    Debug.LogError("[WaveManager] Assign valid enemy prefabs and spawn points. Wave spawning stopped.");
+                    yield break;
+                }
                 _enemiesRemainingToSpawn--;
+                yield return new WaitForSeconds(Mathf.Max(.01f, MinimumTimeBetweenEnemies));
             }
 
             float currentInterval = BaseSpawnInterval * (1f / (1f + (_currentWave * SpawnIntervalScaling)));
@@ -131,12 +145,13 @@ public class WaveManager : MonoBehaviour
         }
     }
 
-    void SpawnEnemy()
+    bool SpawnEnemy()
     {
-        if (SpawnPoints.Length == 0 || EnemyPrefabs.Length == 0) return;
+        if (SpawnPoints == null || EnemyPrefabs == null || SpawnPoints.Length == 0 || EnemyPrefabs.Length == 0) return false;
 
         Transform spawnPoint = SpawnPoints[Random.Range(0, SpawnPoints.Length)];
         GameObject prefabToSpawn = EnemyPrefabs[Random.Range(0, EnemyPrefabs.Length)];
+        if (spawnPoint == null || prefabToSpawn == null || prefabToSpawn.GetComponent<EnemyBase>() == null) return false;
         GameObject newEnemy = Instantiate(prefabToSpawn, spawnPoint.position, Quaternion.identity);
 
         EnemyBase enemyScript = newEnemy.GetComponent<EnemyBase>();
@@ -145,6 +160,7 @@ public class WaveManager : MonoBehaviour
         {
             enemyScript.Initialize(_currentWave);
         }
+        return true;
     }
 
     public void OnEnemyKilled()

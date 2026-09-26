@@ -531,8 +531,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ProjectilePrefab: {fileID: 7023200964588133668, guid: 811785109c6284601a1f26c16cb127f4, type: 3}
   PoolSize: 10000
+  PlayerPrewarm: 64
+  MaximumPlayerProjectiles: 2048
+  MaximumEffectsPerPrefab: 32
+  MaximumEffectsTotal: 128
   EnemyProjectilePrefab: {fileID: 7023200964588133668, guid: 28cf7bb852f834ae6a032df21090cc18, type: 3}
   EnemyPoolSize: 10000
+  EnemyPrewarm: 32
   BouncyEnemyProjectilePrefab: {fileID: 2830374346692747113, guid: 2bf80d27d1e4e4722aea8c09c4649073, type: 3}
   BouncyPoolSize: 10000
 --- !u!4 &431182598
@@ -604,6 +609,8 @@ MonoBehaviour:
   BaseExtraSpawns: 1
   ExtraSpawnWaveInterval: 5
   MaxExtraSpawns: 100
+  MaxConcurrentEnemies: 40
+  MinimumTimeBetweenEnemies: 0.04
   WavesPerTier: 10
   DifficultyTierMultiplier: 2
 --- !u!114 &431182601
@@ -2115,13 +2122,27 @@ CompositeCollider2D:
   m_UsedByEffector: 0
   m_CompositeOperation: 0
   m_CompositeOrder: 0
-  m_Offset: {x: 0, y: 0}
-  m_GeometryType: 0
+  m_Offset: {x: 0, y: -0.3}
+  m_GeometryType: 1
   m_GenerationType: 0
   m_EdgeRadius: 0
-  m_ColliderPaths: []
+  m_ColliderPaths:
+  - m_Collider: {fileID: 848665662}
+    m_ColliderPaths:
+    - - X: 190000000
+        Y: -20000000
+      - X: -190000000
+        Y: -20000000
+      - X: -190000000
+        Y: -60000000
+      - X: 190000000
+        Y: -60000000
   m_CompositePaths:
-    m_Paths: []
+    m_Paths:
+    - - {x: 18.999971, y: -6.3}
+      - {x: 18.999971, y: -2.3}
+      - {x: -19, y: -2.3000293}
+      - {x: -18.999971, y: -6.3}
   m_VertexDistance: 0.0005
   m_OffsetDistance: 0.00005
   m_UseDelaunayMesh: 0
@@ -2185,9 +2206,9 @@ TilemapCollider2D:
     m_Bits: 4294967295
   m_IsTrigger: 0
   m_UsedByEffector: 0
-  m_CompositeOperation: 0
+  m_CompositeOperation: 1
   m_CompositeOrder: 0
-  m_Offset: {x: 0, y: -0.3}
+  m_Offset: {x: 0, y: 0}
   m_MaximumTileChangeCount: 1000
   m_ExtrusionFactor: 0
   m_UseDelaunayMesh: 0
@@ -4519,6 +4540,7 @@ MonoBehaviour:
   GroundDeceleration: 1
   DashSpeed: 10
   DashDuration: 0
+  DashDistance: 3
   DashCooldown: 0
   JumpForce: 8
   ShockwaveDamage: 0
@@ -4737,6 +4759,7 @@ MonoBehaviour:
     IsBuckshotPellet: 0
     Lifetime: 0
     CanAirburst: 0
+    SuppressHitEffect: 0
     Variant: 0
     DamageRatio: 0
     LocalDamageBonus: 0
@@ -4756,10 +4779,10 @@ MonoBehaviour:
   ProjectileSpriteOffset: -90
   NormalFeatherColor: {r: 1, g: 1, b: 1, a: 1}
   HealingFeatherColor: {r: 0, g: 1, b: 0, a: 1}
-  FrostyFeatherColor: {r: 0.5, g: 0.85, b: 1, a: 1}
-  PoisonFeatherColor: {r: 0.5, g: 1, b: 0.3, a: 1}
-  MetalFeatherColor: {r: 0.7, g: 0.7, b: 0.75, a: 1}
-  ExplosiveFeatherColor: {r: 1, g: 0.5, b: 0.2, a: 1}
+  FrostyFeatherColor: {r: 0, g: 0.70078754, b: 1, a: 1}
+  PoisonFeatherColor: {r: 0.9433962, g: 0.35315377, b: 0, a: 1}
+  MetalFeatherColor: {r: 0.3301887, g: 0.3301887, b: 0.3301887, a: 1}
+  ExplosiveFeatherColor: {r: 0.9716981, g: 0, b: 0.07084959, a: 1}
   BuckshotFeatherColor: {r: 0.9, g: 0.8, b: 0.5, a: 1}
   ElectricFeatherColor: {r: 0.9150943, g: 0.82351387, b: 0, a: 1}
   ElectricChainRadius: 4
@@ -7679,7 +7702,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &2122099342
 Transform:
   m_ObjectHideFlags: 0

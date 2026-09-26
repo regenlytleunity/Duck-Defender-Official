@@ -43,8 +43,8 @@ MonoBehaviour:
   Ascension: 18
   AscendedName: Rebirth
   AscendedDescription: Once per run, lethal damage restores full health, defeats
-    on-screen enemies, and grants +200% to beneficial numeric stats (cooldowns become
-    three times faster).
+    on-screen enemies, and grants +150% to beneficial numeric stats (cooldowns become
+    2.5 times faster).
   AscendedIcon: {fileID: 0}
   AscensionCost: 1000
   AscensionRetainsBase: 0

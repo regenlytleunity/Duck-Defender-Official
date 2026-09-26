@@ -11,6 +11,7 @@ using System.Collections.Generic;
 [RequireComponent(typeof(LineRenderer))]
 public class AuraController : MonoBehaviour
 {
+    readonly System.Collections.Generic.List<EnemyBase> _damageTargets = new System.Collections.Generic.List<EnemyBase>();
     [Header("Visual Settings")]
     public int Segments = 60;
     public float LineWidth = 0.15f;
@@ -82,7 +83,8 @@ public class AuraController : MonoBehaviour
     void PulseDamage()
     {
         float damage = PlayerStats.Instance != null ? PlayerStats.Instance.CalculateDamage(_currentDamage, false) : _currentDamage;
-        foreach (var enemy in EnemyBase.ActiveEnemies)
+        EnemyBase.CopyActiveEnemies(_damageTargets);
+        foreach (var enemy in _damageTargets)
             if (enemy != null && enemy.IsAlive && Vector2.Distance(transform.position, enemy.transform.position) <= _currentRadius)
                 enemy.TakeFractionalDamage(damage);
     }

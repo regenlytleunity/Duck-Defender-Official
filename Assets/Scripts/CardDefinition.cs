@@ -186,7 +186,8 @@ public enum StatType
     ElectricFeatherThreshold,
     ElectricFeatherChainCount,
     BuckshotDamageFraction, MetalDamageFraction, RicochetDamageLoss,
-    DuplicatorDamageReduction, ElementalTargetCount, NonFeatherDamage
+    DuplicatorDamageReduction, ElementalTargetCount, NonFeatherDamage,
+    DashDistance
 }
 
 public enum CardAscension

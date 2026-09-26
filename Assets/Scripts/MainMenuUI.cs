@@ -31,6 +31,8 @@ public class MainMenuUI : MonoBehaviour
     public UnityEngine.UI.GridLayoutGroup RevealGrid;
     public Vector2 SingleCardSize = new Vector2(260, 360);
     public Vector2 TripleCardSize = new Vector2(160, 220);
+    [Tooltip("Horizontal offset for revealed cards when opening three packs, in UI units. Positive moves right; negative moves left. Applied when the cards spawn; single-pack reveals are unaffected.")]
+    public float TripleRevealXShift = 0f;
     [Tooltip("Full-size card canvas before fitting it into a reveal grid cell. Keeps fonts and fixed child artwork proportional.")]
     public Vector2 CardReferenceSize = new Vector2(500, 700);
     public TextMeshProUGUI EssenceBalancesText;
@@ -241,7 +243,9 @@ void Purchase(int count)
                 {
                     AdditionalPackImages[i].sprite = pack.ClosedPackIcon;
                     AdditionalPackImages[i].gameObject.SetActive(i < _packCount - 1);
+                    AdditionalPackImages[i].transform.localRotation = Quaternion.identity;
                 }
+        CenterPackRow();
         if (RevealGrid != null)
         {
             RevealGrid.constraint = UnityEngine.UI.GridLayoutGroup.Constraint.FixedColumnCount;
@@ -257,6 +261,24 @@ void Purchase(int count)
         _isSlicingMode = true;
         _sliceProgress = 0f;
         _lastMousePos = Input.mousePosition;
+    }
+
+    void CenterPackRow()
+    {
+        var row = PackImage.transform.parent as RectTransform;
+        var layout = row != null ? row.GetComponent<HorizontalLayoutGroup>() : null;
+        if (layout == null) return;
+        // Center the active children as a group; the old authored row was offset
+        // to the left to accommodate three packs, including when only one was active.
+        row.anchorMin = new Vector2(0, row.anchorMin.y);
+        row.anchorMax = new Vector2(1, row.anchorMax.y);
+        row.pivot = new Vector2(.5f, row.pivot.y);
+        row.sizeDelta = new Vector2(0, row.sizeDelta.y);
+        row.anchoredPosition = new Vector2(0, row.anchoredPosition.y);
+        layout.childAlignment = TextAnchor.MiddleCenter;
+        layout.childForceExpandWidth = false;
+        layout.childScaleWidth = true;
+        LayoutRebuilder.ForceRebuildLayoutImmediate(row);
     }
 
     void PerformSlice()
@@ -320,7 +342,8 @@ void Purchase(int count)
     /// </summary>
     IEnumerator RevealCardsRoutine()
     {
-        yield return new WaitForSeconds(0.5f);
+        float timingScale = _purchasedCards != null && _purchasedCards.Count == 9 ? .5f : 1f;
+        yield return new WaitForSeconds(0.5f * timingScale);
         PackImage.gameObject.SetActive(false);
         if (AdditionalPackImages != null) foreach (var image in AdditionalPackImages) if (image != null) image.gameObject.SetActive(false);
 
@@ -366,7 +389,8 @@ void Purchase(int count)
                 {
                     var rect = cardObj.GetComponent<RectTransform>();
                     rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(.5f, .5f);
-                    rect.anchoredPosition = Vector2.zero;
+                    // Offset the card inside its slot so the grid cannot overwrite the shift.
+                    rect.anchoredPosition = new Vector2(_packCount == 3 ? TripleRevealXShift : 0f, 0f);
                     rect.sizeDelta = CardReferenceSize;
                 }
                 CardDisplay disp = cardObj.GetComponent<CardDisplay>();
@@ -396,11 +420,11 @@ void Purchase(int count)
         for (int i = 0; i < spawnedCards.Count; i++)
         {
             float fit = RevealGrid != null ? Mathf.Min(RevealGrid.cellSize.x / Mathf.Max(1, CardReferenceSize.x), RevealGrid.cellSize.y / Mathf.Max(1, CardReferenceSize.y)) : 1;
-            StartCoroutine(AnimatePop(spawnedCards[i].transform, fit));
-            yield return new WaitForSeconds(0.5f);
+            StartCoroutine(AnimatePop(spawnedCards[i].transform, fit, .3f * timingScale));
+            yield return new WaitForSeconds(0.5f * timingScale);
         }
 
-        yield return new WaitForSeconds(1.0f);
+        yield return new WaitForSeconds(1.0f * timingScale);
         
         if (ContinueButton != null)
         {
@@ -410,13 +434,13 @@ void Purchase(int count)
         }
     }
     
-    IEnumerator AnimatePop(Transform target, float scale)
+    IEnumerator AnimatePop(Transform target, float scale, float duration)
     {
         float timer = 0f;
-        while(timer < 0.3f)
+        while(timer < duration)
         {
             timer += Time.deltaTime;
-            float progress = timer / 0.3f;
+            float progress = timer / duration;
             target.localScale = Vector3.Lerp(Vector3.zero, Vector3.one * scale, progress);
             yield return null;
         }

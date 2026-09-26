@@ -54,6 +54,7 @@ public class Projectile : MonoBehaviour
 
         // Primary feathers can airburst. Child feathers and non-feather needles cannot recurse.
         public bool CanAirburst;
+        public bool SuppressHitEffect;
         public CardAscension Variant;
         public float DamageRatio;
         public float LocalDamageBonus;
@@ -101,6 +102,10 @@ public class Projectile : MonoBehaviour
     private Rigidbody2D _rb;
     private Vector3 _spawnPosition;
     private SpriteRenderer _spriteRenderer;
+    private Animator _animator;
+    private bool _animatorEnabled;
+    private bool _cached;
+    private ObjectPooler _poolOwner;
 
     private Vector3 _defaultLocalScale = Vector3.one;
 
@@ -119,11 +124,16 @@ public class Projectile : MonoBehaviour
     readonly System.Collections.Generic.List<RaycastHit2D> _instantHits = new System.Collections.Generic.List<RaycastHit2D>(32);
     private readonly System.Collections.Generic.List<Collider2D> _electricOverlapResults =
         new System.Collections.Generic.List<Collider2D>(32);
+    readonly System.Collections.Generic.List<EnemyBase> _areaEnemies = new System.Collections.Generic.List<EnemyBase>();
 
     void Awake()
     {
+        if (_cached) return;
+        _cached = true;
         _rb = GetComponent<Rigidbody2D>();
-        _spriteRenderer = GetComponent<SpriteRenderer>();
+        _spriteRenderer = GetComponentInChildren<SpriteRenderer>(true);
+        _animator = GetComponentInChildren<Animator>(true);
+        _animatorEnabled = _animator != null && _animator.enabled;
         if (_spriteRenderer != null) _defaultSprite = _spriteRenderer.sprite;
         _defaultLocalScale = transform.localScale;
     }
@@ -145,6 +155,8 @@ public class Projectile : MonoBehaviour
         Stats.ExplosionRadius = PlayerStats.Boost(Stats.ExplosionRadius);
         Stats.FreezeDuration = PlayerStats.Boost(Stats.FreezeDuration);
         Stats.HealAmount = PlayerStats.BoostCount(Stats.HealAmount);
+        bool usesSpecialSprite = Stats.Variant == CardAscension.Tungsten && TungstenSprite != null || Stats.NonFeather && NeedleSprite != null;
+        if (_animator != null) _animator.enabled = _animatorEnabled && !usesSpecialSprite;
         if (_spriteRenderer != null)
             _spriteRenderer.sprite = Stats.Variant == CardAscension.Tungsten && TungstenSprite != null ? TungstenSprite
                 : Stats.NonFeather && NeedleSprite != null ? NeedleSprite : _defaultSprite;
@@ -171,6 +183,7 @@ public class Projectile : MonoBehaviour
         _needsDelayedRetarget = false;
 
         _rb.gravityScale = Stats.ProjectileGravity;
+        _rb.angularVelocity = 0;
 
         // Reset scale to prefab default. SetVisualScale() may be called after to override.
         transform.localScale = _defaultLocalScale;
@@ -212,6 +225,16 @@ public class Projectile : MonoBehaviour
         }
         if (PlayerStats.Instance != null && !Stats.NonFeather && PlayerStats.Instance.HasAscension(CardAscension.QuantumLeap))
             TraceInstant();
+    }
+
+    internal void AssignPool(ObjectPooler owner) { _poolOwner = owner; }
+
+    void OnDisable()
+    {
+        StopAllCoroutines();
+        _target = null;
+        if (_rb != null) _rb.linearVelocity = Vector2.zero;
+        if (_poolOwner != null) _poolOwner.ReturnPlayerProjectile(gameObject);
     }
 
     IEnumerator DelayedTargetAcquisition()
@@ -277,10 +300,10 @@ public class Projectile : MonoBehaviour
             return;
         }
 
-        if (collision.GetComponentInParent<EnemyBase>() != null)
+        var hitOwner = collision.GetComponentInParent<EnemyBase>();
+        if (hitOwner != null)
         {
-            EnemyBase hitOwner = collision.GetComponentInParent<EnemyBase>();
-            int enemyID = hitOwner != null ? hitOwner.GetInstanceID() : collision.gameObject.GetInstanceID();
+            int enemyID = hitOwner.GetInstanceID();
             if (_hitEnemyIDs.Contains(enemyID)) return;
 
             EnemyBase enemy = hitOwner;
@@ -396,7 +419,7 @@ public class Projectile : MonoBehaviour
 
             if (nextTarget != null)
             {
-                Vector2 bounceDir = ((Vector2)nextTarget.position - _rb.position).normalized;
+                Vector2 bounceDir = ((Vector2)nextTarget.position - (Vector2)transform.position).normalized;
                 _rb.linearVelocity = bounceDir * (Stats.Speed * _currentSpeedMultiplier);
                 _target = nextTarget;
             }
@@ -545,20 +568,17 @@ public class Projectile : MonoBehaviour
         if (Stats.Variant == CardAscension.Volcano && !_eruptionSpawned)
         {
             _eruptionSpawned = true;
-            if (PlayerStats.Instance != null) PlayerStats.Instance.GetComponent<AscensionEffects>()?.Erupt(transform.position, actualRadius);
+            if (PlayerStats.Instance != null) PlayerStats.Instance.GetComponent<AscensionEffects>()?.Erupt(transform.position, actualRadius, ExplosionPrefab);
         }
 
-        if (ExplosionPrefab != null)
-        {
-            GameObject boom = Instantiate(ExplosionPrefab, transform.position, Quaternion.identity);
-            boom.transform.localScale = Vector3.one * actualRadius;
-        }
+        ObjectPooler.SpawnEffect(ExplosionPrefab, transform.position, Quaternion.identity, actualRadius);
 
         float baseMult = Stats.DamageMultiplier > 0 ? Stats.DamageMultiplier : 1f;
         float boomDamage = PlayerStats.Instance != null
             ? PlayerStats.Instance.CalculateDamage(Stats.Damage, false, .5f * _currentDamageMultiplier, baseMult - 1)
             : Stats.Damage * .5f * baseMult * _currentDamageMultiplier;
-        foreach (var enemy in EnemyBase.ActiveEnemies)
+        EnemyBase.CopyActiveEnemies(_areaEnemies);
+        foreach (var enemy in _areaEnemies)
             if (enemy != null && enemy.IsAlive && ((Vector2)enemy.transform.position - (Vector2)transform.position).sqrMagnitude <= actualRadius * actualRadius)
                 enemy.TakeFractionalDamage(boomDamage);
     }
@@ -624,84 +644,46 @@ public class Projectile : MonoBehaviour
 
     void FindNearestTargetInFront()
     {
-        GameObject[] enemies = GameObject.FindGameObjectsWithTag("Enemy");
         float bestScore = Mathf.Infinity;
-        GameObject best = null;
-
+        _target = null;
         Vector2 forward = transform.right;
-
-        foreach (var e in enemies)
+        foreach (var enemy in EnemyBase.ActiveEnemies)
         {
-            if (e == null || !e.activeInHierarchy) continue;
-
-            Vector2 toEnemy = (Vector2)e.transform.position - (Vector2)transform.position;
-            float distance = toEnemy.magnitude;
-
-            if (distance < 0.001f) continue;
-
-            float alignment = Vector2.Dot(toEnemy.normalized, forward);
-
-            if (alignment < 0f) continue;
-
-            float alignmentPenalty = (1f - alignment) * HomingForwardBias;
-            float score = distance + alignmentPenalty;
-
-            if (score < bestScore)
-            {
-                bestScore = score;
-                best = e;
-            }
+            if (enemy == null || !enemy.IsAlive || _hitEnemyIDs.Contains(enemy.GetInstanceID())) continue;
+            Vector2 delta = (Vector2)enemy.transform.position - (Vector2)transform.position;
+            float distance = delta.magnitude;
+            if (distance < .001f) continue;
+            float alignment = Vector2.Dot(delta / distance, forward);
+            if (alignment < 0) continue;
+            float score = distance + (1f - alignment) * HomingForwardBias;
+            if (score >= bestScore) continue;
+            bestScore = score;
+            _target = enemy.transform;
         }
-
-        _target = (best != null) ? best.transform : null;
     }
 
-    void FindNearestTargetByProximity()
-    {
-        GameObject[] enemies = GameObject.FindGameObjectsWithTag("Enemy");
-        float closestDist = Mathf.Infinity;
-        GameObject closest = null;
-
-        foreach (var e in enemies)
-        {
-            if (e == null || !e.activeInHierarchy) continue;
-
-            float d = Vector2.Distance(transform.position, e.transform.position);
-            if (d < closestDist)
-            {
-                closestDist = d;
-                closest = e;
-            }
-        }
-
-        _target = (closest != null) ? closest.transform : null;
-    }
+    void FindNearestTargetByProximity() { _target = FindNearestEnemyExcluding(); }
 
     Transform FindNearestEnemyExcluding()
     {
-        GameObject[] enemies = GameObject.FindGameObjectsWithTag("Enemy");
-        float closestDist = Mathf.Infinity;
+        float closestDistance = Mathf.Infinity;
         Transform closest = null;
-
-        foreach (var e in enemies)
+        foreach (var enemy in EnemyBase.ActiveEnemies)
         {
-            if (e == null || !e.activeInHierarchy) continue;
-            if (_hitEnemyIDs.Contains(e.GetInstanceID())) continue;
-
-            float d = Vector2.Distance(transform.position, e.transform.position);
-            if (d < closestDist)
-            {
-                closestDist = d;
-                closest = e.transform;
-            }
+            // Hit history stores EnemyBase IDs, not GameObject IDs.
+            if (enemy == null || !enemy.IsAlive || _hitEnemyIDs.Contains(enemy.GetInstanceID())) continue;
+            float distance = ((Vector2)enemy.transform.position - (Vector2)transform.position).sqrMagnitude;
+            if (distance >= closestDistance) continue;
+            closestDistance = distance;
+            closest = enemy.transform;
         }
-
         return closest;
     }
 
     void SpawnEffect()
     {
-        if (HitEffectPrefab != null) Instantiate(HitEffectPrefab, transform.position, Quaternion.identity);
+        if (Stats.SuppressHitEffect) return;
+        ObjectPooler.SpawnEffect(HitEffectPrefab, transform.position, Quaternion.identity);
     }
 
     void Deactivate()

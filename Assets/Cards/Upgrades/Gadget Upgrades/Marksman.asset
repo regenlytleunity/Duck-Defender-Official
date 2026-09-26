@@ -26,7 +26,7 @@ MonoBehaviour:
     InRunStackAmount: 0
     DisplayMultiplier: 1
   - StatType: 28
-    BaseAmount: 10
+    BaseAmount: 6
     AmountPerShopLevel: -1
     StackMode: 0
     InRunStackAmount: 0
@@ -35,7 +35,7 @@ MonoBehaviour:
   MaxLevel: 6
   Ascension: 20
   AscendedName: Marksman
-  AscendedDescription: A turret fires at 6 enemies every 5 seconds, marking targets.
+  AscendedDescription: A turret fires at 6 enemies every second, marking targets.
     Feather hits on marked enemies always critically hit.
   AscendedIcon: {fileID: 0}
   AscensionCost: 1000

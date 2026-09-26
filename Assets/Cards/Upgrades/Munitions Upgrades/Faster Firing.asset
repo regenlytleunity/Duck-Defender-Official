@@ -20,8 +20,8 @@ MonoBehaviour:
   PackCategory: 0
   Modifiers:
   - StatType: 0
-    BaseAmount: 0.15
-    AmountPerShopLevel: 0.15
+    BaseAmount: 0.2
+    AmountPerShopLevel: 0.1
     StackMode: 0
     InRunStackAmount: 0
     DisplayMultiplier: 100

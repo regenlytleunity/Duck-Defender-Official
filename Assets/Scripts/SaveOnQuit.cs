@@ -39,6 +39,7 @@ public class SaveOnQuit : MonoBehaviour
     {
         try
         {
+            if (LevelManager.Instance != null) LevelManager.Instance.FlushCoinSave();
             PlayerData currentData = SaveSystem.LoadData();
             SaveSystem.SaveData(currentData);
             Debug.Log($"[SaveOnQuit] Forced save triggered by {reason}.");

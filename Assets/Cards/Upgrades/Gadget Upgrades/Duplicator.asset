@@ -35,9 +35,9 @@ MonoBehaviour:
   MaxLevel: 6
   Ascension: 25
   AscendedName: Divine Duplicator
-  AscendedDescription: Each attack calls an additional feather from above for 50%
-    feather damage.
+  AscendedDescription: Fires two parallel feathers, with the duplicate dealing 25%
+    less damage, plus a third feather falling at the cursor for 50% feather damage.
   AscendedIcon: {fileID: 0}
   AscensionCost: 1000
-  AscensionRetainsBase: 0
+  AscensionRetainsBase: 1
   BaseCost: 100

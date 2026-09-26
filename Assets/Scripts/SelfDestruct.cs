@@ -7,6 +7,8 @@ public class SelfDestruct : MonoBehaviour
 
     void Start()
     {
+        // Pooled FX own their lifetime, including child objects with this helper.
+        if (GetComponentInParent<PooledVisualEffect>() != null) return;
         Destroy(gameObject, Lifetime);
     }
 }

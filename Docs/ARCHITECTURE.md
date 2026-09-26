@@ -369,6 +369,10 @@ Responsibilities include:
 * wave progression
 * enemy count tracking
 
+Spawn batches yield after every enemy (minimum .04 seconds). A default limit of 40
+live wave enemies holds the remainder in the queue. The HUD's remaining count still
+includes both queued and living enemies, so the wave cannot finish early.
+
 ---
 
 # Enemy Architecture
@@ -491,7 +495,17 @@ PlayerStats.Instance.ReportCoinsGained(amount)
 Assets/Scripts/Coin.cs
 ```
 
-Physical coin behavior.
+Coins settle on the Ground layer and use proximity pickup, so they cannot obstruct
+the player. They share physics materials. LevelManager schedules a spatial merge
+pass every .25 seconds: ten nearby equal denominations become 10, then 100. Merge
+radius is two world units, the vacuum animation lasts .18 seconds, and scales are
+1 / 1.18 / 1.36. Passive and ordinary coins merge separately; merge donors cannot
+collect. Value and Absolute Extinction pickup entitlements transfer to the survivor.
+Candidate search is budgeted at 4,096 comparisons / 32 merges per pass.
+
+LevelManager credits currency and per-coin effects immediately, batches coin saves
+at most once per second, and flushes on disable, pause, focus loss and quit. Its
+meteor queues spawn at most two rewards per frame without dropping earned counts.
 
 Coin magnet behavior reads:
 
@@ -538,7 +552,10 @@ Assets/Scripts/PlayerStats.cs
 Assets/Scripts/Projectile.cs
 ```
 
-`ReportCoinsGained()` creates independently expiring stacks.
+`ReportCoinsGained()` records one counted expiration batch per pickup. A value-100
+coin still grants 100 independently valued stacks with the same pickup timestamp;
+new pickups do not extend older batches. Damage reads use the cached total and
+skip expiration work until the earliest batch is due.
 
 Stacks expire based on:
 
@@ -690,13 +707,19 @@ Rare and Legendary. The serialized gameplay scene requires the configuration ste
 The 25 ascensions are runtime flags in PlayerStats. AscensionEffects owns the player's
 beam, wormhole, volcanic eruption, healing areas, orbs and wall spawning. AscensionArea,
 HealingOrb and DefenderWall supply reusable effect behavior. Their prefabs are Inspector
-references; automatic addition of AscensionEffects does not populate them.
+references; automatic addition of AscensionEffects does not populate them. Savior and
+Wormhole now provide non-blocking circle visuals with a prefab-free ring fallback.
+Walls and orbs use dynamic Rigidbody2D gravity to settle on Ground. Defender places
+walls immediately on acquisition and then every 20 seconds.
 
 PlayerStats.CalculateDamage combines flat damage with an additive percentage bucket.
 Explicit projectile ratios, crits and bounce falloff apply afterward. EnemyBase maintains
 an active enemy registry and fractional damage remainder for area effects/poison.
 PlayerHealth handles Rebirth once per run. Read-time stat helpers apply its beneficial
-scaling to later acquisitions as well. LevelUpUI queues multiple earned level choices.
+scaling (+150%, with a 2.5 multiplier for beneficial strengths/cooldown speed) to later
+acquisitions as well. LevelUpUI queues multiple earned level choices. Damage-dealing
+area loops copy the active enemy registry into reusable per-effect buffers so death
+callbacks cannot invalidate iteration.
 
 Electric Feathers uses the existing pool. Successfully emitted normal volleys and minigun
 shots each count once for all special-feather intervals; extra feathers do not recurse.
@@ -708,6 +731,14 @@ reuse WeaponPlayer-owned LineRenderers.
 Assets/Scripts/Editor/CardReworkSetup.cs provides explicit authoring/configuration menu
 commands. CardReworkVerification runs isolated checks with a temporary save and transient
 objects. CardReworkCombatProbe is guarded by UNITY_EDITOR and excluded from builds.
+Run Isolated Physics Verification simulates a separate preview physics world for
+falling walls/orbs and Blink's collider sweep, without entering Play Mode.
+
+The 24 September balance uses Faster Firing 20–70% and Hunter cooldowns 6–1 seconds.
+Marksman's ascended interval is 1 second. Divine Duplicator retains the level-six
+parallel pair and adds a cursor-aligned vertical feather. Blink has a fixed 1.5-unit
+default distance and runs against the Rigidbody position during the physics step;
+movement acceleration is bounded to avoid high-stat force-feedback oscillation.
 
 ### Existing assets
 
@@ -1313,7 +1344,27 @@ Do not delete either category without checking references.
 
 ## Mixed Pooling
 
-Player bullets use pooling.
+Player bullets use a return queue with lazy growth. ObjectPooler prewarms at most 64
+bullets and caps the pool at the smaller of PoolSize and MaximumPlayerProjectiles
+(default 2,048). Expired bullets are inactive reusable objects, not leaked live shots.
+Projectile target searches use EnemyBase's registry rather than scene-wide tag searches.
+
+Hit/explosion visuals use ObjectPooler plus PooledVisualEffect. The default limits are
+32 instances per prefab and 128 overall. The runtime wrapper activates inactive source
+prefabs, preserves their authored rotation, suppresses SelfDestruct and particle
+Destroy stop actions, and returns effects to the pool. Saturation replays an existing
+same-prefab visual; a new effect type can reclaim an inactive slot. If every global
+slot is busy and none belongs to that type, its extra visual is skipped. Gameplay
+damage still resolves. Destroyed slots are reclaimed. Airburst child feathers opt
+out of hit particles; normal pooled reuse resets that flag. Tungsten/needle sprites
+temporarily disable the bullet Animator; normal pooled reuse restores it.
+
+Enemy and bouncy ammunition each prewarm at most 32 objects and grow on demand
+up to EnemyPoolSize / BouncyPoolSize. The scene's existing 10,000-object limits no
+longer force 20,000 initial clones.
+
+Explosion Effect and Volcano fire use authored URP unlit particle materials at
+sorting order 100. Volcano also replays the impact explosion at its delayed eruption.
 
 Many other objects still use normal instantiation.
 
@@ -1344,3 +1395,18 @@ The following remain unresolved by static repository inspection:
 * runtime behavior not explicitly Play Mode tested
 
 Do not convert these into facts without verification.
+
+## September 25 movement and pack-opening corrections
+
+Dash consumes a world-distance budget in FixedUpdate and sweeps the player's body
+against terrain before each move. DashDistance is 3–8 units across the six card
+levels. Speed/Rebirth change travel speed, not distance. The old DashDuration field
+and enum value remain compatible; the new enum value is appended. Blink ignores
+artificial horizontal blocking normals from a tiny resting overlap with a flat floor.
+
+SampleScene's Tilemap_Ground now merges into its existing polygon CompositeCollider2D.
+The old (0, -.3) collider offset is on the composite; surface height remains -2.3.
+Savior areas continue to disable all authored physics colliders and bodies.
+
+MainMenuUI centers the active pack images inside the existing horizontal PackRow
+for both single- and three-pack purchases.

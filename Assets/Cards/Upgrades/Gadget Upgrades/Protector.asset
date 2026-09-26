@@ -35,8 +35,8 @@ MonoBehaviour:
   MaxLevel: 6
   Ascension: 22
   AscendedName: Defender
-  AscendedDescription: Every 30 seconds, places two walls with 5 health. Destroyed
-    walls release a knockback shockwave.
+  AscendedDescription: Immediately and every 20 seconds, drops two walls with 5 health
+    that settle on the ground. Destroyed walls release a knockback shockwave.
   AscendedIcon: {fileID: 0}
   AscensionCost: 1000
   AscensionRetainsBase: 0

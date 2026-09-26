@@ -33,6 +33,7 @@ using System.Collections.Generic;
 /// </summary>
 public class FireTrailPatch : MonoBehaviour
 {
+    readonly System.Collections.Generic.List<EnemyBase> _damageTargets = new System.Collections.Generic.List<EnemyBase>();
     [Header("Damage")]
     [Tooltip("How often (in seconds) damage is applied to enemies inside the patch.")]
     public float DamageTickInterval = 0.5f;
@@ -191,7 +192,8 @@ public class FireTrailPatch : MonoBehaviour
     /// </summary>
     void TickDamage(float seconds)
     {
-        foreach (var enemy in EnemyBase.ActiveEnemies)
+        EnemyBase.CopyActiveEnemies(_damageTargets);
+        foreach (var enemy in _damageTargets)
         {
             if (enemy == null || !enemy.IsAlive || Vector2.Distance(transform.position, enemy.transform.position) > _resolvedDamageRadius) continue;
             float damage = PlayerStats.Instance != null ? PlayerStats.Instance.CalculateDamage(_damagePerSecond, false) * seconds : _damagePerSecond * seconds;

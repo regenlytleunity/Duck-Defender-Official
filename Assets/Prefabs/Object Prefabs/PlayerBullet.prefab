@@ -14,7 +14,6 @@ GameObject:
   - component: {fileID: 957128736560421846}
   - component: {fileID: 6055395491001789644}
   - component: {fileID: 6670118645563361298}
-  - component: {fileID: 8180737881571676411}
   m_Layer: 9
   m_Name: PlayerBullet
   m_TagString: Untagged
@@ -231,19 +230,3 @@ Animator:
   m_AllowConstantClipSamplingOptimization: 1
   m_KeepAnimatorStateOnDisable: 0
   m_WriteDefaultValuesOnDisable: 0
---- !u!111 &8180737881571676411
-Animation:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7023200964588133668}
-  m_Enabled: 1
-  serializedVersion: 4
-  m_Animation: {fileID: 7400000, guid: e27171ab11a714b908d01a4f8c560342, type: 2}
-  m_Animations: []
-  m_WrapMode: 0
-  m_PlayAutomatically: 1
-  m_AnimatePhysics: 0
-  m_UpdateMode: 0
-  m_CullingType: 0

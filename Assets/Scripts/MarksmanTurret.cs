@@ -1,6 +1,5 @@
 using UnityEngine;
 using System.Collections.Generic;
-using System.Linq;
 
 /// <summary>
 /// 1.4.11: Renamed from FlingerTurret. Same behavior - auto-fires feathers at nearest enemies.
@@ -19,6 +18,8 @@ public class MarksmanTurret : TurretBase
     [Header("Safety Caps")]
     public int MaxTargetsPerVolleyHardCap = 10;
     public bool DebugLogTargetCount = false;
+    readonly List<Transform> _visibleTargets = new List<Transform>();
+    WeaponPlayer _weapon;
 
     protected override float GetCurrentInterval()
     {
@@ -48,34 +49,24 @@ public class MarksmanTurret : TurretBase
 
         foreach (Transform target in targets)
         {
-            FireAt(target);
+            if (target != null) FireAt(target);
         }
     }
 
     List<Transform> FindVisibleEnemies(int maxCount)
     {
-        GameObject[] allEnemies = GameObject.FindGameObjectsWithTag("Enemy");
-        if (maxCount <= 0) return new List<Transform>();
-
-        // 1.4.11 PATCH: cache the camera once per call for the on-screen check.
+        _visibleTargets.Clear();
+        if (maxCount <= 0) return _visibleTargets;
         Camera cam = Camera.main;
-
-        var visible = allEnemies
-            .Where(e => e != null && e.activeInHierarchy)
-            .Select(e => new
-            {
-                Obj = e,
-                Dist = Vector2.Distance(transform.position, e.transform.position)
-            })
-            .Where(x => x.Dist <= PlayerStats.Boost(TargetingRange))
-            .Where(x => IsOnScreen(cam, x.Obj.transform))   // 1.4.11 PATCH
-            .Where(x => HasLineOfSight(x.Obj.transform))
-            .OrderBy(x => x.Dist)
-            .Take(maxCount)
-            .Select(x => x.Obj.transform)
-            .ToList();
-
-        return visible;
+        float range = PlayerStats.Boost(TargetingRange);
+        foreach (var enemy in EnemyBase.ActiveEnemies)
+        {
+            if (enemy == null || !enemy.IsAlive || (enemy.transform.position - transform.position).sqrMagnitude > range * range) continue;
+            if (IsOnScreen(cam, enemy.transform) && HasLineOfSight(enemy.transform)) _visibleTargets.Add(enemy.transform);
+        }
+        _visibleTargets.Sort((a, b) => (a.position - transform.position).sqrMagnitude.CompareTo((b.position - transform.position).sqrMagnitude));
+        if (_visibleTargets.Count > maxCount) _visibleTargets.RemoveRange(maxCount, _visibleTargets.Count - maxCount);
+        return _visibleTargets;
     }
 
     /// <summary>
@@ -124,13 +115,13 @@ public class MarksmanTurret : TurretBase
         float playerDamageMult = 1f;
         float playerCrit = 0f;
 
-        var weapon = FindFirstObjectByType<WeaponPlayer>();
-        if (weapon != null)
+        if (_weapon == null && PlayerStats.Instance != null) _weapon = PlayerStats.Instance.GetComponent<WeaponPlayer>();
+        if (_weapon != null)
         {
-            playerDamage = weapon.CurrentStats.Damage;
-            playerDamageMult = weapon.CurrentStats.DamageMultiplier > 0
-                ? weapon.CurrentStats.DamageMultiplier : 1f;
-            playerCrit = weapon.CurrentStats.CritChance;
+            playerDamage = _weapon.CurrentStats.Damage;
+            playerDamageMult = _weapon.CurrentStats.DamageMultiplier > 0
+                ? _weapon.CurrentStats.DamageMultiplier : 1f;
+            playerCrit = _weapon.CurrentStats.CritChance;
         }
 
         Projectile.BallisticData stats = new Projectile.BallisticData();

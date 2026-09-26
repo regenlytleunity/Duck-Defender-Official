@@ -576,7 +576,11 @@ public class CardManager : MonoBehaviour
                 }
                 break;
             case StatType.DashDuration:
-                if (controller != null) controller.DashDuration = amount;
+                // Compatibility for definitions authored before the distance migration.
+                if (controller != null) controller.DashDistance = 1 + 2 * amount;
+                break;
+            case StatType.DashDistance:
+                if (controller != null) controller.DashDistance = amount;
                 break;
             
             // SET-STYLE: literal cooldown seconds.

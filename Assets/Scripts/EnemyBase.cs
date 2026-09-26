@@ -18,6 +18,14 @@ public abstract class EnemyBase : MonoBehaviour
     void OnEnable() { if (!ActiveEnemies.Contains(this)) ActiveEnemies.Add(this); }
     void OnDisable() { ActiveEnemies.Remove(this); }
 
+    // Damage/death callbacks can disable enemies and mutate the registry synchronously.
+    // Callers that deal area damage keep their own reusable snapshot, without per-tick allocations.
+    public static void CopyActiveEnemies(System.Collections.Generic.List<EnemyBase> destination)
+    {
+        destination.Clear();
+        destination.AddRange(ActiveEnemies);
+    }
+
     public static EnemyBase Nearest(Vector2 position, EnemyBase exclude = null)
     {
         EnemyBase nearest = null;

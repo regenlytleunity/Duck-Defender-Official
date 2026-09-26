@@ -128,9 +128,9 @@ public class PlayerHealth : MonoBehaviour
         if (stats.HasAscension(CardAscension.Rebirth) && !stats.RebirthUsed)
         {
             stats.RebirthUsed = true;
-            stats.RebirthStatBonus += 2f;
+            stats.RebirthStatBonus += PlayerStats.RebirthBonus;
             stats.NotifySecondWindChanged();
-            AddMaxHealthPercent(2f);
+            AddMaxHealthPercent(PlayerStats.RebirthBonus);
             _currentHealth = MaxHealth;
             GetComponent<AscensionEffects>()?.Rebirth();
             StartCoroutine(InvulnerabilityRoutine(5));

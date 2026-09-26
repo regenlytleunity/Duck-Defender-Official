@@ -37,6 +37,51 @@ public class LevelManager : MonoBehaviour
 
     private int _coinsForMeteor = 0;
     private int _coinsForShot = 0;
+    bool _coinSaveDirty;
+    float _nextCoinSave, _nextCoinMerge;
+    long _pendingMeteors, _pendingSecondaryMeteors;
+
+    void Update()
+    {
+        if (_coinSaveDirty && Time.unscaledTime >= _nextCoinSave) FlushCoinSave();
+        if (Time.timeScale == 0) return;
+        if (Time.time >= _nextCoinMerge)
+        {
+            _nextCoinMerge = Time.time + .25f;
+            Coin.MergeNearby();
+        }
+        DrainMeteorQueue();
+    }
+
+    public void QueueSecondaryMeteors(int count) { _pendingSecondaryMeteors += Mathf.Max(0, count); }
+    void DrainMeteorQueue()
+    {
+        if (PlayerController.Instance == null) return;
+        // At most two instantiations per frame; neither reward type can starve the other.
+        for (int i = 0; i < 2; i++)
+        {
+            if (_pendingSecondaryMeteors > 0 && (i == 1 || _pendingMeteors == 0))
+            { _pendingSecondaryMeteors--; PlayerController.Instance.SpawnSecondaryMeteor(); }
+            else if (_pendingMeteors > 0)
+            { _pendingMeteors--; PlayerController.Instance.SpawnMeteor(); }
+        }
+    }
+
+    public void FlushCoinSave()
+    {
+        if (!_coinSaveDirty || _playerData == null) return;
+        // Preserve any collection/dev settings saved by another existing system.
+        _playerData = SaveSystem.LoadData();
+        _playerData.TotalCoins = TotalCoins;
+        SaveSystem.SaveData(_playerData);
+        _coinSaveDirty = false;
+        _nextCoinSave = Time.unscaledTime + 1f;
+    }
+    void OnDisable() { FlushCoinSave(); }
+    void OnApplicationPause(bool paused) { if (paused) FlushCoinSave(); }
+    void OnApplicationFocus(bool focused) { if (!focused) FlushCoinSave(); }
+    void OnApplicationQuit() { FlushCoinSave(); }
+    void OnDestroy() { if (Instance == this) Instance = null; }
 
     void Awake()
     {
@@ -100,8 +145,8 @@ public class LevelManager : MonoBehaviour
     {
         if (amount <= 0) return;
         TotalCoins = (int)System.Math.Min(int.MaxValue, (long)TotalCoins + amount);
-        _playerData.TotalCoins = TotalCoins;
-        SaveSystem.SaveData(_playerData);
+        if (_playerData != null) _playerData.TotalCoins = TotalCoins;
+        _coinSaveDirty = true;
         UpdateCoinUI();
 
         if (PlayerStats.Instance == null)
@@ -120,29 +165,26 @@ public class LevelManager : MonoBehaviour
         // Coin Meteor trigger
         if (PlayerStats.Instance.HasCoinMeteors)
         {
-            _coinsForMeteor += amount;
+            long earned = (long)_coinsForMeteor + amount;
             int threshold = PlayerStats.Threshold(PlayerStats.Instance.MeteorThreshold);
             if (threshold <= 0) threshold = 10;
 
-            while (_coinsForMeteor >= threshold)
-            {
-                _coinsForMeteor -= threshold;
-                if (PlayerController.Instance != null) PlayerController.Instance.SpawnMeteor();
-            }
+            _pendingMeteors += earned / threshold;
+            _coinsForMeteor = (int)(earned % threshold);
         }
 
         // Tripleshot trigger
         if (PlayerStats.Instance.HasTripleshot)
         {
-            _coinsForShot += amount;
+            long earned = (long)_coinsForShot + amount;
             int threshold = PlayerStats.Threshold(PlayerStats.Instance.TripleshotThreshold);
             if (threshold <= 0) threshold = 15;
 
-            if (_coinsForShot >= threshold)
+            if (earned >= threshold)
             {
-                _coinsForShot %= threshold;
                 if (PlayerController.Instance != null) PlayerController.Instance.TriggerCoinShotBuff();
             }
+            _coinsForShot = (int)(earned % threshold);
         }
     }
 

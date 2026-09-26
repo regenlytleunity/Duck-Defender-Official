@@ -150,8 +150,8 @@ public static class CardReworkVerification
             Check(offers.Count == 3 && offers.Count(c => !c.IsBasic) == 2, "two remaining cards plus one Basic");
             foreach (var card in cards) manager.SetCardLevel(card.ID, 0);
             var firing = cards.Single(c => c.ID == "mun_faster_firing");
-            manager.ApplyCardEffect(firing); Near(weapon.FireRate, .17f, "level-one cooldown reduction");
-            manager.ApplyCardEffect(firing); Near(weapon.FireRate, .17f, "repeat collection pick rejected");
+            manager.ApplyCardEffect(firing); Near(weapon.FireRate, .16f, "level-one cooldown reduction");
+            manager.ApplyCardEffect(firing); Near(weapon.FireRate, .16f, "repeat collection pick rejected");
             var income = cards.Single(c => c.ID == "bas_income"); manager.ApplyCardEffect(income); manager.ApplyCardEffect(income);
             Check(levelManager.CoinsPerWave == 20, "Basic income repeats at original strength");
             var basicHealth = cards.Single(c => c.ID == "bas_health"); manager.ApplyCardEffect(basicHealth); manager.ApplyCardEffect(basicHealth);
@@ -167,16 +167,16 @@ public static class CardReworkVerification
             Near(stats.CalculateDamage(10, true), 14, "additive percentage damage");
             Near(stats.CalculateDamage(10, false), 16.8f, "non-feather flat damage before percent");
             Near(stats.CalculateDamage(10, true, 1, -.5f), 9, "duplicator penalty shares additive bucket");
-            stats.RebirthStatBonus = 2;
-            Near(stats.CalculateDamage(10, true), 34, "Rebirth adds 200 percent once to damage");
-            Near(PlayerStats.Boost(6), 18, "Rebirth beneficial strength"); Near(PlayerStats.Cooldown(9), 3, "Rebirth cooldown direction");
-            Check(PlayerStats.Threshold(7) == 3 && PlayerStats.BoostCount(6) == 18, "Rebirth threshold/count rounding");
+            stats.RebirthStatBonus = PlayerStats.RebirthBonus;
+            Near(stats.CalculateDamage(10, true), 29, "Rebirth adds 150 percent once to damage");
+            Near(PlayerStats.Boost(6), 15, "Rebirth beneficial strength"); Near(PlayerStats.Cooldown(9), 3.6f, "Rebirth cooldown direction");
+            Check(PlayerStats.Threshold(7) == 3 && PlayerStats.BoostCount(6) == 15, "Rebirth threshold/count rounding");
             var projectile = Component<Projectile>();
             projectile.Initialize(new Projectile.BallisticData { Damage = 10, Speed = 20, Variant = CardAscension.Tungsten, RicochetCount = 3, IgnoreEnemyID = 123, InfinitePierce = true });
             projectile.ConfigureElectricChain(10, 2, 4, weapon);
             projectile.Initialize(new Projectile.BallisticData { Damage = 10, Speed = 20 });
             Check(projectile.Stats.Variant == CardAscension.None && !projectile.Stats.InfinitePierce && Field<int>(projectile, "_electricChainCount") == 0 && Field<HashSet<int>>(projectile, "_hitEnemyIDs").Count == 0, "pooled projectile clears variant, ignore list, chain and piercing state");
-            Near(projectile.Stats.Speed, 60, "projectile stats scaled once on initialization");
+            Near(projectile.Stats.Speed, 50, "projectile stats scaled once on initialization");
             stats.GlobalDamageBonus = stats.RunDamageBonus = stats.RebirthStatBonus = stats.NonFeatherFlatDamage = 0;
             stats.XPMultiplier = 1; levelManager.AddXP(370);
             Check(levelManager.CurrentLevel == 4 && levelManager.CurrentXP == 6 && levelManager.TargetXP == 173, "bulk XP preserves all level thresholds");
@@ -218,6 +218,7 @@ public static class CardReworkVerification
                 Check(!stats.IsSecondWindReady(), "spent Rebirth cannot retrigger as Second Wind");
             }
             finally { EnemyBase.ActiveEnemies.Remove(enemy); }
+            VerifyPlaytestFixes(cards, stats, weapon, controller);
             string result = "PASS: " + _checks + " checks. Temporary save and transient objects only. Run weights C/R/L/B: " + string.Join("/", rolls) + " of 10000.";
             Debug.Log("[Card Rework] " + result);
             return result;
@@ -230,6 +231,159 @@ public static class CardReworkVerification
             PlayerController.Instance = oldController; LevelManager.Instance = oldLevel; MainMenuUI.Instance = oldMenu;
             SaveSystem.VerificationSavePath = oldPath; UnityEngine.Random.state = randomState;
             if (File.Exists(testPath)) File.Delete(testPath);
+        }
+    }
+
+    static void VerifyPlaytestFixes(List<CardDefinition> cards, PlayerStats stats, WeaponPlayer weapon, PlayerController controller)
+    {
+        var firing = cards.Single(c => c.ID == "mun_faster_firing");
+        var hunter = cards.Single(c => c.ID == "gad_marksman_turret");
+        for (int level = 1; level <= 6; level++)
+        {
+            Near(firing.GetAmountAtShopLevel(firing.Modifiers.First(m => m.StatType == StatType.FireRate), level), .1f + .1f * level, "Faster Firing balance " + level);
+            Near(hunter.GetAmountAtShopLevel(hunter.Modifiers.First(m => m.StatType == StatType.MarksmanFireRate), level), 7 - level, "Hunter cooldown " + level);
+        }
+        Check(cards.Single(c => c.ID == "gad_feather_duplicator").AscensionRetainsBase && weapon.ParallelProjectiles == 2, "Divine Duplicator keeps the parallel pair");
+        Near(stats.DuplicatorDamageReduction, .25f, "Divine Duplicator keeps level-six duplicate penalty");
+        Near(stats.ProtectorInterval, 20, "Defender cooldown");
+        Near(PlayerStats.RebirthBonus, 1.5f, "Rebirth grants 150 percent");
+
+        var area = Component<AscensionArea>();
+        var areaCollider = area.gameObject.AddComponent<CircleCollider2D>();
+        areaCollider.isTrigger = false;
+        area.Initialize(3, 5, 0, 2);
+        area.ConfigureCircleVisual(false);
+        Check(!areaCollider.enabled, "Savior authored solid collider cannot block the player");
+        var line = area.GetComponent<LineRenderer>();
+        Check(line != null && line.enabled && line.loop && line.positionCount == 60 && line.sortingOrder == 100, "Savior renders an aura ring above the background");
+        Near(line.GetPosition(0).magnitude, 2.85f, "Savior ring matches gameplay radius");
+        area.ConfigureCircleVisual(true);
+        Check(Field<Transform>(area, "_rotatingVisual") != null, "Wormhole has a rotating circle even without sprite art");
+
+        var wall = Component<DefenderWall>(); Call(wall, "Awake");
+        Check(wall.GetComponent<Rigidbody2D>().bodyType == RigidbodyType2D.Dynamic && wall.GetComponent<Rigidbody2D>().gravityScale > 0 && !wall.GetComponent<BoxCollider2D>().isTrigger, "Defender has gravity and solid ground contact");
+        var orb = Component<HealingOrb>(); Call(orb, "Awake");
+        Check(orb.GetComponent<Rigidbody2D>().gravityScale > 0 && !orb.GetComponent<CircleCollider2D>().isTrigger, "Vampire orb falls and rests on terrain");
+        Check((orb.GetComponent<Rigidbody2D>().excludeLayers.value & LayerMask.GetMask("Ground")) == 0, "orb ground layer is included");
+
+        Call(controller, "Awake");
+        controller.gameObject.SetActive(true); // Rigidbody velocity setters require an active body.
+        var body = controller.GetComponent<Rigidbody2D>(); body.position = new Vector2(1000, 1000);
+        controller.BlinkDistance = 1.5f;
+        stats.RebirthStatBonus = PlayerStats.RebirthBonus;
+        Vector2 destination = (Vector2)Call(controller, "GetBlinkDestination", 1f);
+        Near(destination.x - body.position.x, 1.5f, "Blink fixed distance is independent of Rebirth/movement speed");
+        body.linearVelocity = Vector2.zero;
+        typeof(PlayerController).GetField("_moveInput", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(controller, Vector2.right);
+        for (int i = 0; i < 150; i++) Call(controller, "ApplyMovement");
+        Check(body.linearVelocity.x > 0 && body.linearVelocity.x <= controller.EffectiveMaxSpeed, "high-stat movement accelerates without overshoot: " + body.linearVelocity.x + " / " + controller.EffectiveMaxSpeed);
+        controller.gameObject.SetActive(false);
+        stats.RebirthStatBonus = 0;
+
+        var first = Component<CardReworkCombatProbe>(); first.SetHealth(100); first.transform.position = Vector3.zero;
+        var second = Component<CardReworkCombatProbe>(); second.SetHealth(100); second.transform.position = Vector3.right * 2;
+        EnemyBase.ActiveEnemies.Add(first); EnemyBase.ActiveEnemies.Add(second);
+        try
+        {
+            var shot = Component<Projectile>();
+            shot.Initialize(new Projectile.BallisticData { Damage = 10, Speed = 20, ExplosionRadius = 5, IgnoreEnemyID = first.GetInstanceID() });
+            Check((Transform)Call(shot, "FindNearestEnemyExcluding") == second.transform, "ricochet excludes the previously hit EnemyBase ID");
+            first.DisableOnDamage = true;
+            Call(shot, "Explode");
+            Near(second.HealthRemaining, 95, "area damage continues when a hit removes an enemy from the registry");
+        }
+        finally { EnemyBase.ActiveEnemies.Remove(first); EnemyBase.ActiveEnemies.Remove(second); }
+
+        var oldPool = ObjectPooler.Instance;
+        try
+        {
+            var pool = Component<ObjectPooler>();
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Object Prefabs/PlayerBullet.prefab");
+            pool.ProjectilePrefab = prefab; pool.PoolSize = 10000; pool.PlayerPrewarm = 4;
+            Call(pool, "Awake");
+            Check(pool.PlayerInstances == 4 && pool.PlayerCapacity == 2048, "large saved pool is lazy and bounded");
+            var bullet = pool.GetPooledObject();
+            var projectile = bullet.GetComponent<Projectile>();
+            projectile.Initialize(new Projectile.BallisticData { Speed = 20, Variant = CardAscension.Tungsten });
+            Check(projectile.GetComponentInChildren<SpriteRenderer>().sprite == projectile.TungstenSprite && !projectile.GetComponent<Animator>().enabled, "Tungsten keeps its assigned sprite instead of the feather animation");
+            projectile.Initialize(new Projectile.BallisticData { Speed = 20 });
+            Check(projectile.GetComponent<Animator>().enabled && projectile.GetComponentInChildren<SpriteRenderer>().sprite != projectile.TungstenSprite, "normal pooled reuse restores feather animation and sprite");
+            Call(pool, "ReturnPlayerProjectile", bullet);
+            for (int i = 0; i < 10000; i++) { var reused = pool.GetPooledObject(); Call(pool, "ReturnPlayerProjectile", reused); }
+            Check(pool.PlayerInstances == 4, "ten thousand projectile rentals reuse the prewarm without clone growth");
+            var hitPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Effects/Feather Hit Effect.prefab");
+            var effect = ObjectPooler.SpawnEffect(hitPrefab, Vector3.zero, Quaternion.identity);
+            Check(effect != null && effect.activeSelf, "inactive hit-effect prefab is explicitly activated");
+            var lifetime = effect.GetComponent<PooledVisualEffect>();
+            typeof(PooledVisualEffect).GetField("_remaining", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(lifetime, -1f);
+            Call(lifetime, "Update");
+            Check(!effect.activeSelf, "hit effect returns to pool after its finite lifetime");
+            Check(ObjectPooler.SpawnEffect(hitPrefab, Vector3.zero, Quaternion.identity) == effect && pool.EffectInstances == 1, "hit effect is reused");
+            pool.MaximumEffectsPerPrefab = 1;
+            Check(ObjectPooler.SpawnEffect(hitPrefab, Vector3.zero, Quaternion.identity) == effect && pool.EffectInstances == 1, "visual saturation recycles within its bound");
+        }
+        finally { ObjectPooler.Instance = oldPool; }
+    }
+
+    [MenuItem("Duck Defender/Card Rework/Run Isolated Physics Verification")]
+    public static string RunPhysics()
+    {
+        if (EditorApplication.isPlaying) throw new InvalidOperationException("Run verification outside Play Mode.");
+        var scene = UnityEditor.SceneManagement.EditorSceneManager.NewPreviewScene();
+        var oldController = PlayerController.Instance;
+        int previousChecks = _checks;
+        try
+        {
+            var physics = scene.GetPhysicsScene2D();
+            Check(physics.IsValid() && physics != Physics2D.defaultPhysicsScene, "physics check uses a separate preview world");
+            var ground = new GameObject("Verification ground");
+            UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(ground, scene);
+            ground.layer = LayerMask.NameToLayer("Ground");
+            ground.AddComponent<BoxCollider2D>().size = new Vector2(30, 1);
+            var wallObject = new GameObject("Falling wall");
+            UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(wallObject, scene);
+            wallObject.transform.position = new Vector3(-3, 8, 0);
+            var wall = wallObject.AddComponent<DefenderWall>(); Call(wall, "Awake");
+            wall.GetComponent<BoxCollider2D>().size = new Vector2(.5f, 2);
+            var orbObject = new GameObject("Falling orb");
+            UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(orbObject, scene);
+            orbObject.transform.position = new Vector3(3, 8, 0);
+            var orb = orbObject.AddComponent<HealingOrb>(); Call(orb, "Awake");
+            orb.GetComponent<CircleCollider2D>().radius = .25f;
+            Physics2D.SyncTransforms();
+            for (int i = 0; i < 250; i++) physics.Simulate(.02f);
+            Check(Mathf.Abs(wall.GetComponent<Rigidbody2D>().position.y - 1.5f) < .05f, "wall falls and settles on Ground");
+            Check(Mathf.Abs(orb.GetComponent<Rigidbody2D>().position.y - .75f) < .05f, "orb falls and settles on Ground");
+            Check(Mathf.Abs(wall.GetComponent<Rigidbody2D>().linearVelocity.y) < .05f && Mathf.Abs(orb.GetComponent<Rigidbody2D>().linearVelocity.y) < .05f, "falling effects remain at rest on the ground");
+
+            var playerObject = new GameObject("Blink body");
+            UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(playerObject, scene);
+            playerObject.transform.position = new Vector3(-3, 3, 0);
+            playerObject.AddComponent<BoxCollider2D>().size = Vector2.one;
+            var player = playerObject.AddComponent<PlayerController>(); Call(player, "Awake");
+            player.GetComponent<Rigidbody2D>().gravityScale = 0;
+            player.BlinkDistance = 4;
+            player.BlinkBlockerLayer = LayerMask.GetMask("Ground");
+            var blocker = new GameObject("Blink wall");
+            UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(blocker, scene);
+            blocker.layer = ground.layer;
+            blocker.transform.position = new Vector3(0, 3, 0);
+            blocker.AddComponent<BoxCollider2D>().size = new Vector2(1, 3);
+            Physics2D.SyncTransforms();
+            var destination = (Vector2)Call(player, "GetBlinkDestination", 1f);
+            Check(destination.x > -1.1f && destination.x < -1f, "Blink sweeps the player body and stops before the wall");
+            player.GetComponent<Rigidbody2D>().position = new Vector2(-1.02f, 3);
+            Physics2D.SyncTransforms();
+            destination = (Vector2)Call(player, "GetBlinkDestination", 1f);
+            Check(destination.x >= -1.021f, "Blink cannot teleport backwards when touching a wall");
+            string result = "PASS: " + (_checks - previousChecks) + " isolated preview-physics checks; no Play Mode or user scene simulation.";
+            Debug.Log("[Card Rework] " + result);
+            return result;
+        }
+        finally
+        {
+            UnityEditor.SceneManagement.EditorSceneManager.ClosePreviewScene(scene);
+            PlayerController.Instance = oldController;
         }
     }
 }

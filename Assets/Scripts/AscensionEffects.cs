@@ -4,6 +4,7 @@ using System.Collections;
 // Player-owned orchestration for ascended effects that do not belong in a projectile or turret.
 public class AscensionEffects : MonoBehaviour
 {
+    readonly System.Collections.Generic.List<EnemyBase> _damageTargets = new System.Collections.Generic.List<EnemyBase>();
     [Header("Prefabs (visual appearance is authored in Unity)")]
     public HealingOrb HealingOrbPrefab;
     public AscensionArea WormholePrefab;
@@ -53,7 +54,8 @@ public class AscensionEffects : MonoBehaviour
         }
         _beamTick += Time.deltaTime;
         if (_beamTick < .1f) return;
-        foreach (var enemy in EnemyBase.ActiveEnemies)
+        EnemyBase.CopyActiveEnemies(_damageTargets);
+        foreach (var enemy in _damageTargets)
         {
             if (enemy == null || !enemy.IsAlive) continue;
             Vector2 delta = enemy.transform.position - origin;
@@ -72,22 +74,30 @@ public class AscensionEffects : MonoBehaviour
     }
     public void SpawnWormhole(Vector3 position)
     {
-        SpawnArea(WormholePrefab, position, PlayerStats.Boost(WormholeRadius), PlayerStats.Boost(3), 5, 0, PlayerStats.Boost(WormholePull));
+        var area = SpawnArea(WormholePrefab, position, PlayerStats.Boost(WormholeRadius), PlayerStats.Boost(3), 5, 0, PlayerStats.Boost(WormholePull), true);
+        area.ConfigureCircleVisual(true);
     }
     public void SpawnHealingArea(Vector3 position)
     {
-        SpawnArea(HealingAreaPrefab, position, PlayerStats.Boost(HealingAreaRadius), PlayerStats.Boost(5), 0, PlayerStats.Boost(2));
+        var area = SpawnArea(HealingAreaPrefab, position, PlayerStats.Boost(HealingAreaRadius), PlayerStats.Boost(5), 0, PlayerStats.Boost(2), 0, true);
+        area.ConfigureCircleVisual(false);
     }
-    static void SpawnArea(AscensionArea prefab, Vector3 position, float radius, float seconds, float damage, float healing = 0, float pull = 0)
+    static AscensionArea SpawnArea(AscensionArea prefab, Vector3 position, float radius, float seconds, float damage, float healing = 0, float pull = 0, bool circleFallback = false)
     {
-        if (prefab == null) { Debug.LogWarning("[Ascension] An area prefab is unassigned on AscensionEffects."); return; }
-        Instantiate(prefab, position, Quaternion.identity).Initialize(radius, seconds, damage, healing, pull);
+        if (prefab == null && !circleFallback) { Debug.LogWarning("[Ascension] An area prefab is unassigned on AscensionEffects."); return null; }
+        var area = prefab != null ? Instantiate(prefab, position, Quaternion.identity) : new GameObject("Ascension circle").AddComponent<AscensionArea>();
+        area.transform.position = position;
+        area.gameObject.SetActive(true);
+        area.Initialize(radius, seconds, damage, healing, pull);
+        return area;
     }
-    public void Erupt(Vector3 position, float radius) { StartCoroutine(Eruption(position, radius)); }
-    IEnumerator Eruption(Vector3 position, float radius)
+    public void Erupt(Vector3 position, float radius, GameObject explosionVisual = null) { StartCoroutine(Eruption(position, radius, explosionVisual)); }
+    IEnumerator Eruption(Vector3 position, float radius, GameObject explosionVisual)
     {
         yield return new WaitForSeconds(VolcanoEruptionDelay);
-        foreach (var enemy in EnemyBase.ActiveEnemies)
+        ObjectPooler.SpawnEffect(explosionVisual, position, Quaternion.identity, radius);
+        EnemyBase.CopyActiveEnemies(_damageTargets);
+        foreach (var enemy in _damageTargets)
             if (enemy != null && enemy.IsAlive && ((Vector2)enemy.transform.position - (Vector2)position).sqrMagnitude <= radius * radius)
                 enemy.TakeFractionalDamage(_stats.CalculateDamage(VolcanoEruptionDamage, false));
         SpawnArea(VolcanoFirePrefab, position, radius, PlayerStats.Boost(3), VolcanoFireDPS);
@@ -114,7 +124,8 @@ public class AscensionEffects : MonoBehaviour
     {
         Camera camera = Camera.main;
         if (camera == null) return;
-        foreach (var enemy in EnemyBase.ActiveEnemies)
+        EnemyBase.CopyActiveEnemies(_damageTargets);
+        foreach (var enemy in _damageTargets)
         {
             if (enemy == null || !enemy.IsAlive) continue;
             Vector3 viewport = camera.WorldToViewportPoint(enemy.transform.position);

@@ -6,6 +6,31 @@ using System.Linq;
 // Explicit authoring action: never runs automatically on import or on launch.
 public static class CardReworkSetup
 {
+    [MenuItem("Duck Defender/Card Rework/Apply September Playtest Balance")]
+    public static void ApplyPlaytestBalance()
+    {
+        if (EditorApplication.isPlaying) throw new System.InvalidOperationException("Apply balance outside Play Mode.");
+        var cards = AssetDatabase.FindAssets("t:CardDefinition", new[] { "Assets/Cards/Upgrades" })
+            .Select(g => AssetDatabase.LoadAssetAtPath<CardDefinition>(AssetDatabase.GUIDToAssetPath(g))).ToDictionary(c => c.ID);
+        string[] ids = { "mun_faster_firing", "gad_marksman_turret", "gad_protector_turret", "gad_feather_duplicator", "sur_second_wind" };
+        foreach (var id in ids) Undo.RecordObject(cards[id], "Apply playtest balance");
+        int firingIndex = cards[ids[0]].Modifiers.FindIndex(m => m.StatType == StatType.FireRate);
+        var firing = cards[ids[0]].Modifiers[firingIndex];
+        firing.BaseAmount = .20f; firing.AmountPerShopLevel = .10f;
+        cards[ids[0]].Modifiers[firingIndex] = firing;
+        int marksmanIndex = cards[ids[1]].Modifiers.FindIndex(m => m.StatType == StatType.MarksmanFireRate);
+        var marksman = cards[ids[1]].Modifiers[marksmanIndex];
+        marksman.BaseAmount = 6; marksman.AmountPerShopLevel = -1;
+        cards[ids[1]].Modifiers[marksmanIndex] = marksman;
+        cards[ids[1]].AscendedDescription = "A turret fires at 6 enemies every second, marking targets. Feather hits on marked enemies always critically hit.";
+        cards[ids[2]].AscendedDescription = "Immediately and every 20 seconds, drops two walls with 5 health that settle on the ground. Destroyed walls release a knockback shockwave.";
+        cards[ids[3]].AscensionRetainsBase = true;
+        cards[ids[3]].AscendedDescription = "Fires two parallel feathers, with the duplicate dealing 25% less damage, plus a third feather falling at the cursor for 50% feather damage.";
+        cards[ids[4]].AscendedDescription = "Once per run, lethal damage restores full health, defeats on-screen enemies, and grants +150% to beneficial numeric stats (cooldowns become 2.5 times faster).";
+        foreach (var id in ids) { EditorUtility.SetDirty(cards[id]); AssetDatabase.SaveAssetIfDirty(cards[id]); }
+        Debug.Log("[Card Rework] Updated five playtest balance definitions; other cards and artwork preserved.");
+    }
+
     [MenuItem("Duck Defender/Card Rework/Configure Active Gameplay Scene")]
     public static void ConfigureScene()
     {
@@ -61,7 +86,7 @@ public static class CardReworkSetup
             .Select(g => AssetDatabase.LoadAssetAtPath<CardDefinition>(AssetDatabase.GUIDToAssetPath(g)))
             .ToDictionary(c => c.ID);
         Set("mun_accelerator", "Accelerator", "Increases feather projectile speed by {0}.", M(StatType.ProjectileSpeed, 4, 2));
-        Set("mun_faster_firing", "Faster Firing", "Reduces attack cooldown by {0}%.", M(StatType.FireRate, .15f, .15f, true));
+        Set("mun_faster_firing", "Faster Firing", "Reduces attack cooldown by {0}%.", M(StatType.FireRate, .20f, .10f, true));
         Set("mun_frosty_feathers", "Frosty Feathers", "Every {0} attacks, fires a frosty feather that freezes enemies for {1} seconds.", M(StatType.FrostyFeatherThreshold, 7, -1), M(StatType.FrostyFreezeDuration, 1, .25f));
         Set("mun_razor_sharp", "Razor Sharp Feathers", "Increases feather damage by {0} and all damage by {1}%.", M(StatType.Damage, 1, 1), M(StatType.DamageMultiplier, .05f, .05f, true));
         Set("mun_sharp_eye", "Sharp Eye", "Feathers have a {0}% chance to critically hit for double damage.", M(StatType.CritChance, .25f, .1f, true));
@@ -79,7 +104,7 @@ public static class CardReworkSetup
         Set("mob_strong_legs", "Strong Legs", "Increases jump force by {0}.", M(StatType.JumpForce, 2, 2));
         Set("mob_low_gravity", "Low Gravity", "Sets gravity to {0}% of normal.", M(StatType.PlayerGravity, .9f, -.1f, true));
         Set("mob_swiftness", "Swiftness", "Increases movement speed by {0} and acceleration by {1}.", M(StatType.MoveSpeed, 2, 2), M(StatType.Acceleration, 1, 1));
-        Set("mob_dash", "Dash", "Dash in your movement direction for up to {0} seconds. Cooldown: {1} seconds.", M(StatType.DashDuration, 1, .5f), M(StatType.DashCooldown, 7, -1), M(StatType.DashCount, 1));
+        Set("mob_dash", "Dash", "Dash up to {0} units in your movement direction, stopping at terrain. Cooldown: {1} seconds.", M(StatType.DashDistance, 3, 1), M(StatType.DashCooldown, 7, -1), M(StatType.DashCount, 1));
         Set("mob_double_jump", "Double Jump", "Grants {0} additional jumps.", M(StatType.JumpCount, 1, 1));
         Set("mob_hypersonic", "Hypersonic", "Colliding with enemies at maximum speed deals {0}% feather damage.", M(StatType.MaxSpeedDamage, .5f, .1f, true));
         Set("mob_fire_trail", "Fire Trail", "Moving leaves fire dealing {0} damage per second for {1} seconds.", M(StatType.FireTrailDamage, 1, 1), M(StatType.FireTrailDuration, 1, .5f));
@@ -103,7 +128,7 @@ public static class CardReworkSetup
         Set("gad_lucky_talisman", "Lucky Talisman", "Increases the relative chance of Rare and Legendary run offers by {0}%.", M(StatType.LuckPercent, .5f, .1f, true));
         Set("gad_sabotage", "Sabotage", "Enemies spawn missing {0}% of their health.", M(StatType.EnemyHealthMissingPercent, .1f, .05f, true));
         Set("gad_slow_aura", "Slowing Aura", "Slows enemies and projectiles within radius {0} by {1}%.", M(StatType.SlowingAuraRadius, 5, 1), M(StatType.SlowingAuraSlow, .3f, .1f, true));
-        Set("gad_marksman_turret", "Hunter", "A turret fires feathers at {0} enemies every {1} seconds.", M(StatType.MarksmanTargets, 1, 1), M(StatType.MarksmanFireRate, 10, -1));
+        Set("gad_marksman_turret", "Hunter", "A turret fires feathers at {0} enemies every {1} seconds.", M(StatType.MarksmanTargets, 1, 1), M(StatType.MarksmanFireRate, 6, -1));
         Set("gad_medic_turret", "Medic", "A turret heals 1 health every {0} seconds.", M(StatType.MedicHealInterval, 10, -1), M(StatType.MedicHealAmount, 1));
         Set("gad_protector_turret", "Protector", "Every {0} seconds, a turret knocks enemies away in radius {1}.", M(StatType.ProtectorShockwaveInterval, 10, -1), M(StatType.ProtectorShockwaveSize, 5, 1));
         Set("gad_damage_aura", "Damaging Aura", "An aura of radius {0} deals {1} damage per second.", M(StatType.AuraRadius, 3, 1), M(StatType.AuraDamage, 1, .5f));
@@ -133,14 +158,14 @@ public static class CardReworkSetup
         Asc("sur_thorns", CardAscension.Pincushion, "Pincushion", "Taking damage releases infinitely piercing needles left and right for 5 damage each.");
         Asc("sur_coin_meteor", CardAscension.AbsoluteExtinction, "Absolute Extinction", "Every 35 coins, a meteor deals 35 damage and drops 3 coins. These coins each summon a random secondary meteor for 50% damage; secondary meteors drop no coins.", true);
         Asc("sur_powerful_profit", CardAscension.IllegalOperations, "Illegal Operations", "Each collected coin permanently adds 0.01% damage for the remainder of this run.");
-        Asc("sur_second_wind", CardAscension.Rebirth, "Rebirth", "Once per run, lethal damage restores full health, defeats on-screen enemies, and grants +200% to beneficial numeric stats (cooldowns become three times faster).");
+        Asc("sur_second_wind", CardAscension.Rebirth, "Rebirth", "Once per run, lethal damage restores full health, defeats on-screen enemies, and grants +150% to beneficial numeric stats (cooldowns become 2.5 times faster).");
         Asc("sur_triple_or_nothing", CardAscension.DoubleDown, "Double Down", "Every 20 coins, attacks fire 6 feathers with random damage, speed, homing, piercing, angle and bounces for 2.5 seconds.", true);
-        Asc("gad_marksman_turret", CardAscension.Marksman, "Marksman", "A turret fires at 6 enemies every 5 seconds, marking targets. Feather hits on marked enemies always critically hit.", true);
+        Asc("gad_marksman_turret", CardAscension.Marksman, "Marksman", "A turret fires at 6 enemies every second, marking targets. Feather hits on marked enemies always critically hit.", true);
         Asc("gad_medic_turret", CardAscension.Savior, "Savior", "Every 7 seconds, places a healing aura lasting 5 seconds and restoring 2 health per second while inside.");
-        Asc("gad_protector_turret", CardAscension.Defender, "Defender", "Every 30 seconds, places two walls with 5 health. Destroyed walls release a knockback shockwave.");
+        Asc("gad_protector_turret", CardAscension.Defender, "Defender", "Immediately and every 20 seconds, drops two walls with 5 health that settle on the ground. Destroyed walls release a knockback shockwave.");
         Asc("gad_damage_aura", CardAscension.CursorAura, "Cursor Aura", "A radius-8 aura follows the cursor or touch aim, dealing 5 damage per second.");
         Asc("gad_elemental_turret", CardAscension.Elemental, "Elemental", "Every 10 seconds, fires random Absolute Zero, Tungsten, Supercharged, Volcano or Deadly Toxin feathers at 6 enemies.");
-        Asc("gad_feather_duplicator", CardAscension.DivineDuplicator, "Divine Duplicator", "Each attack calls an additional feather from above for 50% feather damage.");
+        Asc("gad_feather_duplicator", CardAscension.DivineDuplicator, "Divine Duplicator", "Fires two parallel feathers, with the duplicate dealing 25% less damage, plus a third feather falling at the cursor for 50% feather damage.", true);
         AssetDatabase.SaveAssets();
         Debug.Log("[Card Rework] Updated 51 definitions. IDs, artwork, rarity and GUIDs preserved.");
     }

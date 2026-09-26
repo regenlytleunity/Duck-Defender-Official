@@ -32,7 +32,8 @@ public class PlayerController : MonoBehaviour
 
     [Header("Stats - Abilities")]
     public float DashSpeed = 25f;
-    public float DashDuration = 0.2f;
+    [HideInInspector] public float DashDuration = 0.2f; // Legacy serialized field; no longer controls travel.
+    [Min(.1f)] public float DashDistance = 3f;
     public float DashCooldown = 0.8f;
     public float JumpForce = 14.0f;
 
@@ -99,6 +100,9 @@ public class PlayerController : MonoBehaviour
     // ============================================================
 
     private Rigidbody2D _rb;
+    private Collider2D _bodyCollider;
+    private readonly RaycastHit2D[] _blinkHits = new RaycastHit2D[16];
+    readonly System.Collections.Generic.List<EnemyBase> _shockwaveTargets = new System.Collections.Generic.List<EnemyBase>();
     private WeaponPlayer _weapon;
     private Animator _animator;
 
@@ -116,7 +120,8 @@ public class PlayerController : MonoBehaviour
     private float _coinAccumulator;
     private bool _isCoinShotActive = false;
 
-    private float _dashTimeLeft;
+    private float _dashDistanceLeft;
+    private bool _dashEnding, _dashHitGround;
     private float _lastDashTime;
     private int _currentJumpCount;
     private int _currentDashCount;
@@ -141,6 +146,8 @@ public class PlayerController : MonoBehaviour
     void Awake()
     {
         Instance = this;
+        _rb = GetComponent<Rigidbody2D>();
+        _bodyCollider = GetComponent<Collider2D>();
     }
 
     void Start()
@@ -214,16 +221,12 @@ public class PlayerController : MonoBehaviour
         HandleJump();
         HandleAttackAnimation();
 
-        // 1.4.11: Blink check (must be moving)
-        HandleBlink(xInput);
-
         // 1.4.11: Fire Trail (drop patches while moving)
         HandleFireTrail(xInput);
 
         if (xInput > 0 && !_isFacingRight) Flip();
         else if (xInput < 0 && _isFacingRight) Flip();
 
-        if (_isDashing) HandleDashPhysics();
 
         // 1.4.13 FIX: gate the down+jump ground-slam behind the Shockwave upgrade.
         // The slam launches the player downward and spawns the shockwave VFX on impact, 
@@ -243,7 +246,7 @@ public class PlayerController : MonoBehaviour
     {
         _prePhysicsSpeed = Mathf.Abs(_rb.linearVelocity.x);
         if (_isDead) return;
-        if (_isDashing) return;
+        if (_isDashing) { HandleDashPhysics(); return; }
         ApplyMovement();
         if (IsFlying)
         {
@@ -252,6 +255,7 @@ public class PlayerController : MonoBehaviour
             _rb.linearVelocity = new Vector2(_rb.linearVelocity.x, vertical * EffectiveMaxSpeed);
         }
         else ApplyGravityModifiers();
+        HandleBlink(_moveInput.x);
     }
 
     // ============================================================
@@ -275,27 +279,13 @@ public class PlayerController : MonoBehaviour
         // The card interval is measured between blinks, including invulnerability.
         _nextBlinkTime = Time.time + PlayerStats.Instance.BlinkInterval * (PlayerStats.Instance.HasAscension(CardAscension.Wormhole) ? 2 : 1) / PlayerStats.Instance.BeneficialStatMultiplier;
 
-        float blinkDirection = xInput > 0 ? 1f : -1f;
-        Vector3 targetPos = transform.position + new Vector3(BlinkDistance * blinkDirection, 0, 0);
-
-        // Wall check: raycast in the blink direction, stop at first wall hit
-        RaycastHit2D hit = Physics2D.Raycast(
-            transform.position,
-            Vector2.right * blinkDirection,
-            BlinkDistance,
-            BlinkBlockerLayer
-        );
-
-        if (hit.collider != null)
-        {
-            // Stop just before the wall
-            targetPos = (Vector2)transform.position + Vector2.right * blinkDirection * (hit.distance - 0.1f);
-        }
+        Vector2 origin = _rb.position;
+        Vector2 targetPos = GetBlinkDestination(xInput);
 
         // VFX at start position
         if (BlinkFXPrefab != null)
         {
-            Instantiate(BlinkFXPrefab, transform.position, Quaternion.identity);
+            ObjectPooler.SpawnEffect(BlinkFXPrefab, origin, Quaternion.identity);
         }
 
         if (AudioManager.Instance != null)
@@ -304,8 +294,10 @@ public class PlayerController : MonoBehaviour
         }
 
         if (PlayerStats.Instance.HasAscension(CardAscension.Wormhole))
-            GetComponent<AscensionEffects>()?.SpawnWormhole(transform.position);
-        transform.position = targetPos;
+            GetComponent<AscensionEffects>()?.SpawnWormhole(origin);
+        // Set physics position directly. MovePosition would turn the teleport into velocity,
+        // while changing transform in Update fights Rigidbody interpolation at high speed.
+        _rb.position = targetPos;
 
         // Player is invulnerable for BlinkDuration seconds
         float duration = PlayerStats.Boost(PlayerStats.Instance.BlinkDuration);
@@ -313,6 +305,31 @@ public class PlayerController : MonoBehaviour
 
         IsInvulnerable = false;
         _isBlinking = false;
+    }
+
+    Vector2 GetBlinkDestination(float horizontal)
+    {
+        Vector2 direction = horizontal > 0 ? Vector2.right : Vector2.left;
+        float distance = Mathf.Max(0, BlinkDistance); // Fixed world distance; never speed/duration-scaled.
+        return _rb.position + direction * ClearTravelDistance(direction, distance);
+    }
+
+    float ClearTravelDistance(Vector2 direction, float distance)
+    {
+        var filter = new ContactFilter2D();
+        filter.SetLayerMask(BlinkBlockerLayer.value != 0 ? BlinkBlockerLayer : GroundLayer);
+        filter.useTriggers = false;
+        int hits = _bodyCollider != null ? _bodyCollider.Cast(direction, filter, _blinkHits, distance + .05f) : 0;
+        for (int i = 0; i < hits; i++)
+        {
+            // Casts beginning in a tiny resting floor overlap report an artificial
+            // normal opposite the cast. A flat floor must not block horizontal travel.
+            if (_blinkHits[i].distance <= .001f && Mathf.Abs(direction.y) < .01f &&
+                _blinkHits[i].collider.bounds.max.y <= _bodyCollider.bounds.min.y + .04f) continue;
+            if (Vector2.Dot(_blinkHits[i].normal, direction) >= -.1f) continue;
+            distance = Mathf.Min(distance, Mathf.Max(0, _blinkHits[i].distance - .05f));
+        }
+        return distance;
     }
 
     // ============================================================
@@ -418,25 +435,29 @@ public class PlayerController : MonoBehaviour
     {
         if (CoinMeteorPrefab == null) return;
         Camera cam = Camera.main;
-        Vector3 position = cam != null ? cam.ViewportToWorldPoint(new Vector3(Random.value, Random.value, -cam.transform.position.z)) : transform.position;
+        Vector3 position = cam != null ? cam.ViewportToWorldPoint(new Vector3(Random.Range(.08f, .92f), .92f, Mathf.Abs(cam.transform.position.z))) : transform.position + Vector3.up * 5;
         position.z = 0;
-        var meteor = Instantiate(CoinMeteorPrefab, position + Vector3.up * 10, Quaternion.identity).GetComponent<Meteor>();
+        var meteor = Instantiate(CoinMeteorPrefab, position, Quaternion.identity).GetComponent<Meteor>();
         if (meteor != null) meteor.ConfigureSecondary();
     }
 
     void HandleDashPhysics()
     {
-        _dashTimeLeft -= Time.deltaTime;
-        if (_dashDir.y < -0.1f && _isGrounded)
+        if (_dashEnding)
         {
-            float dist = Vector2.Distance(_dashStartPosition, transform.position);
-            if (dist > MinSlamHeight)
-            {
-                if (ShockwaveDamage > 0) PerformShockwaveDamage();
-            }
+            if (_dashHitGround && Vector2.Distance(_dashStartPosition, _rb.position) > MinSlamHeight && ShockwaveDamage > 0)
+                PerformShockwaveDamage();
             EndDash();
+            return;
         }
-        else if (_dashTimeLeft <= 0) EndDash();
+        float speed = Mathf.Min(Mathf.Max(.1f, PlayerStats.Boost(DashSpeed)), Physics2D.maxTranslationSpeed);
+        float step = Mathf.Min(_dashDistanceLeft, speed * Time.fixedDeltaTime);
+        float clear = ClearTravelDistance(_dashDir, step);
+        bool blocked = clear < step - .0001f;
+        _rb.MovePosition(_rb.position + _dashDir * clear);
+        _dashDistanceLeft = Mathf.Max(0, _dashDistanceLeft - clear);
+        _dashEnding = blocked || _dashDistanceLeft <= .0001f;
+        _dashHitGround = blocked && _dashDir.y < -.1f;
     }
 
     void PerformShockwaveDamage()
@@ -457,7 +478,8 @@ public class PlayerController : MonoBehaviour
     {
         if (GroundSlamPrefab != null) Instantiate(GroundSlamPrefab, position, Quaternion.identity);
         if (AudioManager.Instance != null) AudioManager.Instance.PlaySFX("Shockwave_Ground_Impact");
-        foreach (var enemy in EnemyBase.ActiveEnemies)
+        EnemyBase.CopyActiveEnemies(_shockwaveTargets);
+        foreach (var enemy in _shockwaveTargets)
         {
             if (enemy == null || !enemy.IsAlive || Vector2.Distance(position, enemy.transform.position) > PlayerStats.Boost(ShockwaveRadius)) continue;
             float damage = PlayerStats.Instance != null ? PlayerStats.Instance.CalculateDamage(ShockwaveDamage, false, fraction) : ShockwaveDamage * fraction;
@@ -507,11 +529,12 @@ public class PlayerController : MonoBehaviour
 
         _isDashing = true;
         _lastDashTime = Time.time;
-        _dashTimeLeft = PlayerStats.Boost(DashDuration);
-        _dashStartPosition = transform.position;
-        _dashDir = direction;
+        _dashDistanceLeft = Mathf.Max(.1f, DashDistance);
+        _dashEnding = _dashHitGround = false;
+        _dashStartPosition = _rb.position;
+        _dashDir = direction.normalized;
         _rb.gravityScale = 0;
-        _rb.linearVelocity = _dashDir * PlayerStats.Boost(DashSpeed);
+        _rb.linearVelocity = Vector2.zero;
         yield return null;
     }
 
@@ -537,10 +560,11 @@ public class PlayerController : MonoBehaviour
     private void ApplyMovement()
     {
         float targetSpeed = _moveInput.x * EffectiveMaxSpeed;
-        float speedDif = targetSpeed - _rb.linearVelocity.x;
         float accelRate = (Mathf.Abs(targetSpeed) > 0.01f) ? PlayerStats.Boost(Acceleration) : PlayerStats.Boost(GroundDeceleration);
         if (!_isGrounded) accelRate *= 0.8f;
-        _rb.AddForce(speedDif * accelRate * Vector2.right, ForceMode2D.Force);
+        // Bounded acceleration avoids force-feedback overshoot/oscillation after stat boosts.
+        _rb.linearVelocity = new Vector2(Mathf.MoveTowards(_rb.linearVelocity.x, targetSpeed,
+            Mathf.Max(0, accelRate) * Time.fixedDeltaTime), _rb.linearVelocity.y);
     }
 
     /// <summary>

@@ -1,219 +1,218 @@
+using System.Collections.Generic;
 using UnityEngine;
-using System.Collections;
 
-/// <summary>
-/// 1.4.11: Adds support for "passive coins" - coins spawned by CoinsPerSecond / CoinsPerWave 
-/// upgrades that pop off the player with a small force, then auto-magnetize quickly so they 
-/// don't escape the player's pickup range.
-/// 
-/// Per outline (clarification 25): "The coins shouldn't go that far away from the player so 
-/// by the time they are able to be picked up they should just go auto magnetized to the player."
-/// </summary>
-[RequireComponent(typeof(Rigidbody2D))]
-[RequireComponent(typeof(Collider2D))]
+[RequireComponent(typeof(Rigidbody2D), typeof(Collider2D))]
 public class Coin : MonoBehaviour
 {
     [Header("Settings")]
     public int CoinValue = 1;
-    public float ExplosionForce = 5.0f;
-    public float DelayBeforeMagnet = 0.5f;
-    public float FlySpeed = 10.0f;
-
+    public float ExplosionForce = 5f;
+    public float DelayBeforeMagnet = .5f;
+    public float FlySpeed = 10f;
     [Header("Physics")]
-    [Range(0f, 1f)]
-    public float Bounciness = 0.3f;
-    [Range(0f, 1f)]
-    public float Friction = 0.4f;
-
+    [Range(0, 1)] public float Bounciness = .3f;
+    [Range(0, 1)] public float Friction = .4f;
     [Header("Passive Coin Mode (1.4.11)")]
-    [Tooltip("If true, this coin uses tighter behavior: weaker pop-out force and short delay before forced auto-magnet.")]
-    public bool IsPassiveCoin = false;
-
-    [Tooltip("Force applied to passive coins on spawn (weaker than enemy-drop coins).")]
-    public float PassivePopForce = 2.0f;
-
-    [Tooltip("Seconds after spawn before passive coins force-magnetize regardless of distance. " +
-             "Should be LONGER than PassiveCoinPickupImmunity so the player can see the coin " +
-             "before it starts flying toward them.")]
+    public bool IsPassiveCoin;
+    public float PassivePopForce = 2f;
     public float PassiveForceMagnetDelay = 1.2f;
+    public float PassiveCoinPickupImmunity = 1f;
+    public bool SecondaryMeteorOnPickup;
 
-    [Tooltip("1.4.11 PATCH: how long passive coins are IMMUNE from being collected. " +
-             "This makes per-second/per-wave coin gifts visible to the player so they feel " +
-             "satisfying rather than instantly absorbed.")]
-    public float PassiveCoinPickupImmunity = 1.0f;
+    // One spatial pass for all coins, scheduled by the existing LevelManager.
+    const float MergeRadius = 2f;
+    const float MergeDuration = .18f;
+    static readonly HashSet<Coin> Active = new HashSet<Coin>();
+    static readonly List<Coin> Snapshot = new List<Coin>();
+    static readonly List<Coin> Group = new List<Coin>(10);
+    static readonly Dictionary<Vector3Int, List<Coin>> Cells = new Dictionary<Vector3Int, List<Coin>>();
+    static readonly Stack<List<Coin>> FreeCells = new Stack<List<Coin>>();
+    static int _scanStart;
+    class CoinMaterial { public PhysicsMaterial2D Material; public int Users; }
+    static readonly Dictionary<Vector2, CoinMaterial> Materials = new Dictionary<Vector2, CoinMaterial>();
 
-    private Transform _player;
-    private Rigidbody2D _rb;
-    private Collider2D _collider;
-    private SpriteRenderer _renderer;
-    private bool _isFlyingToPlayer = false;
-    private bool _readyForMagnet = false;
-    private float _spawnTime;
-    private Color _baseColor;
+    Transform _player;
+    Rigidbody2D _rb;
+    Collider2D _collider;
+    Vector3 _baseScale;
+    Vector2 _materialKey;
+    bool _ownsSharedMaterial;
+    bool _isFlyingToPlayer, _collected, _started;
+    float _spawnTime, _mergeUntil;
+    Coin _mergeTarget;
+    bool _merging;
+    Vector3 _mergeOrigin;
+    int _extraSecondaryMeteors;
+    public int SecondaryMeteorCount => _extraSecondaryMeteors + (SecondaryMeteorOnPickup ? 1 : 0);
+    bool CanMerge => _started && !_collected && !_merging && !_isFlyingToPlayer &&
+        Time.time >= _mergeUntil && Time.time - _spawnTime >= DelayBeforeMagnet && (CoinValue == 1 || CoinValue == 10);
 
     void Awake()
     {
         _rb = GetComponent<Rigidbody2D>();
         _collider = GetComponent<Collider2D>();
-        _renderer = GetComponent<SpriteRenderer>();
-        if (_renderer != null) _baseColor = _renderer.color;
+        _baseScale = transform.localScale;
         _collider.isTrigger = false;
-
+        // Coins settle on terrain, but never become tiny solid steps under the player.
+        int ground = LayerMask.GetMask("Ground");
+        if (ground != 0) _rb.excludeLayers = ~ground;
         if (_rb.sharedMaterial == null)
         {
-            PhysicsMaterial2D mat = new PhysicsMaterial2D("CoinMaterial");
-            mat.bounciness = Bounciness;
-            mat.friction = Friction;
-            _rb.sharedMaterial = mat;
-            _collider.sharedMaterial = mat;
+            _materialKey = new Vector2(Bounciness, Friction);
+            if (!Materials.TryGetValue(_materialKey, out var material))
+            {
+                material = new CoinMaterial { Material = new PhysicsMaterial2D("Shared coin material")
+                    { bounciness = Bounciness, friction = Friction } };
+                Materials.Add(_materialKey, material);
+            }
+            material.Users++;
+            _ownsSharedMaterial = true;
+            _rb.sharedMaterial = _collider.sharedMaterial = material.Material;
         }
     }
-
-    /// <summary>
-    /// Called by LevelManager.SpawnPassiveCoin() before activating.
-    /// </summary>
-    public void ConfigureAsPassiveCoin()
+    void OnEnable() { Active.Add(this); }
+    void OnDisable() { Active.Remove(this); }
+    void OnDestroy()
     {
-        IsPassiveCoin = true;
+        if (!_ownsSharedMaterial || !Materials.TryGetValue(_materialKey, out var material)) return;
+        _ownsSharedMaterial = false;
+        if (--material.Users == 0)
+        {
+            Materials.Remove(_materialKey);
+            if (Application.isPlaying) Destroy(material.Material);
+            else DestroyImmediate(material.Material);
+        }
     }
-
-    /// <summary>
-    /// 1.4.11 PATCH: while the coin is in pickup immunity, physically ignore the player's 
-    /// collider so the player can walk straight through it. Ground collision still works.
-    /// Re-enables collision once immunity ends.
-    /// </summary>
-    void UpdatePlayerCollisionIgnore()
-    {
-        if (!IsPassiveCoin) return;
-        if (_player == null || _collider == null) return;
-
-        Collider2D playerCol = _player.GetComponent<Collider2D>();
-        if (playerCol == null) return;
-
-        bool shouldIgnore = IsPickupImmune();
-        Physics2D.IgnoreCollision(_collider, playerCol, shouldIgnore);
-    }
-
-    /// <summary>
-    /// 1.4.11 PATCH: True while this coin is in its pickup-immunity window. 
-    /// Used by both magnet and collision paths to ignore the player.
-    /// </summary>
-    bool IsPickupImmune()
-    {
-        if (!IsPassiveCoin) return false;
-        return Time.time - _spawnTime < PassiveCoinPickupImmunity;
-    }
+    public void ConfigureAsPassiveCoin() { IsPassiveCoin = true; }
+    bool IsPickupImmune() => IsPassiveCoin && Time.time - _spawnTime < PassiveCoinPickupImmunity;
 
     void Start()
     {
+        _started = true;
         _spawnTime = Time.time;
-        GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
-        if (playerObj != null) _player = playerObj.transform;
-
-        // 1.4.11 PATCH: ignore player collision during immunity
-        UpdatePlayerCollisionIgnore();
-        _playerCollisionIgnored = IsPickupImmune();
-
-        // Initial pop-out burst
-        float popForce = IsPassiveCoin ? PassivePopForce : ExplosionForce;
-        Vector2 randomDir = Random.insideUnitCircle.normalized;
-        randomDir.y = Mathf.Abs(randomDir.y);
-        _rb.AddForce(randomDir * popForce, ForceMode2D.Impulse);
-
-        StartCoroutine(SettleRoutine());
+        if (PlayerController.Instance != null) _player = PlayerController.Instance.transform;
+        Vector2 direction = Random.insideUnitCircle.normalized;
+        direction.y = Mathf.Abs(direction.y);
+        _rb.AddForce(direction * (IsPassiveCoin ? PassivePopForce : ExplosionForce), ForceMode2D.Impulse);
+        UpdateStackScale();
     }
-
-    private bool _playerCollisionIgnored = false;
+    void UpdateStackScale() { transform.localScale = _baseScale * (CoinValue >= 100 ? 1.36f : CoinValue >= 10 ? 1.18f : 1f); }
 
     void Update()
     {
+        if (Time.timeScale == 0) return;
+        if (_merging)
+        {
+            if (_mergeTarget == null) { Destroy(gameObject); return; }
+            float t = Mathf.Clamp01(1 - (_mergeUntil - Time.time) / MergeDuration);
+            transform.position = Vector3.Lerp(_mergeOrigin, _mergeTarget.transform.position, t * t);
+            transform.localScale = _baseScale * Mathf.Lerp(1, .3f, t);
+            if (t >= 1) Destroy(gameObject);
+            return;
+        }
+        if (_collected || Time.time < _mergeUntil) return;
+        if (_player == null && PlayerController.Instance != null) _player = PlayerController.Instance.transform;
         if (_player == null) return;
-
-        // 1.4.11 PATCH: re-enable player collision once immunity ends
-        bool currentlyImmune = IsPickupImmune();
-        if (_playerCollisionIgnored != currentlyImmune)
+        if (!_isFlyingToPlayer && !_rb.simulated) _rb.simulated = true;
+        if (IsPickupImmune()) return;
+        float distance = Vector2.Distance(transform.position, _player.position);
+        // Proximity pickup works without a solid player/coin collision or a trigger callback.
+        if (distance <= .65f) { Collect(); return; }
+        float delay = IsPassiveCoin ? Mathf.Min(.15f, DelayBeforeMagnet) : DelayBeforeMagnet;
+        if (!_isFlyingToPlayer && Time.time - _spawnTime >= delay)
         {
-            _playerCollisionIgnored = currentlyImmune;
-            UpdatePlayerCollisionIgnore();
-        }
-
-        // 1.4.11 PATCH 2: removed alpha pulse - was distracting. Coins now stay 
-        // at full opacity during immunity. The coin physically can't be picked up 
-        // for the immunity window, but visually it just looks like a normal coin.
-
-        if (_readyForMagnet && !_isFlyingToPlayer)
-        {
-            // 1.4.11 PATCH: don't fly toward the player while pickup-immune. 
-            // The coin pops, sits visible for ~1s, then magnetizes.
-            if (IsPickupImmune()) return;
-
-            // Passive coins force-magnetize once immunity ends, regardless of distance
-            if (IsPassiveCoin && Time.time - _spawnTime > PassiveForceMagnetDelay)
+            float range = PlayerStats.Instance != null ? PlayerStats.Boost(PlayerStats.Instance.MagnetRange) : 3f;
+            if (distance <= range || (IsPassiveCoin && Time.time - _spawnTime >= PassiveForceMagnetDelay))
             {
-                BeginFlyToPlayer();
-                return;
-            }
-
-            float magnetRange = 3.0f;
-            if (PlayerStats.Instance != null) magnetRange = PlayerStats.Boost(PlayerStats.Instance.MagnetRange);
-
-            float dist = Vector2.Distance(transform.position, _player.position);
-            if (dist <= magnetRange)
-            {
-                BeginFlyToPlayer();
+                _isFlyingToPlayer = true;
+                _rb.linearVelocity = Vector2.zero;
+                _rb.simulated = false;
             }
         }
-
         if (_isFlyingToPlayer)
+            transform.position = Vector3.MoveTowards(transform.position, _player.position,
+                (FlySpeed + 5 / (distance + .1f)) * Time.deltaTime);
+    }
+
+    // 10 equal denominations in a true two-unit neighborhood, including neighboring cells.
+    // Bounded work and rotating start position prevent a dense/offscreen pile monopolizing a frame.
+    public static int MergeNearby()
+    {
+        foreach (var cell in Cells.Values) { cell.Clear(); FreeCells.Push(cell); }
+        Cells.Clear(); Snapshot.Clear();
+        foreach (var coin in Active)
         {
-            float dist = Vector2.Distance(transform.position, _player.position);
-            float currentSpeed = FlySpeed + (5f / (dist + 0.1f));
-            transform.position = Vector3.MoveTowards(transform.position, _player.position, currentSpeed * Time.deltaTime);
+            if (coin == null || !coin.CanMerge) continue;
+            Snapshot.Add(coin);
+            var key = coin.CellKey();
+            if (!Cells.TryGetValue(key, out var bucket))
+            {
+                bucket = FreeCells.Count > 0 ? FreeCells.Pop() : new List<Coin>();
+                Cells.Add(key, bucket);
+            }
+            bucket.Add(coin);
         }
+        int checks = 0, merged = 0, visited = 0, count = Snapshot.Count;
+        for (; visited < count && checks < 4096 && merged < 32; visited++)
+        {
+            var target = Snapshot[(_scanStart + visited) % count];
+            if (!target.CanMerge) continue;
+            Group.Clear(); Group.Add(target);
+            var key = target.CellKey();
+            for (int x = -1; x <= 1 && Group.Count < 10 && checks < 4096; x++)
+                for (int y = -1; y <= 1 && Group.Count < 10 && checks < 4096; y++)
+                {
+                    if (!Cells.TryGetValue(key + new Vector3Int(x, y, 0), out var bucket)) continue;
+                    foreach (var candidate in bucket)
+                    {
+                        checks++;
+                        if (candidate != target && candidate.CanMerge && candidate.CoinValue == target.CoinValue &&
+                            ((Vector2)candidate.transform.position - (Vector2)target.transform.position).sqrMagnitude <= MergeRadius * MergeRadius)
+                            Group.Add(candidate);
+                        if (Group.Count == 10 || checks >= 4096) break;
+                    }
+                }
+            if (Group.Count == 10) { target.AbsorbGroup(); merged++; }
+        }
+        _scanStart = count > 0 ? (_scanStart + visited) % count : 0;
+        return merged;
     }
+    Vector3Int CellKey() => new Vector3Int(Mathf.FloorToInt(transform.position.x / MergeRadius),
+        Mathf.FloorToInt(transform.position.y / MergeRadius), IsPassiveCoin ? -CoinValue : CoinValue);
 
-    IEnumerator SettleRoutine()
+    void AbsorbGroup()
     {
-        // Passive coins skip most of the settle delay since they're meant to feel snappy
-        float delay = IsPassiveCoin ? Mathf.Min(0.15f, DelayBeforeMagnet) : DelayBeforeMagnet;
-        yield return new WaitForSeconds(delay);
-        _readyForMagnet = true;
+        int meteors = SecondaryMeteorCount;
+        for (int i = 1; i < Group.Count; i++)
+        {
+            var coin = Group[i];
+            meteors += coin.SecondaryMeteorCount;
+            CoinValue += coin.CoinValue;
+            _spawnTime = Mathf.Max(_spawnTime, coin._spawnTime); // Preserve the newest passive immunity.
+            coin.CoinValue = 0;
+            coin.SecondaryMeteorOnPickup = false; coin._extraSecondaryMeteors = 0;
+            coin._merging = true; coin._mergeTarget = this;
+            coin._mergeOrigin = coin.transform.position;
+            coin._mergeUntil = Time.time + MergeDuration;
+            coin._rb.simulated = false;
+        }
+        SecondaryMeteorOnPickup = false; _extraSecondaryMeteors = meteors;
+        _mergeUntil = Time.time + MergeDuration;
+        _rb.linearVelocity = Vector2.zero; _rb.simulated = false;
+        UpdateStackScale();
     }
 
-    void BeginFlyToPlayer()
-    {
-        _rb.linearVelocity = Vector2.zero;
-        _rb.isKinematic = true;
-        _collider.isTrigger = true;
-        _isFlyingToPlayer = true;
-    }
-
-    void OnTriggerEnter2D(Collider2D collision)
-    {
-        // 1.4.11 PATCH: passive coins ignore the player during immunity window
-        if (IsPickupImmune()) return;
-        if (collision.CompareTag("Player")) Collect();
-    }
-
-    void OnCollisionEnter2D(Collision2D collision)
-    {
-        // 1.4.11 PATCH: passive coins ignore the player during immunity window
-        if (IsPickupImmune()) return;
-        if (collision.collider.CompareTag("Player")) Collect();
-    }
-
-    public bool SecondaryMeteorOnPickup;
-    bool _collected;
     void Collect()
     {
-        if (_collected) return;
+        if (TryCollect()) Destroy(gameObject);
+    }
+    bool TryCollect()
+    {
+        if (_collected || _merging || IsPickupImmune() || Time.time < _mergeUntil || LevelManager.Instance == null) return false;
         _collected = true;
-        if (SecondaryMeteorOnPickup && PlayerController.Instance != null) PlayerController.Instance.SpawnSecondaryMeteor();
+        LevelManager.Instance.QueueSecondaryMeteors(SecondaryMeteorCount);
+        LevelManager.Instance.AddCoins(CoinValue);
         if (AudioManager.Instance != null) AudioManager.Instance.PlaySFX("Coin_Collection");
-
-        if (LevelManager.Instance != null)
-            LevelManager.Instance.AddCoins(CoinValue);
-
-        Destroy(gameObject);
+        return true;
     }
 }

@@ -621,10 +621,15 @@ public class WeaponPlayer : MonoBehaviour
 
     void FireDivineFeather()
     {
-        var enemy = EnemyBase.Nearest(transform.position);
-        Vector3 target = enemy != null ? enemy.transform.position : transform.position + (Vector3)AimDirection * 5;
+        Camera camera = Camera.main;
+        if (camera == null) return;
+        Vector3 screen = InputHelper.GetMousePosition();
+        screen.z = Mathf.Abs(camera.transform.position.z - transform.position.z);
+        Vector3 target = camera.ScreenToWorldPoint(screen);
+        target.z = transform.position.z;
         var stats = CurrentStats;
         stats.DamageRatio = .5f; stats.CanAirburst = true; stats.ProjectileGravity = 0;
+        stats.HomingSpeed = 0; // The cursor defines the falling column, not nearby enemies.
         Emit(target + Vector3.up * 10, -90, stats, Color.white, GetCurrentFeatherSize());
     }
 
@@ -919,6 +924,7 @@ public class WeaponPlayer : MonoBehaviour
         stats.IsBuckshotPellet = false;
         stats.CanAirburst = false;
         stats.Lifetime = AirburstLifetime;
+        stats.SuppressHitEffect = true;
 
         p.Initialize(stats);
         p.SetColor(AirburstFeatherColor);

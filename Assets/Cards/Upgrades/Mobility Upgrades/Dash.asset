@@ -14,15 +14,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ID: mob_dash
   CardName: Dash
-  Description: 'Dash in your movement direction for up to {0} seconds. Cooldown:
-    {1} seconds.'
+  Description: 'Dash up to {0} units in your movement direction, stopping at terrain.
+    Cooldown: {1} seconds.'
   Icon: {fileID: 0}
   Rarity: 1
   PackCategory: 1
   Modifiers:
-  - StatType: 46
-    BaseAmount: 1
-    AmountPerShopLevel: 0.5
+  - StatType: 88
+    BaseAmount: 3
+    AmountPerShopLevel: 1
     StackMode: 0
     InRunStackAmount: 0
     DisplayMultiplier: 1
