@@ -4569,7 +4569,7 @@ MonoBehaviour:
     m_Bits: 64
   BlinkFXPrefab: {fileID: 0}
   FireTrailPatchPrefab: {fileID: 8247111887722101776, guid: 306bb3163089a4e85a0de980a1d71a6d, type: 3}
-  ObsidianTrailPatchPrefab: {fileID: 0}
+  ObsidianTrailPatchPrefab: {fileID: 7374180665008441724, guid: 854fa54ca92cdf04b998aeb7ed5cea53, type: 3}
   FireTrailDropInterval: 0.2
 --- !u!61 &1045247223
 BoxCollider2D:
@@ -4958,7 +4958,7 @@ MonoBehaviour:
   HealingAreaPrefab: {fileID: 2129564487757891412, guid: 5c502f95a7c20964f88bfe1343403751, type: 3}
   WallPrefab: {fileID: 356691567787407402, guid: 1fc7130986fab5049a00b01ea0ffb4e3, type: 3}
   DeathRayVisual: {fileID: 2122099343}
-  WormholeRadius: 5
+  WormholeRadius: 4
   WormholePull: 10
   HealingAreaRadius: 3
   VolcanoEruptionDelay: 0.25
