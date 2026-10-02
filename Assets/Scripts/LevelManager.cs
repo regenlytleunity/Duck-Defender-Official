@@ -126,10 +126,18 @@ public class LevelManager : MonoBehaviour
 
     public void AddXP(int amount)
     {
+        AddXP((float)amount);
+    }
+
+    float _fractionalXP;
+    public void AddXP(float amount)
+    {
         float totalMultiplier = XPMultiplier;
         if (PlayerStats.Instance != null) totalMultiplier = PlayerStats.Instance.XPMultiplier;
 
-        int finalXP = Mathf.RoundToInt(amount * totalMultiplier);
+        _fractionalXP += Mathf.Max(0, amount * totalMultiplier);
+        int finalXP = Mathf.FloorToInt(_fractionalXP);
+        _fractionalXP -= finalXP;
         CurrentXP = (int)System.Math.Min(int.MaxValue, (long)CurrentXP + Mathf.Max(0, finalXP));
 
         // Rebirth can defeat an entire screen in one frame. Preserve every earned choice.

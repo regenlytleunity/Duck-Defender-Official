@@ -19,6 +19,8 @@ public class GroundEnemyAnimator : MonoBehaviour
     private static readonly int IsGrounded = Animator.StringToHash("isGrounded");
     private static readonly int VelocityY = Animator.StringToHash("velocityY");
     private static readonly int MoveSpeed = Animator.StringToHash("moveSpeed");
+    private static readonly int IsIdle = Animator.StringToHash("isIdle");
+    bool _hasMoving, _hasGrounded, _hasVelocity, _hasSpeed, _hasIdle;
 
     [Header("Ground Check (Optional)")]
     [Tooltip("If assigned, uses this for ground detection. Otherwise assumes always grounded.")]
@@ -34,6 +36,14 @@ public class GroundEnemyAnimator : MonoBehaviour
     {
         _anim = GetComponent<Animator>();
         _rb = GetComponent<Rigidbody2D>();
+        foreach (var parameter in _anim.parameters)
+        {
+            _hasMoving |= parameter.nameHash == IsMoving;
+            _hasGrounded |= parameter.nameHash == IsGrounded;
+            _hasVelocity |= parameter.nameHash == VelocityY;
+            _hasSpeed |= parameter.nameHash == MoveSpeed;
+            _hasIdle |= parameter.nameHash == IsIdle;
+        }
     }
 
     void Update()
@@ -47,13 +57,15 @@ public class GroundEnemyAnimator : MonoBehaviour
         float horizontalSpeed = Mathf.Abs(_rb.linearVelocity.x);
         bool isMoving = horizontalSpeed > MoveThreshold;
         
-        _anim.SetBool(IsMoving, isMoving);
+        if (_hasMoving) _anim.SetBool(IsMoving, isMoving);
+        if (_hasIdle) _anim.SetBool(IsIdle, !isMoving);
         
         // Optional: Pass normalized speed for blend trees
-        _anim.SetFloat(MoveSpeed, horizontalSpeed);
+        if (_hasSpeed) _anim.SetFloat(MoveSpeed, horizontalSpeed);
 
         // Vertical velocity for jump animations
-        _anim.SetFloat(VelocityY, _rb.linearVelocity.y);
+        if (_hasVelocity) _anim.SetFloat(VelocityY, _rb.linearVelocity.y);
+        if (!_hasGrounded) return;
 
         // Ground check (if configured)
         if (GroundCheckPoint != null)

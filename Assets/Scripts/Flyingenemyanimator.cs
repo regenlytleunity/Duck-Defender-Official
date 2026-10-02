@@ -11,6 +11,7 @@ public class FlyingEnemyAnimator : MonoBehaviour
 {
     private Animator _anim;
     private Rigidbody2D _rb;
+    bool _hasFlying;
 
     // Cache parameter hashes
     private static readonly int IsFlying = Animator.StringToHash("isFlying");
@@ -30,11 +31,12 @@ public class FlyingEnemyAnimator : MonoBehaviour
     {
         _anim = GetComponent<Animator>();
         _rb = GetComponent<Rigidbody2D>();
+        foreach (var parameter in _anim.parameters) _hasFlying |= parameter.nameHash == IsFlying;
     }
 
     void Start()
     {
-        if (AlwaysFlying)
+        if (AlwaysFlying && _hasFlying)
         {
             _anim.SetBool(IsFlying, true);
         }
@@ -82,6 +84,6 @@ public class FlyingEnemyAnimator : MonoBehaviour
     /// </summary>
     public void SetFlying(bool isFlying)
     {
-        _anim.SetBool(IsFlying, isFlying);
+        if (_hasFlying) _anim.SetBool(IsFlying, isFlying);
     }
 }

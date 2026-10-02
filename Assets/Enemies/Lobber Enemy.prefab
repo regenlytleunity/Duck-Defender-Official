@@ -208,19 +208,24 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: caa8c7b0f93764af38cd5d2419fb438f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  IsElite: 0
+  EliteSizeMultiplier: 1.15
+  EliteTint: {r: 0.65, g: 0.65, b: 0.7, a: 1}
+  SpawnProtectionSeconds: 3
   BaseSpeed: 2
   BaseHealth: 1
   DamageOnHit: 1
   XPValue: 25
   CoinPrefab: {fileID: 6525644307042145685, guid: 905398db77edb4a368e33429559012cc, type: 3}
-  CoinDropRange: {x: 1, y: 3}
-  HealthScaling: 0.25
-  SpeedScaling: 0.02
+  CoinDropRange: {x: 4, y: 6}
+  HealthScaling: 0
+  SpeedScaling: 0
   HealthBarPrefab: {fileID: 6687544261855343961, guid: 1baac24002c7d480c847bc04409c4e1e, type: 3}
   KnockbackLinearThreshold: 4
   KnockbackSoftCapBonus: 8
   KnockbackSoftCapScale: 6
   KnockbackVerticalDamping: 0.2
+  FrozenColor: {r: 0.5, g: 0.9, b: 1, a: 1}
   JumpForce: 5
   WallCheckDistance: 1
   GroundLayer:
@@ -232,11 +237,14 @@ MonoBehaviour:
   DisengageRange: 10
   BaseShootRate: 2
   MinShootRate: 0.7
-  ShootRateScaling: 0.02
+  ShootRateScaling: 0
   FirstShotDelay: 0.8
   ProjectileSpeed: 8
   FirePoint: {fileID: 5027657584980074816}
   InaccuracyAngle: 5
+  LobHeight: 4
+  ShotWindup: 0.35
+  EliteShotDelay: 0.3
   EnemyAnimator: {fileID: 0}
   BaseAttackAnimationDuration: 0.5
 --- !u!95 &6348322094680653520

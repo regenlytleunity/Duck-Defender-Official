@@ -1,252 +1,133 @@
 using UnityEngine;
 
-/// <summary>
-/// A slow, gravity-affected projectile that bounces off the ground.
-/// Uses raycast-based ground detection (configurable LayerMask) instead of 
-/// relying on tags or the Physics 2D Layer Collision Matrix.
-/// 
-/// Damages the player on contact via trigger collision.
-/// </summary>
-[RequireComponent(typeof(Rigidbody2D))]
-[RequireComponent(typeof(Collider2D))]
+[RequireComponent(typeof(Rigidbody2D), typeof(Collider2D))]
 public class BouncyEnemyProjectile : MonoBehaviour
 {
-    [Header("Damage")]
     public int Damage = 1;
-    
-    [Header("Ground Detection")]
-    [Tooltip("Layer mask for ground/walls. Set this to your Ground layer (same as enemy ground checks).")]
     public LayerMask GroundLayer;
-    
-    [Tooltip("Distance ahead of the projectile to check for ground. Should be slightly larger than the projectile's radius.")]
-    public float GroundCheckDistance = 0.3f;
-    
-    [Header("Bounce Properties")]
-    [Tooltip("How much energy is preserved per bounce. 0.7 means each bounce keeps 70% of speed.")]
-    [Range(0f, 1f)]
-    public float Bounciness = 0.7f;
-    
-    [Tooltip("Maximum number of ground bounces before the projectile deactivates.")]
-    public int MaxBounces = 4;
-    
-    [Tooltip("Minimum speed to continue bouncing. Below this, the projectile stops and deactivates.")]
-    public float MinBounceSpeed = 1.5f;
-    
-    [Header("Lifetime")]
-    [Tooltip("Maximum total lifetime in seconds before forced deactivation.")]
-    public float MaxLifetime = 6f;
-    
-    [Header("Visual")]
-    [Tooltip("Rotation speed visual effect (degrees per second per unit of speed).")]
-    public float VisualRotationFactor = 30f;
-    
-    [Header("Debug")]
-    [Tooltip("If true, draws raycast lines and prints collision details to the console.")]
-    public bool DebugMode = false;
-    
-    private Rigidbody2D _rb;
-    private CircleCollider2D _circleCollider;
-    private int _bouncesRemaining;
-    private float _lifetimeRemaining;
-    private bool _isActive;
-    float _slowFactor = 1;
-    
-    // Stored launch velocity - applied in OnEnable after the GameObject is active.
-    // Setting velocity on an inactive Rigidbody2D doesn't always take effect.
-    private Vector2 _pendingLaunchVelocity;
-    private bool _hasPendingLaunch = false;
-    
+    public float GroundCheckDistance = .3f;
+    [HideInInspector] public float Bounciness = .7f;
+    public int MaxBounces = 2;
+    [HideInInspector] public float MinBounceSpeed = 1.5f;
+    public float MaxLifetime = 8;
+    public float VisualRotationFactor = 30;
+    public bool DebugMode;
+    [Header("Poison")]
+    [Range(0, 1)] public float PoisonChance = .5f;
+    public float CloudDuration = 1;
+    public float CloudRadius = 1;
+    public Color PoisonColor = new Color(.5f, 1, .3f);
+    public Color BounceColor = new Color(1, .7f, .3f);
+
+    Rigidbody2D _rb;
+    CircleCollider2D _circleCollider;
+    SpriteRenderer _sprite;
+    Vector3 _baseScale;
+    float _baseRadius, _lifetimeRemaining, _slowFactor = 1;
+    int _bouncesRemaining;
+    bool _isActive, _bouncing, _cloud, _hasPendingLaunch;
+    Vector2 _pendingLaunchVelocity;
+    public bool IsCloud => _cloud;
+    public int BouncesRemaining => _bouncesRemaining;
+
     void Awake()
     {
         _rb = GetComponent<Rigidbody2D>();
         _circleCollider = GetComponent<CircleCollider2D>();
+        _sprite = GetComponent<SpriteRenderer>();
+        _baseScale = transform.localScale;
+        _baseRadius = _circleCollider != null ? _circleCollider.radius : .2f;
     }
-    
-    /// <summary>
-    /// Stores the desired launch velocity. The actual velocity application happens 
-    /// in OnEnable, since rigidbody velocity changes on inactive objects can be lost.
-    /// Call this BEFORE SetActive(true) on the projectile.
-    /// </summary>
-    public void Launch(Vector2 initialVelocity)
+
+    public void Launch(Vector2 velocity) { Launch(velocity, false); }
+    public void Launch(Vector2 velocity, bool bouncing)
     {
-        _pendingLaunchVelocity = initialVelocity;
+        _pendingLaunchVelocity = velocity;
+        _bouncing = bouncing;
         _hasPendingLaunch = true;
-        
-        _bouncesRemaining = MaxBounces;
-        _lifetimeRemaining = MaxLifetime;
     }
-    
+
     void OnEnable()
     {
-        // Apply the launch velocity NOW that the GameObject is active.
-        // This is critical - velocity assignments on inactive rigidbodies can be discarded.
-        if (_hasPendingLaunch)
-        {
-            _slowFactor = 1;
-            _rb.gravityScale = 1f;
-            _rb.linearVelocity = _pendingLaunchVelocity;
-            _rb.angularVelocity = 0f;
-            transform.rotation = Quaternion.identity;
-            
-            _isActive = true;
-            _hasPendingLaunch = false;
-            
-            if (DebugMode)
-            {
-                Debug.Log($"[BouncyProjectile] Launched with velocity {_pendingLaunchVelocity}");
-            }
-        }
-        else
-        {
-            // Failsafe: activated without Launch() being called first
-            _isActive = false;
-        }
+        _isActive = _hasPendingLaunch;
+        _hasPendingLaunch = false;
+        _cloud = false;
+        _slowFactor = 1;
+        _bouncesRemaining = Mathf.Clamp(MaxBounces, 0, 2);
+        _lifetimeRemaining = MaxLifetime;
+        transform.localScale = _baseScale;
+        transform.rotation = Quaternion.identity;
+        if (_circleCollider != null) _circleCollider.radius = _baseRadius;
+        if (_sprite != null) _sprite.color = _bouncing ? BounceColor : PoisonColor;
+        _rb.gravityScale = 1;
+        _rb.angularVelocity = 0;
+        _rb.linearVelocity = _isActive ? _pendingLaunchVelocity : Vector2.zero;
     }
-    
+
     void Update()
     {
-        if (!_isActive) return;
-        
+        if (!_isActive || Time.timeScale == 0) return;
         _lifetimeRemaining -= Time.deltaTime;
-        if (_lifetimeRemaining <= 0)
-        {
-            Deactivate();
-            return;
-        }
-        
-        // Visual spin based on horizontal speed
-        float spinDirection = -Mathf.Sign(_rb.linearVelocity.x);
-        transform.Rotate(0, 0, spinDirection * Mathf.Abs(_rb.linearVelocity.x) * VisualRotationFactor * Time.deltaTime);
+        if (_lifetimeRemaining <= 0) { Deactivate(); return; }
+        if (!_cloud) transform.Rotate(0, 0, -_rb.linearVelocity.x * VisualRotationFactor * Time.deltaTime);
     }
-    
+
     void FixedUpdate()
     {
-        if (!_isActive) return;
-        
-        float factor = PlayerStats.ProjectileSpeedFactor(transform.position);
+        if (!_isActive || _cloud) return;
+        float factor = Mathf.Max(.01f, PlayerStats.ProjectileSpeedFactor(transform.position));
         _rb.linearVelocity *= factor / _slowFactor;
         _rb.gravityScale = factor * factor;
         _slowFactor = factor;
-        CheckForGroundBounce();
-    }
-    
-    /// <summary>
-    /// Raycasts in the direction of motion to detect imminent ground contact.
-    /// When detected, manually reflects velocity and counts the bounce.
-    /// 
-    /// This approach bypasses Unity's collision/trigger system entirely - it works 
-    /// regardless of whether the ground is a trigger or solid collider, as long as 
-    /// the GroundLayer mask is set correctly.
-    /// </summary>
-    private void CheckForGroundBounce()
-    {
         Vector2 velocity = _rb.linearVelocity;
-        float speed = velocity.magnitude;
-        
-        if (speed < 0.01f) return; // Not moving, can't bounce
-        
-        Vector2 direction = velocity.normalized;
-        float radius = _circleCollider != null ? _circleCollider.radius * transform.lossyScale.x : 0.2f;
-        
-        // CircleCast from current position in direction of motion.
-        // This finds ground in front of the projectile that we'd hit this frame.
-        RaycastHit2D hit = Physics2D.CircleCast(
-            transform.position, 
-            radius, 
-            direction, 
-            GroundCheckDistance, 
-            GroundLayer
-        );
-        
-        if (DebugMode)
-        {
-            Debug.DrawRay(transform.position, direction * GroundCheckDistance, hit.collider != null ? Color.red : Color.green);
-        }
-        
-        if (hit.collider != null)
-        {
-            HandleBounce(hit);
-        }
-    }
-    
-    private void HandleBounce(RaycastHit2D hit)
-    {
-        if (DebugMode)
-        {
-            Debug.Log($"[BouncyProjectile] Bounce on '{hit.collider.name}'. Bounces left: {_bouncesRemaining - 1}");
-        }
-        
+        if (velocity.sqrMagnitude < .0001f) return;
+        float radius = _baseRadius * Mathf.Max(Mathf.Abs(transform.lossyScale.x), Mathf.Abs(transform.lossyScale.y));
+        var hit = Physics2D.CircleCast(_rb.position, radius, velocity.normalized,
+            Mathf.Max(GroundCheckDistance, velocity.magnitude * Time.fixedDeltaTime), GroundLayer);
+        if (hit.collider == null) return;
+        if (!_bouncing) { BecomeCloud(hit.point); return; }
+        if (_bouncesRemaining <= 0) { Deactivate(); return; }
         _bouncesRemaining--;
-        
-        if (_bouncesRemaining <= 0)
-        {
-            Deactivate();
-            return;
-        }
-        
-        // Reflect velocity off the surface normal, scaled by bounciness
-        Vector2 reflected = Vector2.Reflect(_rb.linearVelocity, hit.normal);
-        _rb.linearVelocity = reflected * Bounciness;
-        
-        // Nudge the projectile slightly away from the surface so it doesn't 
-        // immediately re-detect the same hit on the next frame
-        transform.position = (Vector2)transform.position + hit.normal * 0.05f;
-        
-        if (_rb.linearVelocity.magnitude < MinBounceSpeed)
-        {
-            // Too slow to keep bouncing
-            Invoke(nameof(Deactivate), 1f);
-        }
+        transform.localScale *= 1.25f;
+        radius *= 1.25f;
+        _rb.position = hit.point + hit.normal * (radius + .03f);
+        _rb.linearVelocity = Vector2.Reflect(velocity, hit.normal) * 1.25f;
     }
-    
-    // === PLAYER DAMAGE ===
-    
-    void OnTriggerEnter2D(Collider2D collision)
+
+    void BecomeCloud(Vector2 position)
     {
-        if (!_isActive) return;
-        
-        var wall = collision.GetComponentInParent<DefenderWall>();
+        _cloud = true;
+        _rb.position = position + Vector2.up * .1f;
+        _rb.linearVelocity = Vector2.zero;
+        _rb.gravityScale = 0;
+        _lifetimeRemaining = Mathf.Max(.01f, CloudDuration);
+        transform.rotation = Quaternion.identity;
+        transform.localScale = new Vector3(_baseScale.x * 3, _baseScale.y * 1.5f, _baseScale.z);
+        if (_circleCollider != null) _circleCollider.radius = CloudRadius / Mathf.Max(.01f, Mathf.Abs(transform.lossyScale.x));
+        if (_sprite != null) _sprite.color = new Color(PoisonColor.r, PoisonColor.g, PoisonColor.b, .55f);
+    }
+
+    void OnTriggerEnter2D(Collider2D other) { Hit(other); }
+    void OnTriggerStay2D(Collider2D other) { if (_cloud) Hit(other); }
+    void OnCollisionEnter2D(Collision2D other) { Hit(other.collider); }
+    void Hit(Collider2D other)
+    {
+        if (!_isActive || Time.timeScale == 0) return;
+        var wall = other.GetComponentInParent<DefenderWall>();
         if (wall != null) { wall.TakeDamage(Damage); Deactivate(); return; }
-        if (collision.CompareTag("Player"))
-        {
-            HitPlayer(collision);
-        }
-    }
-    
-    void OnCollisionEnter2D(Collision2D collision)
-    {
-        if (!_isActive) return;
-        
-        var wall = collision.collider.GetComponentInParent<DefenderWall>();
-        if (wall != null) { wall.TakeDamage(Damage); Deactivate(); return; }
-        // Handle solid-collider players too, just in case
-        if (collision.collider.CompareTag("Player"))
-        {
-            HitPlayer(collision.collider);
-        }
-    }
-    
-    private void HitPlayer(Collider2D playerCollider)
-    {
-        PlayerHealth ph = playerCollider.GetComponent<PlayerHealth>();
-        if (ph != null)
-        {
-            ph.TakeDamage(Damage);
-        }
-        
-        if (DebugMode)
-        {
-            Debug.Log($"[BouncyProjectile] Hit player for {Damage} damage");
-        }
-        
+        var health = other.GetComponentInParent<PlayerHealth>();
+        if (health == null) return;
+        if (health.TryTakeDamage(Damage) && !_bouncing && !_cloud && Random.value < PoisonChance)
+            health.ApplyLobberPoison();
         Deactivate();
     }
-    
-    private void Deactivate()
+
+    void Deactivate() { gameObject.SetActive(false); }
+    void OnDisable()
     {
-        _isActive = false;
-        _hasPendingLaunch = false;
-        CancelInvoke();
-        gameObject.SetActive(false);
+        _isActive = _hasPendingLaunch = _cloud = false;
+        if (_rb != null) { _rb.linearVelocity = Vector2.zero; _rb.gravityScale = 0; }
+        transform.localScale = _baseScale;
+        if (_circleCollider != null) _circleCollider.radius = _baseRadius;
     }
 }

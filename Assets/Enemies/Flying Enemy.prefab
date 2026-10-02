@@ -177,25 +177,32 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 35b0afe04cf9341b1b45766149dc85f6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  IsElite: 0
+  EliteSizeMultiplier: 1.15
+  EliteTint: {r: 0.65, g: 0.65, b: 0.7, a: 1}
+  SpawnProtectionSeconds: 3
   BaseSpeed: 2
   BaseHealth: 1
   DamageOnHit: 1
   XPValue: 25
   CoinPrefab: {fileID: 6525644307042145685, guid: 905398db77edb4a368e33429559012cc, type: 3}
-  CoinDropRange: {x: 3, y: 5}
-  HealthScaling: 0.25
-  SpeedScaling: 0.02
+  CoinDropRange: {x: 4, y: 6}
+  HealthScaling: 0
+  SpeedScaling: 0
   HealthBarPrefab: {fileID: 6687544261855343961, guid: 1baac24002c7d480c847bc04409c4e1e, type: 3}
   KnockbackLinearThreshold: 4
   KnockbackSoftCapBonus: 8
   KnockbackSoftCapScale: 6
   KnockbackVerticalDamping: 0.2
+  FrozenColor: {r: 0.5, g: 0.9, b: 1, a: 1}
   HoverHeight: 3
   HorizontalOffset: 4
   MoveSmoothing: 1
-  BaseShootRate: 2.5
+  BaseShootRate: 1
   MinShootRate: 0.5
-  ShootRateScaling: 0.01
+  ShootRateScaling: 0
+  ShootRange: 8
+  ShotWindup: 0.35
   InaccuracyAngle: 0
   RetreatInterval: 6
   RetreatDuration: 2
@@ -203,6 +210,14 @@ MonoBehaviour:
   RetreatDistanceBonus: 4
   SeparationRadius: 1
   SeparationForce: 3
+  SlowDuration: 2
+  CrashDuration: 3
+  CrashDrift: 1.5
+  CrashExplosionRadius: 1.5
+  GroundLayer:
+    serializedVersion: 2
+    m_Bits: 64
+  CrashExplosionPrefab: {fileID: 1010016439873946870, guid: a6f172f41583449e6ba54fef38faab29, type: 3}
 --- !u!95 &220877506819056315
 Animator:
   serializedVersion: 7

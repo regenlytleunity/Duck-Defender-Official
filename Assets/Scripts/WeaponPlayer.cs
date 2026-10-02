@@ -106,6 +106,8 @@ public class WeaponPlayer : MonoBehaviour
     private float _nextNormalFireTime;
     private float _nextMiniGunFireTime;
     private Camera _mainCam;
+    PlayerHealth _health;
+    bool _wasShooting;
 
     // === Mini Gun overheat state ===
     private float _miniGunHeat = 0f;
@@ -130,6 +132,7 @@ public class WeaponPlayer : MonoBehaviour
     void Start()
     {
         _mainCam = Camera.main;
+        _health = GetComponent<PlayerHealth>();
         _baseFireInterval = FireRate;
         _nextNormalFireTime = _nextMiniGunFireTime = Time.time;
 
@@ -144,9 +147,19 @@ public class WeaponPlayer : MonoBehaviour
     {
         UpdateElectricChainVisuals();
         if (Time.timeScale == 0) return;
-        bool shootHeld = InputHelper.GetShootHeld();
+        ProcessFireInput(InputHelper.GetShootHeld());
+    }
 
-        if (!shootHeld) _nextNormalFireTime = Time.time;
+    void ProcessFireInput(bool shootHeld)
+    {
+        shootHeld &= _health == null || !_health.IsStunned;
+
+        if (!shootHeld || !_wasShooting)
+        {
+            _nextNormalFireTime = Mathf.Max(_nextNormalFireTime, Time.time);
+            _nextMiniGunFireTime = Mathf.Max(_nextMiniGunFireTime, Time.time);
+        }
+        _wasShooting = shootHeld;
         int shotsThisFrame = 0;
         while (shootHeld && Time.time >= _nextNormalFireTime && shotsThisFrame++ < 16)
         {
@@ -226,7 +239,7 @@ public class WeaponPlayer : MonoBehaviour
         bool isFiringNow = shootHeld && !_miniGunOverheated;
         if (!isFiringNow)
         {
-            _nextMiniGunFireTime = Time.time;
+            _nextMiniGunFireTime = Mathf.Max(_nextMiniGunFireTime, Time.time);
             float coolPerSec = threshold / recoveryRate;
             _miniGunHeat -= coolPerSec * Time.deltaTime;
             if (_miniGunHeat < 0) _miniGunHeat = 0;
@@ -403,6 +416,7 @@ public class WeaponPlayer : MonoBehaviour
                 angle = ComputeAimAngle();
             }
 
+            if (_health != null && _health.IsStunned) yield break;
             SpawnSpecialFeather(angle, Vector3.zero, specials[i]);
         }
     }

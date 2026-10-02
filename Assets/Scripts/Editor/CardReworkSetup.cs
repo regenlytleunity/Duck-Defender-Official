@@ -141,7 +141,7 @@ public static class CardReworkSetup
         Set("gad_big_feathers", "BIG Feathers", "Feathers become {0}% larger and are affected by gravity.", M(StatType.FeatherSize, .5f, .1f, true));
         Set("gad_lucky_talisman", "Lucky Talisman", "Increases the relative chance of Rare and Legendary run offers by {0}%.", M(StatType.LuckPercent, .5f, .1f, true));
         Set("gad_sabotage", "Sabotage", "Enemies spawn missing {0}% of their health.", M(StatType.EnemyHealthMissingPercent, .1f, .05f, true));
-        Set("gad_slow_aura", "Slowing Aura", "Slows enemies and projectiles within radius {0} by {1}%.", M(StatType.SlowingAuraRadius, 5, 1), M(StatType.SlowingAuraSlow, .3f, .1f, true));
+        Set("gad_slow_aura", "Slowing Aura", "Slows enemies and projectiles within radius {0} by {1}%.", M(StatType.SlowingAuraRadius, 2.5f, .5f), M(StatType.SlowingAuraSlow, .15f, .05f, true));
         Set("gad_marksman_turret", "Hunter", "A turret fires feathers at {0} enemies every {1} seconds.", M(StatType.MarksmanTargets, 1, 1), M(StatType.MarksmanFireRate, 6, -1));
         Set("gad_medic_turret", "Medic", "A turret heals 1 health every {0} seconds.", M(StatType.MedicHealInterval, 10, -1), M(StatType.MedicHealAmount, 1));
         Set("gad_protector_turret", "Protector", "Every {0} seconds, a turret knocks enemies away in radius {1}.", M(StatType.ProtectorShockwaveInterval, 10, -1), M(StatType.ProtectorShockwaveSize, 5, 1));

@@ -20,14 +20,14 @@ MonoBehaviour:
   PackCategory: 3
   Modifiers:
   - StatType: 23
-    BaseAmount: 5
-    AmountPerShopLevel: 1
+    BaseAmount: 2.5
+    AmountPerShopLevel: 0.5
     StackMode: 0
     InRunStackAmount: 0
     DisplayMultiplier: 1
   - StatType: 22
-    BaseAmount: 0.3
-    AmountPerShopLevel: 0.1
+    BaseAmount: 0.15
+    AmountPerShopLevel: 0.05
     StackMode: 0
     InRunStackAmount: 0
     DisplayMultiplier: 100

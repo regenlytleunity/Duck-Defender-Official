@@ -171,8 +171,13 @@ MonoBehaviour:
     m_Bits: 64
   GroundCheckDistance: 0.1
   Bounciness: 0.7
-  MaxBounces: 3
+  MaxBounces: 2
   MinBounceSpeed: 1.5
-  MaxLifetime: 10
+  MaxLifetime: 8
   VisualRotationFactor: 25
   DebugMode: 0
+  PoisonChance: 0.5
+  CloudDuration: 1
+  CloudRadius: 1
+  PoisonColor: {r: 0.5, g: 1, b: 0.3, a: 1}
+  BounceColor: {r: 1, g: 0.7, b: 0.3, a: 1}

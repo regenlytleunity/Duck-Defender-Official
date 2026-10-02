@@ -32,6 +32,44 @@ public class PlayerHealth : MonoBehaviour
     public bool IsDead => _isDead;
 
     public int CurrentHealth => _currentHealth;
+    public bool IsStunned => Time.time < _stunnedUntil;
+    public float MovementMultiplier => Time.time < _slowedUntil ? .5f : 1f;
+    public int PoisonStacks => Time.time < _poisonUntil ? _poisonStacks : 0;
+    float _stunnedUntil, _slowedUntil, _poisonUntil, _nextPoisonTick;
+    int _poisonStacks;
+    float _fractionalIncomingDamage;
+
+    public void ApplyStun(float seconds)
+    {
+        if (_isDead) return;
+        _stunnedUntil = Mathf.Max(_stunnedUntil, Time.time + seconds);
+    }
+
+    public void ApplySlow(float seconds)
+    {
+        if (!_isDead) _slowedUntil = Mathf.Max(_slowedUntil, Time.time + seconds);
+    }
+
+    public void ApplyLobberPoison()
+    {
+        if (_isDead) return;
+        if (Time.time >= _poisonUntil) { _poisonStacks = 0; _nextPoisonTick = Time.time + 1; }
+        _poisonStacks = Mathf.Min(5, _poisonStacks + 1);
+        _poisonUntil = Time.time + 5;
+    }
+
+    void Update()
+    {
+        if (_isDead || Time.timeScale == 0 || _poisonStacks == 0) return;
+        // Poison has its own clock: ordinary hit invulnerability must not erase its ticks.
+        while (_nextPoisonTick <= Time.time && _nextPoisonTick <= _poisonUntil + .001f)
+        {
+            TryTakeDamage(_poisonStacks * .2f, true);
+            _nextPoisonTick += 1;
+            if (_isDead) break;
+        }
+        if (Time.time >= _poisonUntil) _poisonStacks = 0;
+    }
 
     void Start()
     {
@@ -47,7 +85,7 @@ public class PlayerHealth : MonoBehaviour
     {
         if (_isDead) return;
         _currentHealth += amount;
-        if (_currentHealth > MaxHealth) _currentHealth = MaxHealth;
+        if (_currentHealth >= MaxHealth) { _currentHealth = MaxHealth; _fractionalIncomingDamage = 0; }
         UpdateUI();
     }
 
@@ -87,13 +125,21 @@ public class PlayerHealth : MonoBehaviour
 
     public void TakeDamage(int damage)
     {
-        if (damage <= 0) return;
-        if (_isInvulnerable || _isDead || _currentHealth <= 0) return;
+        TryTakeDamage(damage);
+    }
+
+    public bool TryTakeDamage(float damage, bool poisonTick = false)
+    {
+        if (damage <= 0 || Time.timeScale == 0) return false;
+        if ((!poisonTick && _isInvulnerable) || _isDead || _currentHealth <= 0) return false;
 
         // 1.4.11: Respect Blink invulnerability via PlayerController
-        if (_controller != null && _controller.IsInvulnerable) return;
+        if (_controller != null && _controller.IsInvulnerable) return false;
 
-        _currentHealth -= damage;
+        _fractionalIncomingDamage += damage;
+        int wholeDamage = Mathf.FloorToInt(_fractionalIncomingDamage + .00001f);
+        _fractionalIncomingDamage -= wholeDamage;
+        _currentHealth -= wholeDamage;
         if (PlayerStats.Instance != null && PlayerStats.Instance.HasAscension(CardAscension.Pincushion))
             GetComponent<AscensionEffects>()?.ReleaseNeedles();
         UpdateUI();
@@ -115,15 +161,18 @@ public class PlayerHealth : MonoBehaviour
             if (TryTriggerSecondWind())
             {
                 // Saved! Don't die.
-                return;
+                _poisonStacks = 0;
+                _fractionalIncomingDamage = 0;
+                return true;
             }
 
             Die();
         }
-        else
+        else if (!poisonTick)
         {
             StartCoroutine(InvulnerabilityRoutine(InvulnerabilityTime));
         }
+        return true;
     }
 
     /// <summary>

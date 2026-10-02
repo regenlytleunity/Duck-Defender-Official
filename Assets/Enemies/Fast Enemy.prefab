@@ -90,7 +90,7 @@ SpriteRenderer:
   m_Size: {x: 1, y: 1}
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
-  m_WasSpriteAssigned: 1
+  m_WasSpriteAssigned: 0
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
 --- !u!50 &1234910353016843272
@@ -178,25 +178,36 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8c68d7bc989c14c33bd070b2c183c766, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  IsElite: 0
+  EliteSizeMultiplier: 1.15
+  EliteTint: {r: 0.65, g: 0.65, b: 0.7, a: 1}
+  SpawnProtectionSeconds: 3
   BaseSpeed: 4
   BaseHealth: 2
   DamageOnHit: 1
   XPValue: 25
   CoinPrefab: {fileID: 6525644307042145685, guid: 905398db77edb4a368e33429559012cc, type: 3}
-  CoinDropRange: {x: 3, y: 5}
-  HealthScaling: 0.25
-  SpeedScaling: 0.02
+  CoinDropRange: {x: 4, y: 6}
+  HealthScaling: 0
+  SpeedScaling: 0
   HealthBarPrefab: {fileID: 6687544261855343961, guid: 1baac24002c7d480c847bc04409c4e1e, type: 3}
   KnockbackLinearThreshold: 4
   KnockbackSoftCapBonus: 8
   KnockbackSoftCapScale: 6
   KnockbackVerticalDamping: 0.2
+  FrozenColor: {r: 0.5, g: 0.9, b: 1, a: 1}
   AttackRange: 1.7
-  AttackCooldown: 1.5
+  AttackCooldown: 1
   AttackBoxSize: {x: 1.5, y: 1.7}
   PlayerLayer:
     serializedVersion: 2
     m_Bits: 128
+  StopDistanceReduction: 0.5
+  StrikeWindowFraction: 0.2
+  StrikeWindowReachBonus: 0.3
+  MeleeReach: 0.35
+  WindupSeconds: 0.25
+  RecoverySeconds: 0.15
   JumpForce: 5
   WallCheckPoint: {fileID: 954672552232399294}
   GroundLayer:

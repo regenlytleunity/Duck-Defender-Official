@@ -198,36 +198,56 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8305d13320a7241ea9f78ff59ea053ab, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  IsElite: 0
+  EliteSizeMultiplier: 1.15
+  EliteTint: {r: 0.65, g: 0.65, b: 0.7, a: 1}
+  SpawnProtectionSeconds: 3
   BaseSpeed: 1
   BaseHealth: 4
   DamageOnHit: 1
   XPValue: 25
   CoinPrefab: {fileID: 6525644307042145685, guid: 905398db77edb4a368e33429559012cc, type: 3}
-  CoinDropRange: {x: 3, y: 5}
-  HealthScaling: 0.25
-  SpeedScaling: 0.02
+  CoinDropRange: {x: 4, y: 6}
+  HealthScaling: 0
+  SpeedScaling: 0
   HealthBarPrefab: {fileID: 6687544261855343961, guid: 1baac24002c7d480c847bc04409c4e1e, type: 3}
   KnockbackLinearThreshold: 4
   KnockbackSoftCapBonus: 8
   KnockbackSoftCapScale: 6
   KnockbackVerticalDamping: 0.2
-  JumpForce: 5
-  WallCheckDistance: 0.2
-  GroundLayer:
-    serializedVersion: 2
-    m_Bits: 64
-  WallCheckPoint: {fileID: 0}
+  FrozenColor: {r: 0.5, g: 0.9, b: 1, a: 1}
   AttackRange: 1.7
-  AttackCooldown: 1.3
-  AttackDuration: 0.6
-  DamagePoint: 0.7
+  AttackCooldown: 1
   AttackBoxSize: {x: 1, y: 1}
   PlayerLayer:
     serializedVersion: 2
     m_Bits: 128
+  StopDistanceReduction: 0.5
   StrikeWindowFraction: 0.2
   StrikeWindowReachBonus: 0.3
+  MeleeReach: 0.35
+  WindupSeconds: 0.25
+  RecoverySeconds: 0.15
+  JumpForce: 5
+  WallCheckPoint: {fileID: 0}
+  GroundLayer:
+    serializedVersion: 2
+    m_Bits: 64
+  SeparationRadius: 1
+  SeparationForce: 0
+  MaxSpeedMultiplier: 1.3
+  EnemyAnimator: {fileID: 5485741119671998627}
+  BaseAttackAnimationDuration: 0.5
+  AttackWindupFraction: 0.5
+  WallCheckDistance: 0.2
+  AttackDuration: 0.6
+  DamagePoint: 0.7
   MaxDamageReduction: 0.9
   ZeroReductionDistance: 1
   ShieldedColor: {r: 1, g: 1, b: 1, a: 1}
   VulnerableColor: {r: 1, g: 1, b: 1, a: 1}
+  ChainRange: 8
+  ChainSearchInterval: 0.5
+  GroundSpeedMultiplier: 0.85
+  ChainPrefab: {fileID: 0}
+  ChainColor: {r: 0.5, g: 0.8, b: 1, a: 1}

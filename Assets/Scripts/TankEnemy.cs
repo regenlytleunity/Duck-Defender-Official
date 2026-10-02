@@ -1,307 +1,125 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 [RequireComponent(typeof(Animator))]
-public class TankEnemy : EnemyBase
+public class TankEnemy : SwarmerEnemy
 {
-    [Header("Ground AI")]
-    public float JumpForce = 5f;
-    public float WallCheckDistance = 1.0f;
-    public LayerMask GroundLayer;
-    public Transform WallCheckPoint;
+    // Retained for existing prefab serialization.
+    [HideInInspector] public float WallCheckDistance = 1;
+    [HideInInspector] public float AttackDuration = .6f;
+    [HideInInspector] public float DamagePoint = .7f;
+    [HideInInspector] public float MaxDamageReduction = .5f;
+    [HideInInspector] public float ZeroReductionDistance;
+    [HideInInspector] public Color ShieldedColor = new Color(.5f, .5f, .7f);
+    [HideInInspector] public Color VulnerableColor = Color.white;
 
-    [Header("Melee Attack")]
-    public float AttackRange = 1.5f;
-    public float AttackCooldown = 2.5f;
-    [Tooltip("Total duration of the attack animation. Match to your animation clip length.")]
-    public float AttackDuration = 0.6f;
-    [Tooltip("When during the attack the damage lands (0-1). 0.7 = damage at 70% through.")]
-    [Range(0f, 1f)]
-    public float DamagePoint = 0.7f;
-    public Vector2 AttackBoxSize = new Vector2(1.8f, 1.2f);
-    public LayerMask PlayerLayer;
-    
-    [Tooltip("1.4.13 FIX: how much CLOSER than AttackRange the enemy walks before stopping " +
-             "to attack. See SwarmerEnemy for the full rationale - same fix applied here. " +
-             "Tank uses a slightly larger value than Swarmer because its hitbox is bigger.")]
-    public float StopDistanceReduction = 0.5f;
-    
-    [Header("1.4.9 - Persistent Strike Window")]
-    [Tooltip("How wide the strike window is as a fraction of attack duration. " +
-             "0.2 means the hitbox is checked every frame for 20% of the animation after the damage point.")]
-    [Range(0.05f, 0.5f)]
-    public float StrikeWindowFraction = 0.2f;
-    
-    [Tooltip("Extra horizontal reach added to the attack box during the strike window.")]
-    public float StrikeWindowReachBonus = 0.3f;
+    [Header("Protection Chains")]
+    [Min(.1f)] public float ChainRange = 8;
+    [Min(.1f)] public float ChainSearchInterval = .5f;
+    [Range(0, 1)] public float GroundSpeedMultiplier = .85f;
+    public LineRenderer ChainPrefab;
+    public Color ChainColor = new Color(.5f, .8f, 1);
+    readonly List<EnemyBase> _protected = new List<EnemyBase>(4);
+    readonly List<LineRenderer> _chains = new List<LineRenderer>(4);
+    int _lifetimeLinks, _defeatedLinks;
+    float _nextChainSearch, _maxShield;
+    public float ShieldHealth { get; private set; }
+    public int LifetimeLinks => _lifetimeLinks;
+    public int DefeatedLinks => _defeatedLinks;
+    protected override float EliteHealthMultiplier => 1;
+    protected override float HealthAtWave(int wave) => 4 * (WaveManager.Instance != null ? WaveManager.Instance.BasicGroundHealth(wave) : Mathf.Floor(2 + WaveManager.HealthIncreaseAtWave(wave)));
+    protected override float SpeedAtSpawn => (WaveManager.Instance != null ? WaveManager.Instance.BasicGroundSpeed() : 4) * GroundSpeedMultiplier;
+    protected override float RuntimeSpeedMultiplier => 1 + (IsElite ? .1f * _defeatedLinks : 0);
+    protected override float StrikeDamage => DamageOnHit + (IsElite ? .25f * _defeatedLinks : 0);
+    protected override bool StunOnHit => false;
 
-    [Header("Damage Reduction")]
-    [Range(0f, 0.9f)]
-    public float MaxDamageReduction = 0.5f;
-    public float ZeroReductionDistance = 0f;
-
-    [Header("Visual Feedback")]
-    public Color ShieldedColor = new Color(0.5f, 0.5f, 0.7f);
-    public Color VulnerableColor = Color.white;
-
-    private Animator _animator;
-    private Collider2D _ownCollider;
-    private static readonly int AnimIsMoving = Animator.StringToHash("ismoving");
-    private static readonly int AnimIsAttacking = Animator.StringToHash("isattacking");
-
-    private bool _isAttacking = false;
-    private float _attackTimer = 0f;
-    private bool _hasDamaged = false;
-    private float _lastAttackTime;
-    
-    // Strike window state - tracks the time range during which hitbox checks happen
-    private float _strikeWindowStart = -1f;
-    private float _strikeWindowEnd = -1f;
-
-    private float _spawnDistance;
-    private float _halfDistance;
-    private bool _distanceInitialized = false;
-
-    public override void Initialize(float wave)
+    protected override void Update()
     {
-        base.Initialize(wave);
-        _animator = GetComponent<Animator>();
-        _ownCollider = GetComponent<Collider2D>();
-        _lastAttackTime = -AttackCooldown;
+        base.Update();
+        if (!IsAlive) return;
+        if (Time.timeScale > 0 && Time.time >= _nextChainSearch)
+        {
+            _nextChainSearch = Time.time + ChainSearchInterval;
+            AcquireChains();
+        }
+        for (int i = 0; i < _protected.Count; i++)
+        {
+            var enemy = _protected[i];
+            if (_chains[i] == null) continue;
+            _chains[i].enabled = enemy != null && enemy.IsAlive && enemy.Protector == this;
+            if (!_chains[i].enabled) continue;
+            _chains[i].SetPosition(0, transform.position);
+            _chains[i].SetPosition(1, enemy.transform.position);
+        }
     }
 
-    protected override void Move()
+    public void AcquireChains()
     {
-        if (PlayerTarget == null) return;
-
-        if (!_distanceInitialized)
+        if (!IsAlive) return;
+        while (_lifetimeLinks < 4)
         {
-            _spawnDistance = Vector2.Distance(transform.position, PlayerTarget.position);
-            _halfDistance = (ZeroReductionDistance > 0) ? ZeroReductionDistance : _spawnDistance * 0.5f;
-            _distanceInitialized = true;
-        }
-
-        float distanceToPlayer = Vector2.Distance(transform.position, PlayerTarget.position);
-
-        // --- ATTACKING STATE ---
-        if (_isAttacking)
-        {
-            if (distanceToPlayer > AttackRange)
+            EnemyBase nearest = null;
+            float distance = ChainRange * ChainRange;
+            foreach (var enemy in ActiveEnemies)
             {
-                ResetAttackState();
-                SetAnimation(true, false);
+                if (enemy == null || !enemy.IsAlive || enemy is TankEnemy || enemy.Protector != null || _protected.Contains(enemy)) continue;
+                float candidate = ((Vector2)(enemy.transform.position - transform.position)).sqrMagnitude;
+                if (candidate <= distance) { nearest = enemy; distance = candidate; }
             }
-            else
+            if (nearest == null) break;
+            nearest.Protector = this;
+            _protected.Add(nearest);
+            _lifetimeLinks++;
+            LineRenderer line = null;
+            if (Application.isPlaying)
             {
-                Rb.linearVelocity = new Vector2(0, Rb.linearVelocity.y);
-                _attackTimer += Time.deltaTime;
-
-                // === 1.4.9 PERSISTENT STRIKE WINDOW ===
-                // Instead of a single-frame check at DamagePoint, we open a strike 
-                // window starting at DamagePoint and lasting StrikeWindowFraction of the duration.
-                // Every frame inside this window, we try to land a hit. As soon as a hit 
-                // lands, _hasDamaged flips to true and we stop trying.
-                if (!_hasDamaged && _attackTimer >= AttackDuration * DamagePoint)
+                line = ChainPrefab != null ? Instantiate(ChainPrefab, transform) : new GameObject("Protection Chain").AddComponent<LineRenderer>();
+                line.transform.SetParent(transform, false);
+                line.useWorldSpace = true; line.positionCount = 2;
+                if (ChainPrefab == null)
                 {
-                    // Lazy-init the window bounds the first time we cross the damage point
-                    if (_strikeWindowStart < 0)
-                    {
-                        _strikeWindowStart = _attackTimer;
-                        _strikeWindowEnd = _strikeWindowStart + (AttackDuration * StrikeWindowFraction);
-                    }
-                    
-                    if (_attackTimer <= _strikeWindowEnd)
-                    {
-                        if (TryDealMeleeDamage())
-                        {
-                            _hasDamaged = true;
-                        }
-                    }
-                }
-
-                if (_attackTimer >= AttackDuration)
-                {
-                    ResetAttackState();
-                    _lastAttackTime = Time.time;
-                    
-                    float dist = Vector2.Distance(transform.position, PlayerTarget.position);
-                    if (dist > AttackRange)
-                    {
-                        SetAnimation(true, false);
-                    }
-                    else
-                    {
-                        SetAnimation(false, false);
-                    }
-                }
-                else
-                {
-                    UpdateShieldVisual();
-                    return;
+                    line.startWidth = line.endWidth = .06f;
+                    line.startColor = line.endColor = ChainColor;
+                    if (SpriteRen != null) { line.sharedMaterial = SpriteRen.sharedMaterial; line.sortingLayerID = SpriteRen.sortingLayerID; line.sortingOrder = SpriteRen.sortingOrder + 1; }
                 }
             }
-        }
-
-        // --- MOVEMENT STATE ---
-        // 1.4.13 FIX: stop CLOSER than AttackRange (by StopDistanceReduction) so the 
-        // attack box overlaps the player hitbox properly. Same fix as SwarmerEnemy.
-        // The attack-cancel checks above still use the full AttackRange so the tank 
-        // doesn't ping-pong between moving and attacking when the player is at the edge.
-        float stopDistance = Mathf.Max(0.1f, AttackRange - StopDistanceReduction);
-        
-        if (distanceToPlayer > stopDistance)
-        {
-            float direction = (PlayerTarget.position.x > transform.position.x) ? 1f : -1f;
-            Rb.linearVelocity = new Vector2(direction * CurrentSpeed, Rb.linearVelocity.y);
-            CheckForWalls(direction);
-            SetAnimation(true, false);
-        }
-        else
-        {
-            Rb.linearVelocity = new Vector2(0, Rb.linearVelocity.y);
-
-            if (Time.time >= _lastAttackTime + AttackCooldown)
-            {
-                _isAttacking = true;
-                _attackTimer = 0f;
-                _hasDamaged = false;
-                _strikeWindowStart = -1f;
-                _strikeWindowEnd = -1f;
-                SetAnimation(false, true);
-            }
-            else
-            {
-                SetAnimation(false, false);
-            }
-        }
-
-        UpdateShieldVisual();
-    }
-    
-    void ResetAttackState()
-    {
-        _isAttacking = false;
-        _attackTimer = 0f;
-        _hasDamaged = false;
-        _strikeWindowStart = -1f;
-        _strikeWindowEnd = -1f;
-    }
-
-    /// <summary>
-    /// 1.4.9: Now returns bool. Uses collider center for vertical anchor and an enlarged
-    /// hitbox during the strike window. See SwarmerEnemy.TryDealMeleeDamage() for full
-    /// rationale - same fix.
-    /// </summary>
-    bool TryDealMeleeDamage()
-    {
-        Vector2 origin = GetAttackBoxOrigin();
-        Vector2 boxSize = AttackBoxSize + new Vector2(StrikeWindowReachBonus, 0f);
-        
-        Collider2D hit = Physics2D.OverlapBox(origin, boxSize, 0f, PlayerLayer);
-        
-        if (hit == null) return false;
-        
-        PlayerHealth playerHealth = hit.GetComponent<PlayerHealth>();
-        if (playerHealth == null) return false;
-        
-        playerHealth.TakeDamage(DamageOnHit);
-        return true;
-    }
-    
-    Vector2 GetAttackBoxOrigin()
-    {
-        float facingDir = -transform.localScale.x;
-        
-        float yOrigin = transform.position.y;
-        if (_ownCollider != null)
-        {
-            yOrigin = _ownCollider.bounds.center.y;
-        }
-        
-        float xOrigin = transform.position.x + (facingDir * 0.5f);
-        return new Vector2(xOrigin, yOrigin);
-    }
-
-    private void SetAnimation(bool moving, bool attacking)
-    {
-        if (_animator == null) return;
-        _animator.SetBool(AnimIsMoving, moving);
-        _animator.SetBool(AnimIsAttacking, attacking);
-    }
-
-    // --- DAMAGE REDUCTION ---
-
-    public override void TakeDamage(int damage)
-    {
-        float reduction = GetCurrentDamageReduction();
-        int reducedDamage = Mathf.Max(1, Mathf.RoundToInt(damage * (1f - reduction)));
-        base.TakeDamage(reducedDamage);
-    }
-
-    public float GetCurrentDamageReduction()
-    {
-        if (PlayerTarget == null || !_distanceInitialized) return 0f;
-
-        float currentDist = Vector2.Distance(transform.position, PlayerTarget.position);
-
-        if (currentDist >= _spawnDistance)
-            return MaxDamageReduction;
-
-        if (currentDist <= _halfDistance)
-            return 0f;
-
-        float t = (currentDist - _halfDistance) / (_spawnDistance - _halfDistance);
-        return MaxDamageReduction * t;
-    }
-
-    private void UpdateShieldVisual()
-    {
-        if (SpriteRen == null) return;
-
-        float reduction = GetCurrentDamageReduction();
-
-        if (SpriteRen.color == Color.green || SpriteRen.color == Color.cyan)
-            return;
-
-        float t = (MaxDamageReduction > 0) ? reduction / MaxDamageReduction : 0f;
-        SpriteRen.color = Color.Lerp(VulnerableColor, ShieldedColor, t);
-    }
-
-    private void CheckForWalls(float direction)
-    {
-        Vector2 origin = WallCheckPoint != null ? WallCheckPoint.position : transform.position;
-        RaycastHit2D hit = Physics2D.Raycast(origin, Vector2.right * direction, WallCheckDistance, GroundLayer);
-
-        if (hit.collider != null)
-        {
-            if (Mathf.Abs(Rb.linearVelocity.y) < 0.01f)
-            {
-                Rb.AddForce(Vector2.up * JumpForce, ForceMode2D.Impulse);
-            }
+            _chains.Add(line);
         }
     }
 
-    void OnDrawGizmos()
+    public void AbsorbDamage(float damage)
     {
-        if (WallCheckPoint != null)
-        {
-            Gizmos.color = Color.yellow;
-            Gizmos.DrawLine(WallCheckPoint.position, WallCheckPoint.position + new Vector3(WallCheckDistance, 0, 0));
-        }
+        if (!CanTakeDamage || damage <= 0) return;
+        if (!IsElite) { ApplyHealthDamage(damage); return; }
+        ShieldHealth += damage;
+        _maxShield = Mathf.Max(_maxShield, ShieldHealth);
+        UpdateShield();
     }
 
-    void OnDrawGizmosSelected()
+    protected override void ReceiveDamage(float damage)
     {
-        Vector2 attackOrigin = GetAttackBoxOrigin();
-        Vector2 size = AttackBoxSize + new Vector2(StrikeWindowReachBonus, 0f);
-        Gizmos.color = Color.red;
-        Gizmos.DrawWireCube(attackOrigin, size);
-
-        if (_distanceInitialized && PlayerTarget != null)
-        {
-            Gizmos.color = Color.blue;
-            Gizmos.DrawWireSphere(PlayerTarget.position, _spawnDistance);
-            Gizmos.color = Color.red;
-            Gizmos.DrawWireSphere(PlayerTarget.position, _halfDistance);
-        }
+        if (!CanTakeDamage || damage <= 0) return;
+        float absorbed = Mathf.Min(ShieldHealth, damage);
+        ShieldHealth -= absorbed;
+        UpdateShield();
+        ApplyHealthDamage(damage - absorbed);
     }
+
+    void UpdateShield() { if (HealthBarInstance != null) HealthBarInstance.UpdateShield(ShieldHealth, _maxShield); }
+    public float GetCurrentDamageReduction() => 0; // Distance armor removed.
+
+    public void OnProtectedEnemyKilled(EnemyBase enemy)
+    {
+        if (enemy == null || enemy.Protector != this || !_protected.Contains(enemy)) return;
+        enemy.Protector = null;
+        _defeatedLinks = Mathf.Min(4, _defeatedLinks + 1);
+    }
+
+    void ReleaseChains()
+    {
+        foreach (var enemy in _protected) if (enemy != null && enemy.Protector == this) enemy.Protector = null;
+        foreach (var line in _chains) if (line != null) line.enabled = false;
+    }
+    protected override void Die() { ReleaseChains(); base.Die(); }
+    protected override void OnDisable() { ReleaseChains(); base.OnDisable(); }
 }

@@ -29,6 +29,12 @@ public class LobberEnemy : EnemyBase
     public float ProjectileSpeed = 8f;
     public Transform FirePoint;
     public float InaccuracyAngle = 5f;
+    [Min(.1f)] public float LobHeight = 4;
+    [Min(.05f)] public float ShotWindup = .35f;
+    [Min(.05f)] public float EliteShotDelay = .3f;
+    bool _volleyActive, _secondShot;
+    float _volleyTimer;
+    Vector2 _aimPosition;
     
     [Header("Animation")]
     public Animator EnemyAnimator;
@@ -43,21 +49,17 @@ public class LobberEnemy : EnemyBase
     private float _nextShootTime;
     private float _currentShootRate;
     private float _currentAttackAnimDuration;
+    bool _hasShootSpeed;
 
     public override void Initialize(float wave)
     {
         base.Initialize(wave);
         
         if (EnemyAnimator == null) EnemyAnimator = GetComponent<Animator>();
+        if (EnemyAnimator != null) foreach (var parameter in EnemyAnimator.parameters)
+            _hasShootSpeed |= parameter.nameHash == AnimShootSpeed;
         
-        float tierMultiplier = 1f;
-        if (WaveManager.Instance != null)
-        {
-            tierMultiplier = WaveManager.Instance.GetDifficultyScalingMultiplier();
-        }
-        
-        _currentShootRate = BaseShootRate / (1f + (wave * ShootRateScaling * tierMultiplier));
-        _currentShootRate = Mathf.Max(_currentShootRate, MinShootRate);
+        _currentShootRate = Mathf.Max(.1f, BaseShootRate);
         
         _currentAttackAnimDuration = Mathf.Max(_currentShootRate / 2f, 0.1f);
         
@@ -67,6 +69,22 @@ public class LobberEnemy : EnemyBase
     protected override void Move()
     {
         if (PlayerTarget == null) return;
+        if (_volleyActive)
+        {
+            Rb.linearVelocity = new Vector2(0, Rb.linearVelocity.y);
+            _volleyTimer += Time.fixedDeltaTime;
+            if (_volleyTimer >= (_secondShot ? EliteShotDelay : ShotWindup))
+            {
+                FireProjectile(_secondShot);
+                if (IsElite && !_secondShot)
+                {
+                    _secondShot = true; _volleyTimer = 0;
+                    _aimPosition = TargetCollider != null ? TargetCollider.bounds.center : PlayerTarget.position;
+                }
+                else { _volleyActive = false; _nextShootTime = Time.time + _currentShootRate; }
+            }
+            return;
+        }
         
         float horizontalDist = Mathf.Abs(PlayerTarget.position.x - transform.position.x);
         
@@ -105,16 +123,15 @@ public class LobberEnemy : EnemyBase
         Rb.linearVelocity = new Vector2(0, Rb.linearVelocity.y);
         SetMovingAnimation(false);
         
-        if (horizontalDist < MinComfortDistance) return;
-        
         if (Time.time >= _nextShootTime)
         {
-            FireProjectile();
-            _nextShootTime = Time.time + _currentShootRate;
+            _volleyActive = true; _secondShot = false; _volleyTimer = 0;
+            _aimPosition = TargetCollider != null ? TargetCollider.bounds.center : PlayerTarget.position;
+            StartAttackAnimation();
         }
     }
     
-    private void FireProjectile()
+    private void FireProjectile(bool bouncing)
     {
         // PATCH: null-check AudioManager
         if (AudioManager.Instance != null)
@@ -136,18 +153,12 @@ public class LobberEnemy : EnemyBase
         // PATCH: null-check PlayerTarget for the brief window where the player might be destroyed mid-shot
         if (PlayerTarget == null) return;
         
-        Vector2 launchVelocity = CalculateLobVelocity(spawnPos, PlayerTarget.position);
-        
-        if (InaccuracyAngle > 0)
-        {
-            float deviation = Random.Range(-InaccuracyAngle, InaccuracyAngle);
-            launchVelocity = Quaternion.Euler(0, 0, deviation) * launchVelocity;
-        }
+        Vector2 launchVelocity = CalculateLobVelocity(spawnPos, _aimPosition);
         
         BouncyEnemyProjectile bouncy = projectile.GetComponent<BouncyEnemyProjectile>();
         if (bouncy != null)
         {
-            bouncy.Launch(launchVelocity);
+            bouncy.Launch(launchVelocity, bouncing);
         }
         
         projectile.SetActive(true);
@@ -167,7 +178,7 @@ public class LobberEnemy : EnemyBase
         
         float speedMultiplier = BaseAttackAnimationDuration / _currentAttackAnimDuration;
         speedMultiplier = Mathf.Clamp(speedMultiplier, 0.5f, 4f);
-        EnemyAnimator.SetFloat(AnimShootSpeed, speedMultiplier);
+        if (_hasShootSpeed) EnemyAnimator.SetFloat(AnimShootSpeed, speedMultiplier);
         
         CancelInvoke(nameof(EndAttackAnimation));
         Invoke(nameof(EndAttackAnimation), _currentAttackAnimDuration);
@@ -181,36 +192,12 @@ public class LobberEnemy : EnemyBase
     
     private Vector2 CalculateLobVelocity(Vector3 start, Vector3 target)
     {
-        Vector2 displacement = target - start;
-        float gravity = Mathf.Abs(Physics2D.gravity.y);
-        float speed = ProjectileSpeed;
-        float speedSq = speed * speed;
-        
-        float dx = displacement.x;
-        float dy = displacement.y;
-        float discriminant = (speedSq * speedSq) - gravity * (gravity * dx * dx + 2 * dy * speedSq);
-        
-        if (discriminant < 0)
-        {
-            float fallbackAngle = 45f * Mathf.Deg2Rad;
-            float xDir = Mathf.Sign(dx);
-            return new Vector2(Mathf.Cos(fallbackAngle) * speed * xDir, Mathf.Sin(fallbackAngle) * speed);
-        }
-        
-        float sqrtDiscriminant = Mathf.Sqrt(discriminant);
-        float angleHigh = Mathf.Atan2(speedSq + sqrtDiscriminant, gravity * dx);
-        
-        float vx = speed * Mathf.Cos(angleHigh);
-        float vy = speed * Mathf.Sin(angleHigh);
-        
-        if (Mathf.Sign(vx) != Mathf.Sign(dx))
-        {
-            vx = -vx;
-        }
-        
-        return new Vector2(vx, vy);
+        float gravity = Mathf.Max(.01f, Mathf.Abs(Physics2D.gravity.y));
+        float apex = Mathf.Max(start.y, target.y) + Mathf.Max(.1f, LobHeight);
+        float vy = Mathf.Sqrt(2 * gravity * (apex - start.y));
+        float flightTime = vy / gravity + Mathf.Sqrt(2 * (apex - target.y) / gravity);
+        return new Vector2((target.x - start.x) / flightTime, vy);
     }
-    
     private void CheckForWalls(float direction)
     {
         if (WallCheckPoint == null) return;

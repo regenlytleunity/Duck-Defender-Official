@@ -9,6 +9,8 @@ public class PlayerData
     public int MunitionsEssence, MobilityEssence, SurvivalEssence, GadgetEssence;
     public bool InfiniteGoldAndEssence;
     public bool InfiniteCopies;
+    public bool ShowTips;
+    public List<string> SeenTipIDs = new List<string>();
     public List<CardSaveData> CardCollection = new List<CardSaveData>();
 
     public PlayerData()

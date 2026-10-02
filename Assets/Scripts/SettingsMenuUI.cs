@@ -18,6 +18,22 @@ using TMPro;
 /// </summary>
 public class SettingsMenuUI : MonoBehaviour
 {
+    [Header("Tutorials")]
+    [Tooltip("Replay encountered tips once per run, including tips already seen in earlier runs.")]
+    public Toggle ShowTipsToggle;
+    public void SetShowTips(bool enabled)
+    {
+        var data = SaveSystem.LoadData();
+        data.ShowTips = enabled;
+        SaveSystem.SaveData(data, true);
+    }
+    void InitializeTips()
+    {
+        if (ShowTipsToggle == null) return;
+        ShowTipsToggle.SetIsOnWithoutNotify(SaveSystem.LoadData().ShowTips);
+        ShowTipsToggle.onValueChanged.RemoveListener(SetShowTips);
+        ShowTipsToggle.onValueChanged.AddListener(SetShowTips);
+    }
     [Header("Volume Sliders")]
     [Tooltip("The slider that controls SFX volume. Range should be 0 to 1.")]
     public Slider SfxSlider;
@@ -45,6 +61,7 @@ public class SettingsMenuUI : MonoBehaviour
 
     void OnEnable()
     {
+        InitializeTips();
         // Wait until AudioManager is initialized (could be a frame or two)
         // then sync slider values to current saved volumes.
         if (AudioManager.Instance == null)
@@ -58,6 +75,7 @@ public class SettingsMenuUI : MonoBehaviour
     
     void Start()
     {
+        InitializeTips();
         // Also try in Start in case OnEnable ran before AudioManager was ready
         if (AudioManager.Instance != null)
         {
@@ -153,6 +171,7 @@ public class SettingsMenuUI : MonoBehaviour
     
     void OnDisable()
     {
+        if (ShowTipsToggle != null) ShowTipsToggle.onValueChanged.RemoveListener(SetShowTips);
         // Clean up listeners when the panel hides to prevent leaks
         if (SfxSlider != null)
         {

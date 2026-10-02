@@ -104,6 +104,7 @@ public class PlayerController : MonoBehaviour
     private readonly RaycastHit2D[] _blinkHits = new RaycastHit2D[16];
     readonly System.Collections.Generic.List<EnemyBase> _shockwaveTargets = new System.Collections.Generic.List<EnemyBase>();
     private WeaponPlayer _weapon;
+    private PlayerHealth _health;
     private Animator _animator;
 
     private Vector2 _moveInput;
@@ -131,7 +132,7 @@ public class PlayerController : MonoBehaviour
     float _lastShockwaveTime = -100;
     float _flightUntil = -1, _flightReady;
     public bool IsGrounded => _isGrounded;
-    public float EffectiveMaxSpeed => MaxRunSpeed * (PlayerStats.Instance != null ? PlayerStats.Instance.SpeedMultiplier : 1f);
+    public float EffectiveMaxSpeed => MaxRunSpeed * (PlayerStats.Instance != null ? PlayerStats.Instance.SpeedMultiplier : 1f) * (_health != null ? _health.MovementMultiplier : 1f);
     float RebirthMultiplier => PlayerStats.Instance != null ? PlayerStats.Instance.RebirthStatMultiplier : 1f;
     public float EffectiveAcceleration => Acceleration * RebirthMultiplier;
     // Jump apex scales with impulse squared. Keep gravity/upgraded jump counts unchanged.
@@ -152,6 +153,7 @@ public class PlayerController : MonoBehaviour
         Instance = this;
         _rb = GetComponent<Rigidbody2D>();
         _bodyCollider = GetComponent<Collider2D>();
+        _health = GetComponent<PlayerHealth>();
     }
 
     void Start()
@@ -185,7 +187,7 @@ public class PlayerController : MonoBehaviour
     {
         if (_isDead || Time.timeScale == 0) return;
 
-        if (InputHelper.GetDashDown()) OnDashKeyPressed();
+        if ((_health == null || !_health.IsStunned) && InputHelper.GetDashDown()) OnDashKeyPressed();
 
         if (AuraChild != null)
         {
@@ -215,6 +217,14 @@ public class PlayerController : MonoBehaviour
                     }
                 }
             }
+        }
+
+        if (_health != null && _health.IsStunned)
+        {
+            _moveInput = Vector2.zero;
+            if (_isDashing) EndDash();
+            UpdateAnimationState();
+            return;
         }
 
         float xInput = InputHelper.GetHorizontal();
@@ -250,6 +260,12 @@ public class PlayerController : MonoBehaviour
     {
         _prePhysicsSpeed = Mathf.Abs(_rb.linearVelocity.x);
         if (_isDead) return;
+        if (_health != null && _health.IsStunned)
+        {
+            if (_isDashing) EndDash();
+            _rb.linearVelocity = Vector2.zero;
+            return;
+        }
         if (_isDashing) { HandleDashPhysics(); return; }
         ApplyMovement();
         if (IsFlying)
@@ -454,7 +470,7 @@ public class PlayerController : MonoBehaviour
             EndDash();
             return;
         }
-        float speed = Mathf.Min(Mathf.Max(.1f, DashSpeed), Physics2D.maxTranslationSpeed);
+        float speed = Mathf.Min(Mathf.Max(.1f, DashSpeed * (_health != null ? _health.MovementMultiplier : 1f)), Physics2D.maxTranslationSpeed);
         float step = Mathf.Min(_dashDistanceLeft, speed * Time.fixedDeltaTime);
         float clear = ClearTravelDistance(_dashDir, step);
         bool blocked = clear < step - .0001f;
@@ -554,6 +570,7 @@ public class PlayerController : MonoBehaviour
         _rb.linearVelocity = Vector2.zero;
         _rb.gravityScale = 0;
         yield return new WaitForSeconds(0.1f);
+        if (_health != null && _health.IsStunned) { _rb.gravityScale = _defaultGravity; yield break; }
         _rb.gravityScale = _defaultGravity * 2;
         _rb.AddForce(Vector2.down * DashSpeed * 2, ForceMode2D.Impulse);
         while (!_isGrounded) yield return null;

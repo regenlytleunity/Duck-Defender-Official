@@ -44,7 +44,7 @@ public static class SaveSystem
     /// Saves player data to disk. On WebGL, additionally syncs to IndexedDB 
     /// so the data survives page closure.
     /// </summary>
-    public static void SaveData(PlayerData data)
+    public static void SaveData(PlayerData data, bool updateTips = false)
     {
         if (data == null)
         {
@@ -54,6 +54,18 @@ public static class SaveSystem
         
         try
         {
+            // Shop/run owners cache PlayerData. Preserve independently updated tutorial progress.
+            if (!updateTips && File.Exists(SavePath))
+            {
+                PlayerData latest = null;
+                try { latest = JsonUtility.FromJson<PlayerData>(File.ReadAllText(SavePath)); }
+                catch (System.ArgumentException) { /* A new valid save can replace malformed JSON. */ }
+                if (latest != null && latest.ProgressionVersion == data.ProgressionVersion)
+                {
+                    data.ShowTips = latest.ShowTips;
+                    data.SeenTipIDs = latest.SeenTipIDs ?? new System.Collections.Generic.List<string>();
+                }
+            }
             string json = JsonUtility.ToJson(data, true);
             File.WriteAllText(SavePath, json);
             
@@ -100,6 +112,7 @@ public static class SaveSystem
                 Debug.LogWarning("[SaveSystem] Save file parsed to null. Starting fresh.");
                 return PlayerData.CreateNew();
             }
+            if (data.SeenTipIDs == null) data.SeenTipIDs = new System.Collections.Generic.List<string>();
             
             // Intentionally reset pre-rework progression once, preserving the new schema thereafter.
             if (data.ProgressionVersion < PlayerData.CurrentVersion)

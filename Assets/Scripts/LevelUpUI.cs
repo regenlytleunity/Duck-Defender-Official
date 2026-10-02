@@ -20,6 +20,7 @@ public class LevelUpUI : MonoBehaviour
     public int CardsToOffer = 3;
     int _queuedOffers;
     bool _offering;
+    public bool IsOffering => _offering;
 
     void Awake()
     {
@@ -76,7 +77,7 @@ public class LevelUpUI : MonoBehaviour
         CardManager.Instance.ApplyCardEffect(card);
         ClearContainer();
         Panel.SetActive(false);
-        Time.timeScale = 1f;
+        Time.timeScale = EnemyTipUI.Instance != null && EnemyTipUI.Instance.IsShowing ? 0 : 1;
         if (_queuedOffers > 0) { _queuedOffers--; ShowLevelUpOptions(); }
     }
 

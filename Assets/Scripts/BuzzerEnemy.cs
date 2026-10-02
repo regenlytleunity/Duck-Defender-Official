@@ -1,167 +1,121 @@
+using System.Collections;
 using UnityEngine;
 
 public class BuzzerEnemy : EnemyBase
 {
     [Header("Hover Settings")]
-    public float HoverHeight = 3.0f;
-    public float HorizontalOffset = 4.0f;
-    public float MoveSmoothing = 1.0f;
-    
+    public float HoverHeight = 3;
+    public float HorizontalOffset = 4;
+    public float MoveSmoothing = 1;
     [Header("Combat")]
-    [Tooltip("Base time between shots (seconds). Decreases with wave scaling and difficulty tier.")]
-    public float BaseShootRate = 2.5f;
-    [Tooltip("Minimum shoot rate floor (won't fire faster than this)")]
-    public float MinShootRate = 0.5f;
-    [Tooltip("How much shoot rate decreases per wave. Affected by difficulty tier multiplier.")]
-    public float ShootRateScaling = 0.05f;
-    
-    [Header("Projectile Inaccuracy")]
-    public float InaccuracyAngle = 10f;
-    
-    [Header("Retreat Hover")]
-    public float RetreatInterval = 6.0f;
-    public float RetreatDuration = 2.0f;
-    public float RetreatHeightBonus = 3.0f;
-    public float RetreatDistanceBonus = 4.0f;
-    
+    public float BaseShootRate = 1;
+    [HideInInspector] public float MinShootRate = .5f;
+    [HideInInspector] public float ShootRateScaling = .05f;
+    public float ShootRange = 8;
+    public float ShotWindup = .35f;
+    [HideInInspector] public float InaccuracyAngle;
+    [Header("Legacy Retreat Settings (unused)")]
+    public float RetreatInterval = 6;
+    public float RetreatDuration = 2;
+    public float RetreatHeightBonus = 3;
+    public float RetreatDistanceBonus = 4;
     [Header("Swarm Separation")]
     public float SeparationRadius = 1.5f;
-    public float SeparationForce = 5.0f;
+    public float SeparationForce = 5;
+    [Header("Elite")]
+    public float SlowDuration = 2;
+    public float CrashDuration = 3;
+    public float CrashDrift = 1.5f;
+    public float CrashExplosionRadius = 1.5f;
+    public LayerMask GroundLayer;
+    public GameObject CrashExplosionPrefab;
 
-    private Vector2 _velocity;
-    private float _nextShootTime;
-    private FlyingEnemyAnimator _animator;
-    
-    private float _currentShootRate;
-    
-    private float _nextRetreatTime;
-    private float _retreatEndTime;
-    private bool _isRetreating = false;
+    float _nextShootTime, _windupElapsed;
+    bool _windingUp;
+    Vector2 _aimPosition;
+    FlyingEnemyAnimator _animator;
 
     public override void Initialize(float wave)
     {
         base.Initialize(wave);
-        Rb.gravityScale = 0;
+        if (Rb != null) Rb.gravityScale = 0;
         _animator = GetComponent<FlyingEnemyAnimator>();
-        
-        float tierMultiplier = 1f;
-        if (WaveManager.Instance != null)
-        {
-            tierMultiplier = WaveManager.Instance.GetDifficultyScalingMultiplier();
-        }
-        
-        _currentShootRate = BaseShootRate / (1f + (wave * ShootRateScaling * tierMultiplier));
-        _currentShootRate = Mathf.Max(_currentShootRate, MinShootRate);
-        
-        _nextShootTime = Time.time + Random.Range(0, _currentShootRate);
-        _nextRetreatTime = Time.time + Random.Range(RetreatInterval * 0.5f, RetreatInterval * 1.5f);
+        _nextShootTime = Time.time + .5f;
     }
 
     protected override void Move()
     {
-        if (PlayerTarget == null) return;
-
-        UpdateRetreatState();
-
-        float targetX;
-        float targetY;
-        
-        if (_isRetreating)
+        if (PlayerTarget == null || Rb == null) return;
+        Rb.linearVelocity = Vector2.zero;
+        if (_windingUp)
         {
-            float awayDir = (transform.position.x > PlayerTarget.position.x) ? 1f : -1f;
-            targetX = PlayerTarget.position.x + awayDir * (HorizontalOffset + RetreatDistanceBonus);
-            targetY = PlayerTarget.position.y + HoverHeight + RetreatHeightBonus;
+            _windupElapsed += Time.fixedDeltaTime;
+            if (_windupElapsed >= ShotWindup)
+            {
+                Fire();
+                _windingUp = false;
+                _nextShootTime = Time.time + Mathf.Max(.1f, BaseShootRate);
+            }
+            return;
         }
-        else
+        float side = transform.position.x >= PlayerTarget.position.x ? 1 : -1;
+        Vector2 target = (Vector2)PlayerTarget.position + new Vector2(side * HorizontalOffset, HoverHeight);
+        Vector2 offset = target - (Vector2)transform.position;
+        float speed = CurrentSpeed * PlayerStats.ProjectileSpeedFactor(transform.position);
+        Rb.linearVelocity = offset.normalized * Mathf.Min(speed, offset.magnitude / Mathf.Max(.1f, MoveSmoothing));
+        if (Time.time >= _nextShootTime && Vector2.Distance(transform.position, PlayerTarget.position) <= ShootRange)
         {
-            targetX = PlayerTarget.position.x + (transform.position.x > PlayerTarget.position.x ? HorizontalOffset : -HorizontalOffset);
-            targetY = PlayerTarget.position.y + HoverHeight;
-        }
-        
-        Vector2 desiredPos = new Vector2(targetX, targetY);
-        Vector2 separationVector = CalculateSeparation();
-        desiredPos += separationVector;
-
-        float smoothing = _isRetreating ? MoveSmoothing * 1.5f : MoveSmoothing;
-        
-        transform.position = Vector2.SmoothDamp(transform.position, desiredPos, ref _velocity, smoothing,
-            Mathf.Infinity, Time.fixedDeltaTime * MovementSpeedFactor);
-
-        if (!_isRetreating && Time.time >= _nextShootTime)
-        {
-            ShootProjectile();
-            _nextShootTime = Time.time + _currentShootRate;
+            _windingUp = true;
+            _windupElapsed = 0;
+            _aimPosition = TargetCollider != null ? TargetCollider.bounds.center : PlayerTarget.position;
+            _animator?.TriggerShootAnimation(Mathf.Max(.1f, ShotWindup * 2));
         }
     }
 
-    private void UpdateRetreatState()
+    void Fire()
     {
-        if (_isRetreating)
-        {
-            if (Time.time >= _retreatEndTime)
-            {
-                _isRetreating = false;
-                _nextRetreatTime = Time.time + RetreatInterval;
-            }
-        }
-        else
-        {
-            if (Time.time >= _nextRetreatTime)
-            {
-                _isRetreating = true;
-                _retreatEndTime = Time.time + RetreatDuration;
-            }
-        }
-    }
-
-    private Vector2 CalculateSeparation()
-    {
-        Vector2 force = Vector2.zero;
-        Collider2D[] neighbors = Physics2D.OverlapCircleAll(transform.position, SeparationRadius, 1 << 8);
-
-        foreach (var neighbor in neighbors)
-        {
-            if (neighbor.gameObject != gameObject)
-            {
-                Vector2 away = transform.position - neighbor.transform.position;
-                force += away.normalized;
-            }
-        }
-        return force * SeparationForce;
-    }
-
-    private void ShootProjectile()
-    {
-        // PATCH: null-check AudioManager. Was crashing when AudioManager.Instance was null.
-        if (AudioManager.Instance != null)
-        {
-            AudioManager.Instance.PlaySFX("Flying_Enemy_Shoot");
-        }
-        
-        if (_animator != null)
-        {
-            _animator.TriggerShootAnimation(_currentShootRate);
-        }
-        
-        // PATCH: null-check ObjectPooler too
         if (ObjectPooler.Instance == null) return;
-        
-        GameObject bullet = ObjectPooler.Instance.GetEnemyBullet();
-        if (bullet != null)
+        var bullet = ObjectPooler.Instance.GetEnemyBullet();
+        if (bullet == null) return;
+        var projectile = bullet.GetComponent<EnemyProjectile>();
+        if (projectile == null) return;
+        Vector2 direction = _aimPosition - (Vector2)transform.position;
+        bullet.transform.SetPositionAndRotation(transform.position, Quaternion.Euler(0, 0, Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg));
+        projectile.Configure(IsElite, SlowDuration);
+        bullet.SetActive(true);
+        AudioManager.Instance?.PlaySFX("Flying_Enemy_Shoot");
+    }
+
+    protected override void Die()
+    {
+        if (!IsElite) { base.Die(); return; }
+        if (!BeginDeath()) return;
+        _animator?.SetFlying(false);
+        if (Rb != null) Rb.simulated = false;
+        foreach (var collider in GetComponentsInChildren<Collider2D>()) collider.enabled = false;
+        StartCoroutine(CrashRoutine());
+    }
+
+    IEnumerator CrashRoutine()
+    {
+        Vector3 start = transform.position;
+        float drift = Random.Range(-CrashDrift, CrashDrift);
+        Vector2 rayOrigin = new Vector2(start.x + drift, start.y);
+        var hit = Physics2D.Raycast(rayOrigin, Vector2.down, 100, GroundLayer);
+        Vector3 end = hit.collider != null ? new Vector3(hit.point.x, hit.point.y + .15f, start.z) : start + new Vector3(drift, -10, 0);
+        float elapsed = 0;
+        while (elapsed < Mathf.Max(.1f, CrashDuration))
         {
-            bullet.transform.position = transform.position;
-            
-            // PATCH: extra safety - PlayerTarget could theoretically be null mid-shot
-            if (PlayerTarget == null) return;
-            
-            Vector2 dir = (PlayerTarget.position - transform.position).normalized;
-            float baseAngle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
-            
-            float inaccuracy = Random.Range(-InaccuracyAngle, InaccuracyAngle);
-            float finalAngle = baseAngle + inaccuracy;
-            
-            bullet.transform.rotation = Quaternion.Euler(0, 0, finalAngle);
-            bullet.SetActive(true);
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / Mathf.Max(.1f, CrashDuration));
+            transform.position = new Vector3(Mathf.Lerp(start.x, end.x, t), Mathf.Lerp(start.y, end.y, t * t), start.z);
+            transform.Rotate(0, 0, drift * 60 * Time.deltaTime);
+            yield return null;
         }
+        if (TargetHealth != null && TargetCollider != null &&
+            Vector2.Distance(TargetCollider.ClosestPoint(transform.position), transform.position) <= CrashExplosionRadius)
+            TargetHealth.TryTakeDamage(1);
+        if (CrashExplosionPrefab != null) ObjectPooler.SpawnEffect(CrashExplosionPrefab, transform.position, Quaternion.identity);
+        CompleteDeath();
     }
 }

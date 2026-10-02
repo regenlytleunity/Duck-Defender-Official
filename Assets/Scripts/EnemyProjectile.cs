@@ -7,6 +7,18 @@ public class EnemyProjectile : MonoBehaviour
     public float Lifetime = 4f;
 
     private float _timer;
+    bool _elite;
+    float _slowDuration;
+    Vector3 _baseScale;
+    void Awake() { if (_baseScale == Vector3.zero) _baseScale = transform.localScale; }
+    public void Configure(bool elite, float slowDuration = 2)
+    {
+        if (_baseScale == Vector3.zero) _baseScale = transform.localScale;
+        _elite = elite;
+        _slowDuration = slowDuration;
+        transform.localScale = _baseScale * (elite ? 1.25f : 1);
+    }
+    void OnDisable() { _elite = false; transform.localScale = _baseScale; }
 
     void OnEnable() => _timer = Lifetime;
 
@@ -22,14 +34,13 @@ public class EnemyProjectile : MonoBehaviour
     {
         var wall = collision.GetComponentInParent<DefenderWall>();
         if (wall != null) { wall.TakeDamage(Damage); gameObject.SetActive(false); return; }
-        if (collision.CompareTag("Player"))
+        if (collision.GetComponentInParent<PlayerHealth>() != null)
         {
             // FIX: Get the health component and apply damage
-            PlayerHealth playerHealth = collision.GetComponent<PlayerHealth>();
+            PlayerHealth playerHealth = collision.GetComponentInParent<PlayerHealth>();
             if (playerHealth != null)
             {
-                Debug.Log("OUCH! Player hit!");
-                playerHealth.TakeDamage(Damage);
+                if (playerHealth.TryTakeDamage(Damage) && _elite) playerHealth.ApplySlow(_slowDuration);
             }
             
             gameObject.SetActive(false);

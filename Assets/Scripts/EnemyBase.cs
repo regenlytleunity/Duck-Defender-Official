@@ -16,7 +16,7 @@ public abstract class EnemyBase : MonoBehaviour
     float _fractionalDamage;
     bool _absoluteZero;
     void OnEnable() { if (!ActiveEnemies.Contains(this)) ActiveEnemies.Add(this); }
-    void OnDisable() { ActiveEnemies.Remove(this); }
+    protected virtual void OnDisable() { ActiveEnemies.Remove(this); }
 
     // Damage/death callbacks can disable enemies and mutate the registry synchronously.
     // Callers that deal area damage keep their own reusable snapshot, without per-tick allocations.
@@ -41,6 +41,7 @@ public abstract class EnemyBase : MonoBehaviour
 
     public void TakeFractionalDamage(float damage)
     {
+        if (!CanTakeDamage) return;
         _fractionalDamage += Mathf.Max(0, damage);
         int whole = Mathf.FloorToInt(_fractionalDamage + .00001f);
         if (whole <= 0) return;
@@ -55,7 +56,29 @@ public abstract class EnemyBase : MonoBehaviour
         _zoneSlowUntil = Time.time + seconds;
     }
 
-    public void Defeat() { if (IsAlive) Die(); }
+    public void Defeat() { if (CanTakeDamage) Die(); }
+    [Header("Enemy Variants")]
+    public bool IsElite;
+    [Min(1)] public float EliteSizeMultiplier = 1.15f;
+    public Color EliteTint = new Color(.65f, .65f, .7f);
+    [Tooltip("Off-screen spawns are protected until their sprite first enters the gameplay camera. No-camera fallback in seconds.")]
+    [Min(0)] public float SpawnProtectionSeconds = 3f;
+    public bool IsSpawnProtected { get; private set; }
+    public bool CanTakeDamage => IsAlive && !IsSpawnProtected;
+    public TankEnemy Protector { get; internal set; }
+    public Collider2D BodyCollider { get; private set; }
+    protected PlayerHealth TargetHealth;
+    protected Collider2D TargetCollider;
+    protected Camera GameplayCamera;
+    Color _normalColor = Color.white;
+    float _spawnProtectionUntil;
+    Vector3 _spawnScale;
+    public virtual string EnemyKind => this is TankEnemy ? "tank" : this is LobberEnemy ? "lobber" :
+        this is BuzzerEnemy || this is FlyingEnemy ? "flying" : "ground";
+    public string TipID => (IsElite ? "elite_" : "") + EnemyKind;
+    protected virtual float HealthAtWave(int wave) => Mathf.Floor(BaseHealth + WaveManager.HealthIncreaseAtWave(wave));
+    protected virtual float EliteHealthMultiplier => EnemyKind == "ground" ? 1.5f : EnemyKind == "lobber" ? 1.25f : 1f;
+    protected virtual float SpeedAtSpawn => BaseSpeed * (IsElite && EnemyKind == "ground" ? .85f : 1f);
     [Header("Base Stats")]
     public float BaseSpeed = 3f;
     public float BaseHealth = 2f;
@@ -65,9 +88,9 @@ public abstract class EnemyBase : MonoBehaviour
     public int XPValue = 10;
     public GameObject CoinPrefab;
     [Tooltip("Min and Max coins to drop per kill")]
-    public Vector2Int CoinDropRange = new Vector2Int(1, 3);
+    public Vector2Int CoinDropRange = new Vector2Int(4, 6);
 
-    [Header("Wave Scaling")]
+    [Header("Legacy Scaling (unused; health uses the wave table)")]
     public float HealthScaling = 0.1f;
     public float SpeedScaling = 0.05f;
 
@@ -94,7 +117,7 @@ public abstract class EnemyBase : MonoBehaviour
     protected SpriteRenderer SpriteRen;
 
     private bool _isDead = false;
-    private EnemyHealthBar _healthBarInstance;
+    protected EnemyHealthBar HealthBarInstance;
 
     protected bool IsKnockedBack = false;
     public bool IsFrozen { get; private set; } = false;
@@ -117,13 +140,7 @@ public abstract class EnemyBase : MonoBehaviour
 
     public virtual void Initialize(float waveDifficulty)
     {
-        float tierMultiplier = 1f;
-        if (WaveManager.Instance != null)
-        {
-            tierMultiplier = WaveManager.Instance.GetDifficultyScalingMultiplier();
-        }
-
-        MaxHealth = Mathf.Round(BaseHealth * (1f + (waveDifficulty * HealthScaling * tierMultiplier)));
+        MaxHealth = Mathf.Max(1, Mathf.Floor(HealthAtWave(Mathf.Max(1, (int)waveDifficulty)) * (IsElite ? EliteHealthMultiplier : 1f)));
         CurrentHealth = MaxHealth;
 
         // === 1.4.11 SABOTAGE ===
@@ -136,25 +153,68 @@ public abstract class EnemyBase : MonoBehaviour
             CurrentHealth = Mathf.Max(1, (int)MaxHealth - missingHP);
         }
 
-        _originalSpeed = BaseSpeed * (1f + (waveDifficulty * SpeedScaling));
+        _originalSpeed = SpeedAtSpawn;
         CurrentSpeed = _originalSpeed;
 
         Rb = GetComponent<Rigidbody2D>();
         SpriteRen = GetComponent<SpriteRenderer>();
+        BodyCollider = GetComponent<Collider2D>();
+        GameplayCamera = Camera.main;
+        _spawnScale = transform.localScale * (IsElite ? EliteSizeMultiplier : 1f);
+        transform.localScale = _spawnScale;
+        _normalColor = SpriteRen != null ? SpriteRen.color : Color.white;
+        if (IsElite) _normalColor *= EliteTint;
+        UpdateColor();
+        IsSpawnProtected = SpawnProtectionSeconds > 0 && !IsInView(false);
+        _spawnProtectionUntil = Time.time + SpawnProtectionSeconds;
 
         GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
-        if (playerObj != null) PlayerTarget = playerObj.transform;
+        if (playerObj != null)
+        {
+            PlayerTarget = playerObj.transform;
+            TargetHealth = playerObj.GetComponent<PlayerHealth>();
+            TargetCollider = playerObj.GetComponent<Collider2D>();
+        }
 
         if (HealthBarPrefab != null)
         {
             GameObject barObj = Instantiate(HealthBarPrefab, transform.position, Quaternion.identity);
             barObj.transform.SetParent(transform.parent);
 
-            _healthBarInstance = barObj.GetComponent<EnemyHealthBar>();
-            if (_healthBarInstance != null) _healthBarInstance.Initialize(transform, MaxHealth);
+            HealthBarInstance = barObj.GetComponent<EnemyHealthBar>();
+            if (HealthBarInstance != null) HealthBarInstance.Initialize(transform, MaxHealth);
             // 1.4.11: also set the bar to the (potentially reduced) starting HP
-            if (_healthBarInstance != null) _healthBarInstance.UpdateHealth(CurrentHealth);
+            if (HealthBarInstance != null) HealthBarInstance.UpdateHealth(CurrentHealth);
         }
+    }
+
+    protected virtual void Update()
+    {
+        if (!IsAlive) return;
+        if (IsSpawnProtected && (IsInView(false) || (GameplayCamera == null && Time.time >= _spawnProtectionUntil)))
+            IsSpawnProtected = false;
+        if (EnemyTipUI.Instance != null) EnemyTipUI.Instance.Observe(this);
+    }
+
+    public bool IsInView(bool fully)
+    {
+        if (GameplayCamera == null) return false;
+        Bounds bounds = SpriteRen != null ? SpriteRen.bounds : BodyCollider != null ? BodyCollider.bounds : new Bounds(transform.position, Vector3.zero);
+        Vector3 min = GameplayCamera.WorldToViewportPoint(bounds.min);
+        Vector3 max = GameplayCamera.WorldToViewportPoint(bounds.max);
+        if (min.z <= 0 || max.z <= 0) return false;
+        return fully ? min.x >= 0 && max.x <= 1 && min.y >= 0 && max.y <= 1 :
+            max.x >= .01f && min.x <= .99f && max.y >= .01f && min.y <= .99f;
+    }
+
+    // Collider-edge distance agrees with solid-body contact, even when the player stands still.
+    protected bool PlayerInMeleeRange(float reach, float height)
+    {
+        if (TargetHealth == null || TargetHealth.IsDead || TargetCollider == null || BodyCollider == null) return false;
+        Bounds own = BodyCollider.bounds, target = TargetCollider.bounds;
+        float horizontalGap = Mathf.Max(0, Mathf.Abs(own.center.x - target.center.x) - own.extents.x - target.extents.x);
+        float verticalGap = Mathf.Max(0, Mathf.Abs(own.center.y - target.center.y) - own.extents.y - target.extents.y);
+        return horizontalGap <= Mathf.Max(0, reach) && verticalGap <= Mathf.Max(.05f, height * .25f);
     }
 
     void FixedUpdate()
@@ -204,27 +264,40 @@ public abstract class EnemyBase : MonoBehaviour
         if (PlayerTarget == null) return;
 
         if (PlayerTarget.position.x > transform.position.x)
-            transform.localScale = new Vector3(-1, 1, 1);
+            transform.localScale = new Vector3(-Mathf.Abs(_spawnScale.x), _spawnScale.y, _spawnScale.z);
         else
-            transform.localScale = new Vector3(1, 1, 1);
+            transform.localScale = new Vector3(Mathf.Abs(_spawnScale.x), _spawnScale.y, _spawnScale.z);
     }
 
     public virtual void TakeDamage(int damage)
     {
-        if (_isDead) return;
+        ReceiveDamage(damage);
+    }
 
-        CurrentHealth -= damage;
+    protected virtual void ReceiveDamage(float damage)
+    {
+        if (!CanTakeDamage || damage <= 0) return;
+        if (Protector != null && Protector.CanTakeDamage && Protector != this)
+        {
+            float redirected = damage * .5f;
+            damage -= redirected;
+            Protector.AbsorbDamage(redirected);
+        }
+        ApplyHealthDamage(damage);
+    }
 
-        if (_healthBarInstance != null) _healthBarInstance.UpdateHealth(CurrentHealth);
-
-        StartCoroutine(FlashColor(Color.white));
-
+    protected void ApplyHealthDamage(float damage)
+    {
+        if (!CanTakeDamage || damage <= 0) return;
+        CurrentHealth = Mathf.Max(0, CurrentHealth - damage);
+        if (HealthBarInstance != null) HealthBarInstance.UpdateHealth(CurrentHealth);
+        if (gameObject.activeInHierarchy) StartCoroutine(FlashColor(Color.white));
         if (CurrentHealth <= 0) Die();
     }
 
     public void ApplyKnockback(Vector2 forceVector)
     {
-        if (_isDead) return;
+        if (!CanTakeDamage || Rb == null) return;
         if (IsFrozen) return;
 
         float rawKnockback = forceVector.magnitude;
@@ -271,7 +344,7 @@ public abstract class EnemyBase : MonoBehaviour
 
     public void ApplyPoison(float totalDamage)
     {
-        if (_isDead || _isPoisoned) return;
+        if (!CanTakeDamage || _isPoisoned) return;
         StartCoroutine(PoisonRoutine(totalDamage));
     }
 
@@ -279,7 +352,7 @@ public abstract class EnemyBase : MonoBehaviour
     float _toxinUntil;
     public void ApplyDeadlyToxin()
     {
-        if (!IsAlive) return;
+        if (!CanTakeDamage) return;
         _toxinUntil = Time.time + 3;
         if (_toxinRoutine == null) _toxinRoutine = StartCoroutine(DeadlyToxinRoutine());
     }
@@ -297,13 +370,13 @@ public abstract class EnemyBase : MonoBehaviour
 
     public void ApplySlow(float slowFactor)
     {
-        if (_isDead) return;
+        if (!CanTakeDamage) return;
         StartCoroutine(SlowStackRoutine(slowFactor));
     }
 
     public void ApplyFreeze(float duration)
     {
-        if (_isDead) return;
+        if (!CanTakeDamage) return;
         if (duration <= 0f) return;
 
         if (_freezeRoutine != null) StopCoroutine(_freezeRoutine);
@@ -312,6 +385,7 @@ public abstract class EnemyBase : MonoBehaviour
 
     public void ApplyAbsoluteZero(float duration)
     {
+        if (!CanTakeDamage) return;
         _absoluteZero = true;
         ApplyFreeze(duration);
     }
@@ -381,14 +455,14 @@ public abstract class EnemyBase : MonoBehaviour
         }
     }
 
-    private void UpdateColor()
+    protected void UpdateColor()
     {
         if (SpriteRen == null) return;
 
         if (IsFrozen) SpriteRen.color = FrozenColor;
         else if (_isPoisoned) SpriteRen.color = Color.green;
         else if (_slowStacks > 0) SpriteRen.color = Color.cyan;
-        else SpriteRen.color = Color.white;
+        else SpriteRen.color = _normalColor;
     }
 
     IEnumerator KnockbackRoutine()
@@ -412,14 +486,32 @@ public abstract class EnemyBase : MonoBehaviour
 
     protected virtual void Die()
     {
-        if (_isDead) return;
+        if (!BeginDeath()) return;
+        CompleteDeath();
+    }
+
+    protected bool BeginDeath()
+    {
+        if (_isDead) return false;
         _isDead = true;
+        CurrentHealth = 0;
+        ActiveEnemies.Remove(this);
+        StopAllCoroutines();
+        CancelInvoke();
+        if (Protector != null) Protector.OnProtectedEnemyKilled(this);
+        Protector = null;
+        if (HealthBarInstance != null) Destroy(HealthBarInstance.gameObject);
+        return true;
+    }
+
+    protected void CompleteDeath()
+    {
 
         if (PlayerStats.Instance != null && PlayerStats.Instance.HasAscension(CardAscension.Vampire))
             PlayerStats.Instance.GetComponent<AscensionEffects>()?.DropHealingOrb(transform.position);
 
         if (LevelManager.Instance != null)
-            LevelManager.Instance.AddXP(XPValue);
+            LevelManager.Instance.AddXP(XPValue * (IsElite ? 1.25f : 1f));
 
         if (PlayerStats.Instance != null)
             PlayerStats.Instance.RegisterEnemyKill();
@@ -431,7 +523,7 @@ public abstract class EnemyBase : MonoBehaviour
             float mult = 1.0f;
             if (PlayerStats.Instance != null) mult = PlayerStats.Instance.CoinDropMultiplier;
 
-            int finalAmount = Mathf.FloorToInt(baseAmount * mult);
+            int finalAmount = Mathf.FloorToInt(baseAmount * mult * (IsElite ? 2f : 1f));
             if (finalAmount < 1) finalAmount = 1;
 
             for (int i = 0; i < finalAmount; i++)

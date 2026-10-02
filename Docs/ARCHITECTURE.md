@@ -420,24 +420,30 @@ Assets/Scripts/BuzzerEnemy.cs
 
 * fast ground melee
 * separation behavior
-* persistent strike window
+* collider-edge melee with a windup and a single impact check
+
+The active Fast Enemy prefab uses collider-edge reach, a configurable windup,
+one impact check, and a one-second cooldown. Elite ground enemies have increased
+health/reach and apply a half-second player movement/feather stun on a successful hit.
 
 ### TankEnemy
 
 * slower melee
-* damage reduction
-* shield feedback
+* four lifetime protection chains to nearby non-tank enemies, with exclusive ownership
+* 50% damage redirection using fractional health damage
+* elite shield gain from redirected damage and capped ally-death speed/damage bonuses
 
 ### LobberEnemy
 
 * approaches firing range
-* launches ballistic/bouncing projectiles
+* high-arc poison projectiles and one-second ground clouds
+* elite delayed follow-up balls that grow and accelerate on two bounces
 
 ### BuzzerEnemy
 
 * hovering ranged behavior
-* retreat behavior
-* swarm separation
+* fixed-speed approach and aimed shot windup
+* elite slowing shots and a three-second crash/explosion before rewards
 
 ---
 
@@ -460,6 +466,30 @@ Do not assume they are obsolete without checking serialized references.
 Assets/Scripts/EnemyProjectile.cs
 Assets/Scripts/BouncyEnemyProjectile.cs
 ```
+
+EnemyBase floors additive health from WaveManager's explicit piecewise table;
+the active four enemy prefabs no longer scale movement or firing rate with waves.
+Tanks derive health as four times the rounded normal ground health. Elite enemies
+reuse the normal prefabs with preserved enlarged/darker visuals, double coin rewards,
+and 25% more XP (LevelManager carries fractional XP). Off-screen spawns reject damage
+until entering the gameplay camera. EnemyHealthBar displays numeric health and optional
+shield values. PlayerHealth owns non-stacking slow, stun, and five-stack refreshing poison.
+
+WaveDefinition assets optionally override individual waves with scripted groups,
+weighted random pools, exclusions, or mixed ordered/random spawning. Unspecified
+waves use the existing count/cap controls and a configurable introduction schedule:
+normal ground/flying/tank/lobber at 1/3/6/9, elite variants at 12/16/20/25.
+See Docs/ENEMY_UPDATE.md for authoring, confirmed scaling boundaries, and verification.
+
+WaveManager automatically adds EnemyTipUI for full-view first-encounter tutorials.
+Tips own a gameplay pause with a real-time input grace period and release-before-click
+dismissal. Seen IDs and the MainMenu Show tips option are additive fields in PlayerData;
+SaveSystem preserves them when older cached economy objects save. The save version
+is unchanged. LevelUpUI retains its pause while a tip is displayed.
+
+Assets/Scripts/Editor/EnemyUpdateVerification.cs provides isolated checks and an
+opt-in Play Mode verification menu. EnemyUpdatePlayProbe is guarded by UNITY_EDITOR
+and uses a temporary save only when the verification session flag is set.
 
 ---
 
