@@ -26,6 +26,7 @@ public class DefenderWall : MonoBehaviour
     }
     public void TakeDamage(int damage)
     {
+        damage = Mathf.RoundToInt(damage * GameDifficulty.DamageMultiplier);
         if (_broken || damage <= 0) return;
         Health -= damage;
         if (Health > 0) return;

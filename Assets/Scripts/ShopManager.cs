@@ -169,7 +169,7 @@ public class ShopManager : MonoBehaviour
     public void ResetProgress()
     {
         _playerData = PlayerData.CreateNew();
-        SaveSystem.SaveData(_playerData);
+        SaveSystem.SaveData(_playerData, true);
         LoadEconomy();
         if (MainMenuUI.Instance != null) MainMenuUI.Instance.UpdateCoinDisplay(CurrentCoins);
         OnCollectionChanged?.Invoke();

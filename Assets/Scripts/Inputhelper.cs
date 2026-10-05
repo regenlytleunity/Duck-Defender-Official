@@ -15,28 +15,28 @@ public static class InputHelper
     {
         if (IsMobile)
             return MobileInputController.Instance.GetHorizontal();
-        return Input.GetAxisRaw("Horizontal");
+        return InputManager.Instance != null ? InputManager.Instance.GetHorizontalInput() : Input.GetAxisRaw("Horizontal");
     }
 
     public static float GetVertical()
     {
         if (IsMobile)
             return MobileInputController.Instance.GetVertical();
-        return Input.GetAxisRaw("Vertical");
+        return InputManager.Instance != null ? InputManager.Instance.GetVerticalInput() : Input.GetAxisRaw("Vertical");
     }
 
     public static bool GetJumpDown()
     {
         if (IsMobile)
             return MobileInputController.Instance.GetJumpDown();
-        return Input.GetButtonDown("Jump");
+        return InputManager.Instance != null ? InputManager.Instance.IsJumpPressed() : Input.GetButtonDown("Jump");
     }
 
     public static bool GetJumpHeld()
     {
         if (IsMobile)
             return MobileInputController.Instance.GetJumpHeld();
-        return Input.GetButton("Jump");
+        return InputManager.Instance != null ? InputManager.Instance.IsJumpHeld() : Input.GetButton("Jump");
     }
 
     public static bool GetDashDown()
@@ -52,7 +52,7 @@ public static class InputHelper
     {
         if (IsMobile)
             return MobileInputController.Instance.GetShootHeld();
-        return Input.GetButton("Fire1");
+        return InputManager.Instance != null ? InputManager.Instance.IsShootHeld() : Input.GetButton("Fire1");
     }
 
     public static Vector3 GetMousePosition()

@@ -38,6 +38,7 @@ public class LevelManager : MonoBehaviour
     private int _coinsForMeteor = 0;
     private int _coinsForShot = 0;
     bool _coinSaveDirty;
+    double _fractionalCoins;
     float _nextCoinSave, _nextCoinMerge;
     long _pendingMeteors, _pendingSecondaryMeteors;
 
@@ -152,6 +153,10 @@ public class LevelManager : MonoBehaviour
     public void AddCoins(int amount)
     {
         if (amount <= 0) return;
+        // Carry fractions: four individual coins and one stack of four pay equally.
+        _fractionalCoins += amount * (double)GameDifficulty.CoinMultiplier;
+        amount = (int)System.Math.Min(int.MaxValue, System.Math.Floor(_fractionalCoins));
+        _fractionalCoins -= amount;
         TotalCoins = (int)System.Math.Min(int.MaxValue, (long)TotalCoins + amount);
         if (_playerData != null) _playerData.TotalCoins = TotalCoins;
         _coinSaveDirty = true;

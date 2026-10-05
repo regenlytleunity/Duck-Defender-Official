@@ -44,7 +44,7 @@ public class WaveManager : MonoBehaviour
             health += (double)steps * increments[i];
             previous = ends[i];
         }
-        return (float)health;
+        return (float)health * GameDifficulty.GrowthMultiplier;
     }
 
     public float BasicGroundHealth(int wave)

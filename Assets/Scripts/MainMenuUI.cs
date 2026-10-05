@@ -12,7 +12,12 @@ public class MainMenuUI : MonoBehaviour
     public GameObject MenuPanel;
     public GameObject ShopPanel;
     public GameObject SettingsPanel;
-    public GameObject IndexPanel; 
+    public GameObject IndexPanel;
+    [Header("Difficulty")]
+    public UnityEngine.UI.Button[] DifficultyButtons;
+    public TextMeshProUGUI DifficultyDescription;
+    [Header("Shop Balances")]
+    public TextMeshProUGUI[] PackEssenceTexts; // Munitions, Mobility, Survival, Gadget.
 
     [Header("Shop Components")]
     public Transform PackContainer;
@@ -57,6 +62,8 @@ public class MainMenuUI : MonoBehaviour
     void Awake()
     {
         Instance = this;
+        GameDifficulty.Load();
+        RefreshDifficulty();
     }
 
     void Start()
@@ -84,6 +91,32 @@ public class MainMenuUI : MonoBehaviour
         {
             _lastMousePos = Vector2.zero;
         }
+    }
+
+    public void SelectDifficulty(int difficulty)
+    {
+        GameDifficulty.Select(difficulty);
+        RefreshDifficulty();
+    }
+
+    void RefreshDifficulty()
+    {
+        if (DifficultyButtons != null) for (int i = 0; i < DifficultyButtons.Length; i++)
+        {
+            var button = DifficultyButtons[i];
+            if (button == null) continue;
+            bool selected = i == (int)GameDifficulty.Selected;
+            var colors = button.colors;
+            colors.normalColor = selected ? new Color(1f, .82f, .28f) : Color.white;
+            colors.selectedColor = colors.normalColor;
+            button.colors = colors;
+            var border = button.GetComponent<UnityEngine.UI.Outline>();
+            if (border != null) { border.enabled = selected; border.effectDistance = new Vector2(4, -4); }
+        }
+        if (DifficultyDescription != null)
+            DifficultyDescription.text = GameDifficulty.Selected == RunDifficulty.Easy ? "1x coins  |  Standard experience" :
+                GameDifficulty.Selected == RunDifficulty.Medium ? "1.25x coins  |  1.5x enemy health  |  +10% speed" :
+                "1.5x coins  |  2x enemy health & damage  |  +10% speed\nDouble health growth per wave";
     }
 
     // --- NAVIGATION ---
@@ -163,11 +196,12 @@ public void OpenShop()
 
             GameObject btnObj = Instantiate(PackButtonPrefab, PackContainer);
             
-            TextMeshProUGUI[] texts = btnObj.GetComponentsInChildren<TextMeshProUGUI>();
-            if (texts.Length > 0) texts[0].text = pack.PackName; 
-            if (texts.Length > 1) texts[1].text = pack.Cost + " G";
+            var nameText = btnObj.transform.Find("Name")?.GetComponent<TextMeshProUGUI>();
+            var priceText = btnObj.transform.Find("Price")?.GetComponent<TextMeshProUGUI>();
+            if (nameText != null) nameText.text = pack.PackName;
+            if (priceText != null) priceText.text = pack.Cost + " Coins";
 
-            Transform iconTr = btnObj.transform.Find("Icon");
+            Transform iconTr = btnObj.transform.Find("PackIcon");
             if (iconTr != null && iconTr.GetComponent<Image>())
             {
                 iconTr.GetComponent<Image>().sprite = pack.ClosedPackIcon;
@@ -449,17 +483,18 @@ void Purchase(int count)
 
     public void ResetGameData()
     {
-        if (ShopManager.Instance != null)
-        {
-            ShopManager.Instance.ResetProgress();
-            UpdateCoinDisplay(ShopManager.Instance.CurrentCoins);
-        }
+        var settings = SettingsPanel != null ? SettingsPanel.GetComponent<SettingsMenuUI>() : null;
+        if (settings != null) settings.ShowResetConfirmation();
     }
     void RefreshBalances() { if (ShopManager.Instance != null) UpdateCoinDisplay(ShopManager.Instance.CurrentCoins); }
     void RefreshEssence()
     {
-        if (EssenceBalancesText == null || ShopManager.Instance == null) return;
+        if (ShopManager.Instance == null) return;
         var shop = ShopManager.Instance;
+        if (PackEssenceTexts != null) for (int i = 0; i < Mathf.Min(4, PackEssenceTexts.Length); i++)
+            if (PackEssenceTexts[i] != null) PackEssenceTexts[i].text = ((CardPackType)i) + " Essence\n" +
+                (shop.InfiniteResources ? "Infinite" : shop.GetEssence((CardPackType)i).ToString("N0"));
+        if (EssenceBalancesText == null) return;
         EssenceBalancesText.text = "Munitions " + (shop.InfiniteResources ? "Infinite" : shop.GetEssence(CardPackType.Munitions).ToString()) +
             "  Mobility " + (shop.InfiniteResources ? "Infinite" : shop.GetEssence(CardPackType.Mobility).ToString()) +
             "  Survival " + (shop.InfiniteResources ? "Infinite" : shop.GetEssence(CardPackType.Survival).ToString()) +

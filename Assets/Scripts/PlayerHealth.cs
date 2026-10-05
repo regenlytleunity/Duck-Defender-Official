@@ -136,7 +136,8 @@ public class PlayerHealth : MonoBehaviour
         // 1.4.11: Respect Blink invulnerability via PlayerController
         if (_controller != null && _controller.IsInvulnerable) return false;
 
-        _fractionalIncomingDamage += damage;
+        // Incoming damage is enemy contact, ammunition, or lobber poison.
+        _fractionalIncomingDamage += damage * GameDifficulty.DamageMultiplier;
         int wholeDamage = Mathf.FloorToInt(_fractionalIncomingDamage + .00001f);
         _fractionalIncomingDamage -= wholeDamage;
         _currentHealth -= wholeDamage;

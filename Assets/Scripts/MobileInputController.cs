@@ -22,7 +22,9 @@ public class MobileInputController : MonoBehaviour
     public static MobileInputController Instance;
 
     [Header("Mobile Detection")]
+    [Tooltip("Runtime mobile-input state. Can be forced only in the Editor with AutoDetectPlatform disabled.")]
     public bool IsMobileEnabled = false;
+    [Tooltip("Automatically hide touch controls in the Editor. Disable only for explicit mobile-control testing; player builds always detect the device.")]
     public bool AutoDetectPlatform = true;
 
     [Header("Canvas Settings")]
@@ -92,22 +94,20 @@ public class MobileInputController : MonoBehaviour
             Destroy(gameObject);
             return;
         }
+        // Use the running device, never the Editor's selected build target or
+        // touch-screen capability (desktop PCs can have touch screens too).
+        #if UNITY_EDITOR
+        if (AutoDetectPlatform) IsMobileEnabled = false;
+        #else
+        IsMobileEnabled = Application.isMobilePlatform;
+        #endif
+        FindAndSetupCanvas();
     }
 
     void Start()
     {
-        if (AutoDetectPlatform)
-        {
-            #if UNITY_IOS || UNITY_ANDROID
-                IsMobileEnabled = true;
-            #else
-                IsMobileEnabled = Application.isMobilePlatform;
-            #endif
-        }
-        
         _mainCam = Camera.main;
         SceneManager.sceneLoaded += OnSceneLoaded;
-        FindAndSetupCanvas();
     }
 
     void OnDestroy()

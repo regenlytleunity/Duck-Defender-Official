@@ -126,6 +126,7 @@ public class AudioManager : MonoBehaviour
     private Dictionary<string, Sound> _sfxDictionary;
     private Dictionary<string, Sound> _musicDictionary;
     private List<AudioSource> _sfxPool;
+    readonly Dictionary<AudioSource, float> _sfxGains = new Dictionary<AudioSource, float>();
     private int _nextPoolIndex = 0;
     
     private AudioSource _musicSource;
@@ -138,6 +139,8 @@ public class AudioManager : MonoBehaviour
     // Volume state - saved/loaded via PlayerPrefs
     private float _sfxVolume;
     private float _musicVolume;
+    private float _masterVolume = 1f;
+    private const string PREFS_MASTER_VOLUME = "DuckDefender_MasterVolume";
     
     private const string PREFS_SFX_VOLUME = "DuckDefender_SFXVolume";
     private const string PREFS_MUSIC_VOLUME = "DuckDefender_MusicVolume";
@@ -221,6 +224,8 @@ public class AudioManager : MonoBehaviour
         // Load saved volume preferences
         _sfxVolume = PlayerPrefs.GetFloat(PREFS_SFX_VOLUME, DefaultSFXVolume);
         _musicVolume = PlayerPrefs.GetFloat(PREFS_MUSIC_VOLUME, DefaultMusicVolume);
+        _masterVolume = Mathf.Clamp01(PlayerPrefs.GetFloat(PREFS_MASTER_VOLUME, 1f));
+        AudioListener.volume = _masterVolume;
     }
 
     // === SFX PLAYBACK ===
@@ -259,7 +264,8 @@ public class AudioManager : MonoBehaviour
         
         AudioSource source = GetNextSFXSource();
         source.clip = sound.Clip;
-        source.volume = sound.Volume * _sfxVolume * volumeMultiplier;
+        _sfxGains[source] = sound.Volume * volumeMultiplier;
+        source.volume = _sfxGains[source] * _sfxVolume;
         
         float pitch = sound.Pitch;
         if (sound.RandomizePitch)
@@ -553,8 +559,7 @@ public class AudioManager : MonoBehaviour
         newSource.loop = loop;
         newSource.Play();
         
-        float targetNewVolume = newMusic.Volume * _musicVolume;
-        float startOldVolume = oldSource.volume;
+        float startOldGain = _musicVolume > .00001f ? oldSource.volume / _musicVolume : 0f;
         float elapsed = 0f;
         
         while (elapsed < MusicFadeDuration)
@@ -562,13 +567,13 @@ public class AudioManager : MonoBehaviour
             elapsed += Time.unscaledDeltaTime; // Use unscaled so music fades work during pause
             float t = elapsed / MusicFadeDuration;
             
-            newSource.volume = Mathf.Lerp(0f, targetNewVolume, t);
-            oldSource.volume = Mathf.Lerp(startOldVolume, 0f, t);
+            newSource.volume = Mathf.Lerp(0f, newMusic.Volume * _musicVolume, t);
+            oldSource.volume = Mathf.Lerp(startOldGain * _musicVolume, 0f, t);
             
             yield return null;
         }
         
-        newSource.volume = targetNewVolume;
+        newSource.volume = newMusic.Volume * _musicVolume;
         oldSource.Stop();
         oldSource.volume = 0f;
         
@@ -601,6 +606,8 @@ public class AudioManager : MonoBehaviour
     public void SetSFXVolume(float volume)
     {
         _sfxVolume = Mathf.Clamp01(volume);
+        foreach (var source in _sfxGains)
+            if (source.Key != null) source.Key.volume = source.Value * _sfxVolume;
         PlayerPrefs.SetFloat(PREFS_SFX_VOLUME, _sfxVolume);
         PlayerPrefs.Save();
     }
@@ -628,4 +635,12 @@ public class AudioManager : MonoBehaviour
     
     public float GetSFXVolume() => _sfxVolume;
     public float GetMusicVolume() => _musicVolume;
+    public float GetMasterVolume() => _masterVolume;
+    public void SetMasterVolume(float volume)
+    {
+        _masterVolume = Mathf.Clamp01(volume);
+        AudioListener.volume = _masterVolume;
+        PlayerPrefs.SetFloat(PREFS_MASTER_VOLUME, _masterVolume);
+        PlayerPrefs.Save();
+    }
 }

@@ -170,6 +170,17 @@ When code requires Unity-side setup, provide exact instructions instead of prete
 
 ---
 
+# UI Text Appearance
+
+All future text additions must have a **white infill** (the visible glyph face),
+including labels, buttons, menus, HUD text, and dynamically created text.
+
+Preserve white interiors when using outlines, shadows, or font materials. Use
+outlines, shadows, or contrasting backgrounds for readability rather than
+changing the infill to another color.
+
+---
+
 # Unity `.meta` Safety
 
 Never hand-author or fabricate Unity `.meta` files.

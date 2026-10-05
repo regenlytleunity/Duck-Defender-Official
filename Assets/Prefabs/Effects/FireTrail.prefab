@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 88195006323162181}
   - component: {fileID: 5666324774187860929}
   - component: {fileID: 1739343004836732074}
+  - component: {fileID: 4284681382271569632}
   m_Layer: 0
   m_Name: FireTrail FX
   m_TagString: Untagged
@@ -4833,6 +4834,18 @@ ParticleSystemRenderer:
   m_MeshWeighting2: 1
   m_MeshWeighting3: 1
   m_MaskInteraction: 0
+--- !u!114 &4284681382271569632
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7671401240927365086}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3c6781c200bdabc469425bab281c86a3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &8247111887722101776
 GameObject:
   m_ObjectHideFlags: 0
@@ -4923,3 +4936,4 @@ MonoBehaviour:
   AnchorBottomToSpawn: 1
   Renderer: {fileID: 0}
   ShowDamagePopups: 1
+  SlowPercent: 0

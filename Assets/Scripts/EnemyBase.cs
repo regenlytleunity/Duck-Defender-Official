@@ -140,7 +140,7 @@ public abstract class EnemyBase : MonoBehaviour
 
     public virtual void Initialize(float waveDifficulty)
     {
-        MaxHealth = Mathf.Max(1, Mathf.Floor(HealthAtWave(Mathf.Max(1, (int)waveDifficulty)) * (IsElite ? EliteHealthMultiplier : 1f)));
+        MaxHealth = Mathf.Max(1, Mathf.Floor(HealthAtWave(Mathf.Max(1, (int)waveDifficulty)) * (IsElite ? EliteHealthMultiplier : 1f))) * GameDifficulty.HealthMultiplier;
         CurrentHealth = MaxHealth;
 
         // === 1.4.11 SABOTAGE ===
@@ -153,7 +153,7 @@ public abstract class EnemyBase : MonoBehaviour
             CurrentHealth = Mathf.Max(1, (int)MaxHealth - missingHP);
         }
 
-        _originalSpeed = SpeedAtSpawn;
+        _originalSpeed = SpeedAtSpawn * GameDifficulty.SpeedMultiplier;
         CurrentSpeed = _originalSpeed;
 
         Rb = GetComponent<Rigidbody2D>();

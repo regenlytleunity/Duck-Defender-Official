@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 694490917319941361}
   - component: {fileID: 4955953030391254320}
   - component: {fileID: 7517568444327341508}
+  - component: {fileID: 793692572768816618}
   m_Layer: 0
   m_Name: ObsidianTrailFX
   m_TagString: Untagged
@@ -4833,6 +4834,18 @@ ParticleSystemRenderer:
   m_MeshWeighting2: 1
   m_MeshWeighting3: 1
   m_MaskInteraction: 0
+--- !u!114 &793692572768816618
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4803545269501859320}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3c6781c200bdabc469425bab281c86a3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &7374180665008441724
 GameObject:
   m_ObjectHideFlags: 0

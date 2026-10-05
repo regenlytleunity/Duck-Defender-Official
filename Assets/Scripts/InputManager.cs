@@ -44,9 +44,12 @@ public class InputManager : MonoBehaviour
             DontDestroyOnLoad(gameObject);
             LoadKeybinds();
         }
-        else
+        else if (Instance != this)
         {
-            Destroy(gameObject);
+            // The scene's InputSystem also owns MobileInputController.
+            // Keep that component alive so it can hide/show the touch canvas.
+            enabled = false;
+            Destroy(this);
         }
     }
 
@@ -135,6 +138,10 @@ public class InputManager : MonoBehaviour
             case "crouch": CrouchKey = newKey; break;
             case "dash": DashKey = newKey; break;
             case "shoot": ShootKey = newKey; break;
+            case "moveleftalt": MoveLeftAlt = newKey; break;
+            case "moverightalt": MoveRightAlt = newKey; break;
+            case "jumpalt": JumpAlt = newKey; break;
+            case "crouchalt": CrouchAlt = newKey; break;
             case "pause": PauseKey = newKey; break;
         }
         SaveKeybinds();
@@ -150,6 +157,10 @@ public class InputManager : MonoBehaviour
             case "crouch": return CrouchKey;
             case "dash": return DashKey;
             case "shoot": return ShootKey;
+            case "moveleftalt": return MoveLeftAlt;
+            case "moverightalt": return MoveRightAlt;
+            case "jumpalt": return JumpAlt;
+            case "crouchalt": return CrouchAlt;
             case "pause": return PauseKey;
             default: return KeyCode.None;
         }
@@ -163,6 +174,10 @@ public class InputManager : MonoBehaviour
         PlayerPrefs.SetInt("Key_Crouch", (int)CrouchKey);
         PlayerPrefs.SetInt("Key_Dash", (int)DashKey);
         PlayerPrefs.SetInt("Key_Shoot", (int)ShootKey);
+        PlayerPrefs.SetInt("Key_MoveLeftAlt", (int)MoveLeftAlt);
+        PlayerPrefs.SetInt("Key_MoveRightAlt", (int)MoveRightAlt);
+        PlayerPrefs.SetInt("Key_JumpAlt", (int)JumpAlt);
+        PlayerPrefs.SetInt("Key_CrouchAlt", (int)CrouchAlt);
         PlayerPrefs.SetInt("Key_Pause", (int)PauseKey);
         PlayerPrefs.Save();
     }
@@ -181,6 +196,14 @@ public class InputManager : MonoBehaviour
             DashKey = (KeyCode)PlayerPrefs.GetInt("Key_Dash");
         if (PlayerPrefs.HasKey("Key_Shoot"))
             ShootKey = (KeyCode)PlayerPrefs.GetInt("Key_Shoot");
+        if (PlayerPrefs.HasKey("Key_MoveLeftAlt"))
+            MoveLeftAlt = (KeyCode)PlayerPrefs.GetInt("Key_MoveLeftAlt");
+        if (PlayerPrefs.HasKey("Key_MoveRightAlt"))
+            MoveRightAlt = (KeyCode)PlayerPrefs.GetInt("Key_MoveRightAlt");
+        if (PlayerPrefs.HasKey("Key_JumpAlt"))
+            JumpAlt = (KeyCode)PlayerPrefs.GetInt("Key_JumpAlt");
+        if (PlayerPrefs.HasKey("Key_CrouchAlt"))
+            CrouchAlt = (KeyCode)PlayerPrefs.GetInt("Key_CrouchAlt");
         if (PlayerPrefs.HasKey("Key_Pause"))
             PauseKey = (KeyCode)PlayerPrefs.GetInt("Key_Pause");
     }

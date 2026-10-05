@@ -468,7 +468,11 @@ Assets/Scripts/BouncyEnemyProjectile.cs
 ```
 
 EnemyBase floors additive health from WaveManager's explicit piecewise table;
-the active four enemy prefabs no longer scale movement or firing rate with waves.
+the active four enemy prefabs do not scale movement or firing rate with waves.
+GameDifficulty applies the selected run modifiers: Easy is unchanged, Medium has
+1.5x health and 1.1x movement speed, and Hard has 2x health, 2x incoming enemy
+damage, 1.1x movement speed, and twice the additive wave-health growth. Existing
+wave spawn schedules and counts are unchanged.
 Tanks derive health as four times the rounded normal ground health. Elite enemies
 reuse the normal prefabs with preserved enlarged/darker visuals, double coin rewards,
 and 25% more XP (LevelManager carries fractional XP). Off-screen spawns reject damage
@@ -1049,9 +1053,13 @@ DontDestroyOnLoad(gameObject)
 PlayerPrefs keys include:
 
 ```text
+DuckDefender_MasterVolume
 DuckDefender_SFXVolume
 DuckDefender_MusicVolume
 ```
+
+Master volume controls AudioListener.volume; SFX and music retain independent channel gains.
+Changing SFX updates currently playing pooled sources as well as future sounds.
 
 ### SliceMode
 
@@ -1117,6 +1125,27 @@ ButtonClickSound.cs
 
 `MenuController.cs` contains `MainMenuController`.
 
+MainMenu.unity stores the menu, 2x2 pack shop, six-card index pages (three columns),
+and settings layouts. MainMenuUI owns the saved difficulty selection and panel
+navigation. CardIndexUI filters by pack and pages by rarity/name; CardDisplay
+continues to own the existing upgrade/ascension buttons and collection refreshes.
+
+SettingsMenuUI binds master/SFX/music sliders, the saved tips toggle, particle
+visibility, primary/alternate key bindings, and progress reset confirmation.
+Modal CanvasGroups prevent background keyboard interaction; their Images block
+pointer events. ParticleVisibility on existing effect prefabs hides particle
+renderers without disabling gameplay objects, colliders or sprite telegraphs.
+New particle prefabs should carry this component too.
+
+GameDifficulty persists its selection in DuckDefender_Difficulty. LevelManager
+applies 1x/1.25x/1.5x positive coin rewards, retaining fractional coins across
+awards within a run. Shop prices and starting saved balances are unaffected.
+
+UIUpdateSetup (Editor-only) authors the saved layout through Unity APIs.
+UIUpdateVerification and the Editor-only UIUpdatePlayProbe use the existing
+SaveSystem.VerificationSavePath to exercise menu flows in an isolated profile
+and restore the tested PlayerPrefs on leaving Play Mode. See Docs/UI_UPDATE.md.
+
 ---
 
 # Input Architecture
@@ -1145,6 +1174,21 @@ Assets/Scripts/VirtualJoystick.cs
 ```
 
 `Inputhelper.cs` contains `InputHelper`.
+
+Desktop movement, jump, dash and shooting use InputManager's saved bindings;
+mobile input still takes priority. MainMenu includes the persistent InputManager,
+so settings changes carry into gameplay. The keybind screen exposes six primary
+actions and four alternate movement keys, rejects duplicates, and supports
+restoring defaults. Escape cancels capture.
+
+InputManager removes only a duplicate component, preserving MobileInputController
+on the scene's shared InputSystem object. MobileInputController sets canvas
+visibility in Awake before the first frame and refreshes it after scene changes.
+Player builds use Application.isMobilePlatform; desktop touch capability and the
+Editor's build target do not enable mobile controls. Editor auto detection always
+hides them; explicit joystick testing uses AutoDetectPlatform=false and
+IsMobileEnabled=true before Play Mode. Those serialized flags cannot force touch
+controls on a non-mobile player build.
 
 New gameplay input should generally integrate through the existing abstraction rather than introducing another input path.
 
