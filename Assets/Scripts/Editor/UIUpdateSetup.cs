@@ -12,7 +12,7 @@ public static class UIUpdateSetup
 {
     static TMP_FontAsset _font;
     static Sprite _buttonSprite;
-    static readonly Color Ink = new Color(.08f, .13f, .20f);
+    static readonly Color Ink = Color.white;
     static readonly Color Paper = new Color(.82f, .90f, .98f);
 
     [MenuItem("Duck Defender/UI/Apply October Layout")]
@@ -36,6 +36,7 @@ public static class UIUpdateSetup
         menu.MenuPanel.SetActive(true);
         menu.ShopPanel.SetActive(false); menu.IndexPanel.SetActive(false); menu.SettingsPanel.SetActive(false);
         menu.ConfirmPanel.SetActive(false); menu.OpeningOverlay.SetActive(false);
+        ConfigurePixelSizing(menu);
         EditorUtility.SetDirty(menu);
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
@@ -43,6 +44,104 @@ public static class UIUpdateSetup
         ConfigureParticles();
         AssetDatabase.SaveAssets();
         Debug.Log("[UI Update] Menu, shop, index, settings and particle preferences wired and saved.");
+    }
+
+    [MenuItem("Duck Defender/UI/Apply Button Sizing and Index Layout")]
+    public static void ApplyNativeSpriteSizing()
+    {
+        if (EditorApplication.isPlaying) throw new InvalidOperationException("Exit Play Mode first.");
+        var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+        if (scene.path != "Assets/Scenes/MainMenu.unity") throw new InvalidOperationException("Open MainMenu first.");
+        var menu = UnityEngine.Object.FindFirstObjectByType<MainMenuUI>();
+        if (menu == null) throw new InvalidOperationException("MainMenuUI is missing.");
+        Undo.RegisterFullObjectHierarchyUndo(menu.gameObject, "Double-size menu buttons and index layout");
+        ConfigurePixelSizing(menu);
+        EditorSceneManager.MarkSceneDirty(scene);
+        EditorSceneManager.SaveScene(scene);
+    }
+
+    static void FixedSize(RectTransform rect, Vector2 size)
+    {
+        Vector2 center = (rect.anchorMin + rect.anchorMax) * .5f;
+        rect.anchorMin = rect.anchorMax = center;
+        rect.pivot = new Vector2(.5f, .5f);
+        rect.anchoredPosition = Vector2.zero;
+        rect.sizeDelta = size;
+        rect.localScale = Vector3.one;
+        rect.localRotation = Quaternion.identity;
+    }
+
+    static void ConfigurePixelSizing(MainMenuUI menu)
+    {
+        var mainSprite = menu.MenuPanel.transform.Find("PlayButton").GetComponent<UnityEngine.UI.Image>().sprite;
+        var standardSprite = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/UISprite.psd");
+        if (mainSprite == null || standardSprite == null) throw new InvalidOperationException("Button sprites are missing.");
+        string[] mainNames = {"PlayButton","ShopButton","IndexButton","HostButton","JoinButton",
+            "RankedButton","SettingsButton","LeaderboardButton","BackButton","KeybindsButton","ResetDataButton"};
+        var index = menu.IndexPanel.GetComponent<CardIndexUI>();
+        var canvas = menu.GetComponent<Canvas>();
+        Vector2 buttonSize = mainSprite.rect.size * canvas.referencePixelsPerUnit / mainSprite.pixelsPerUnit * 2;
+        _font = menu.TotalCoinsText.font;
+        _buttonSprite = mainSprite;
+        index.LayoutButton = Button(index.transform,"LayoutButton","LAYOUT: 3 x 1",.035f,.09f,.255f,.15f,index.CycleLayout);
+        index.LayoutText = index.LayoutButton.GetComponentInChildren<TextMeshProUGUI>(true);
+        FixedSize((RectTransform)index.LayoutButton.transform,new Vector2(420,64));
+        foreach (var button in menu.GetComponentsInChildren<UnityEngine.UI.Button>(true))
+        {
+            var image = button.GetComponent<UnityEngine.UI.Image>();
+            if (image == null) continue;
+            bool main = mainNames.Contains(button.name) || index.PackButtons.Contains(button);
+            image.sprite = main ? mainSprite : standardSprite;
+            image.overrideSprite = null;
+            image.type = main ? UnityEngine.UI.Image.Type.Simple : UnityEngine.UI.Image.Type.Sliced;
+            image.preserveAspect = main;
+            image.color = main ? Color.white : new Color(.24f,.30f,.38f);
+            button.targetGraphic = image;
+            if (main)
+            {
+                FixedSize(image.rectTransform, buttonSize);
+                var rect = image.rectTransform;
+                // Leave room at the edges and between adjacent double-size buttons.
+                if (button.name == "BackButton" || index.PackButtons.Contains(button))
+                    rect.anchorMin = rect.anchorMax = new Vector2(.145f,rect.anchorMin.y);
+                else if (button.name == "SettingsButton")
+                    rect.anchorMin = rect.anchorMax = new Vector2(.855f,rect.anchorMin.y);
+                else if (button.name == "LeaderboardButton")
+                    rect.anchorMin = rect.anchorMax = new Vector2(.465f,rect.anchorMin.y);
+            }
+            var colors = button.colors; colors.fadeDuration = 0; button.colors = colors;
+            foreach (var label in button.GetComponentsInChildren<TextMeshProUGUI>(true))
+            {
+                label.color = Color.white;
+                label.extraPadding = false;
+                label.UpdateMeshPadding();
+                label.textWrappingMode = TextWrappingModes.NoWrap;
+                label.enableAutoSizing = true;
+                label.fontSizeMax = main ? 36 : 24;
+                label.fontSizeMin = main ? 28 : 12;
+                label.fontSize = label.fontSizeMax;
+                label.margin = main ? new Vector4(12,0,12,0) : new Vector4(6,0,6,0);
+            }
+        }
+        // Three compact controls together occupy the same width as the double-size Play button.
+        var play = (RectTransform)menu.MenuPanel.transform.Find("PlayButton");
+        for (int i=0;i<menu.DifficultyButtons.Length;i++)
+        {
+            var rect = (RectTransform)menu.DifficultyButtons[i].transform;
+            FixedSize(rect, new Vector2((buttonSize.x-16)/3f,48));
+            rect.anchorMin = rect.anchorMax = play.anchorMin;
+            rect.anchoredPosition = new Vector2((i-1)*(rect.sizeDelta.x+8),-buttonSize.y*.5f-36);
+            var label = rect.GetComponentInChildren<TextMeshProUGUI>(true);
+            label.fontSizeMax=24;label.fontSizeMin=18;label.fontSize=24;
+        }
+        var logo = menu.MenuPanel.transform.Find("Game Logo").GetComponent<UnityEngine.UI.Image>();
+        FixedSize(logo.rectTransform, logo.sprite.rect.size * canvas.referencePixelsPerUnit / logo.sprite.pixelsPerUnit);
+        logo.type = UnityEngine.UI.Image.Type.Simple;
+        logo.preserveAspect = true;
+        // Keep the cards clear of the double-size pack selectors.
+        Area(index.ContentArea,.285f,.12f,.985f,.88f);
+        EditorUtility.SetDirty(index);
+        EditorUtility.SetDirty(menu);
     }
 
     static RectTransform Node(Transform parent, string name)

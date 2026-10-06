@@ -9,8 +9,8 @@ use +10% enemy movement speed; Hard doubles stat growth**.
 - Main menu: left-side navigation, difficulty selection directly below Play,
   exclusive selected border, and disabled Host, Join, Ranked and Leaderboard.
 - Shop: vertical coin/essence balances and four packs in a 2x2 grid.
-- Index: pack tabs on the left, selected pack essence and coins above, six cards
-  per page in three columns, and bounded previous/next controls.
+- Index: pack tabs on the left, selected pack essence and coins above, a layout
+  button cycling 3x1, 4x2 and 3x2, and bounded previous/next controls.
 - Settings: master, SFX and music sliders; saved tips and particle switches;
   primary/alternate key bindings; restore defaults; and progress reset confirmation.
 - Existing pixel art, font, pack definitions, collection rules and card controls
@@ -45,9 +45,9 @@ Paths below are relative to the repository root.
 | --- | --- |
 | `Assets/Scenes/MainMenu.unity` | Saved menu/shop/index/settings layouts, references, persistent callbacks, modal groups and InputManager, authored with Unity APIs. |
 | `Assets/Prefabs/UI Prefabs/ShopPackButton.prefab` | Pack art, name and price placement for the 2x2 shop. |
-| `Assets/Prefabs/UI Prefabs/Prefab_UI_Card_Reward.prefab` | Readable six-card index text and upgrade button labels; existing card behavior retained. |
+| `Assets/Prefabs/UI Prefabs/Prefab_UI_Card_Reward.prefab` | Readable index text and upgrade button labels; existing card behavior retained. |
 | `Assets/Scripts/MainMenuUI.cs` | Difficulty selection, separate essence balances, correct pack child binding, reset prompt routing. |
-| `Assets/Scripts/CardIndexUI.cs` | Pack filtering, six-card pagination, responsive placement and live balances. |
+| `Assets/Scripts/CardIndexUI.cs` | Pack filtering, selectable grid pagination, responsive placement and live balances. |
 | `Assets/Scripts/SettingsMenuUI.cs` | Sliders, preferences, binding capture/conflicts/defaults, confirmation and modal keyboard isolation. |
 | `Assets/Scripts/AudioManager.cs` | Saved master volume and live SFX/music gain updates. |
 | `Assets/Scripts/InputManager.cs` | Save/load and assignment of existing alternate movement bindings. |
@@ -210,3 +210,163 @@ restart the run and return through the menu; confirm keyboard/mouse control stil
 works. On a real mobile build/browser, confirm both joysticks appear and respond.
 Real mobile hardware, standalone player builds and mobile Web browsers were not
 tested in this follow-up.
+
+## Follow-up: larger cards and native sprite sizing
+
+The button dimensions and fixed three-card capacity in this section were
+superseded by the 2x sizing and selectable-grid follow-up below.
+
+The index now displays at most three cards in a single row. At 1920x1080, each
+card is approximately 472x660 pixels, around 64% larger in each dimension than
+the previous two-row layout. Every collection card remains accessible through
+the existing pack tabs and bounded page controls; upgrade and ascension retain
+their existing behavior.
+
+Play, Shop, Index, Host, Join, Ranked, Settings, Leaderboard, every Back button,
+the four index pack selectors, Keybinds and Reset Data use the original 244x48
+sprite at native size. The logo is 442x157. Image aspect ratios are preserved,
+local scale is one, and stretching anchors are removed. These are dimensions
+at the existing 1920x1080 reference resolution; the CanvasScaler continues to
+scale the entire interface uniformly for smaller windows.
+
+Difficulty buttons, page arrows, binding assignments, restore defaults, code
+submission and confirmation controls use Unity's built-in UI button sprite.
+Their dark backgrounds preserve contrast with white text. The three difficulty
+buttons fit directly below Play. Existing pack/card artwork is retained.
+
+Files changed for this follow-up:
+
+| File | Purpose |
+| --- | --- |
+| `Assets/Scenes/MainMenu.unity` | Save native button/logo dimensions, default secondary sprites, fitted white labels, compact difficulty buttons and wider index content through Unity Editor APIs. |
+| `Assets/Scripts/CardIndexUI.cs` | Share a three-card capacity between pagination and the larger proportional single-row layout. |
+| `Assets/Scripts/Editor/UIUpdateSetup.cs` | Add targeted native sizing authoring; include it in future full layout authoring; default generated text to white. |
+| `Assets/Scripts/Editor/UIUpdateVerification.cs` | Update page expectations and ascension navigation; verify native dimensions, sprite assignments and the larger three-card row. |
+| `Docs/ARCHITECTURE.md` | Document the current index capacity and sprite sizing policy. |
+| `Docs/UI_UPDATE.md` | Record these changes, verification, setup and remaining checks. |
+
+The user's existing unsaved MainMenu edits were backed up before the targeted
+operation and retained when saving the scene, including the white text,
+version label and keybind wording. The full layout rebuild was not run.
+No serialized fields were renamed, no callbacks were replaced, and no prefab,
+package or project setting changes were required for this follow-up.
+
+Verification actually performed:
+
+- Unity compilation passed: compilationFailed=false and not compiling.
+- 129 menu-flow Play Mode assertions passed, including all 47 collection cards,
+  description overflow, pack/page boundaries, actual upgrade/ascension callbacks,
+  difficulty selection, shop purchases, settings, key binding and reset behavior.
+- 93 native sprite and three-card layout assertions passed at 1920x1080.
+- Rendered menu, index, settings and keybind screens were visually checked at
+  1920x1080 and 960x600. Shop and reset confirmation were also checked at 960x600.
+- Graphics raycaster checks reached active controls on these screens, including
+  the resized Back buttons, pack tabs, page arrows and secondary controls.
+- Tests used disposable progression data. Exiting Play Mode restored preferences;
+  the save override, preference snapshot and session key were verified cleared.
+- MainMenu was left saved and clean in Edit Mode. The temporary Game View size
+  was removed and the original 1920x1080 selection restored.
+- Source/document whitespace checks passed. Preview PNGs were copied outside
+  Assets and their temporary asset folder removed through AssetDatabase.
+
+**Required Inspector, scene or prefab setup: none.** The saved scene is ready.
+The optional menu command **Duck Defender > UI > Apply Button Sizing and Index Layout**
+reapplies only this sizing/style operation; normal play does not require it.
+
+Play Mode checklist for visual approval:
+
+1. Open MainMenu: compare the logo and all main buttons with their original art;
+   select each difficulty and open Shop, Index and Settings.
+2. In Index, visit all four packs, advance to the last page and return; confirm
+   no page has more than three cards and descriptions are readable.
+3. Try an affordable upgrade/ascension and confirm the card and balances refresh.
+4. Open Keybinds and the reset confirmation; check secondary button readability,
+   navigation and Back buttons at the intended shipping window size.
+
+No player build, deployed WebGL session, physical input test or mobile-device
+visual test was performed for this sizing follow-up. Gameplay balance was
+unchanged; its earlier checks above were not rerun for this UI-only change.
+
+
+## Follow-up: 2x button sprites and selectable index layouts
+
+Main pixel-art buttons now use twice the sprite's native width and height:
+488x96 at the reference resolution, preserving the original 244:48 proportions.
+This applies to Play, Shop, Index, Host, Join, Ranked, Settings, Leaderboard,
+Back, the index pack selectors, Keybinds and Reset Data. Labels and the compact
+difficulty controls were resized to suit. Back, pack tabs, Settings and
+Leaderboard were positioned to keep the larger controls inside the screen and
+clear of adjacent elements. The index content area leaves room for the wider
+tabs. Secondary controls retain Unity's default button sprite and white text.
+The logo retains its undistorted size from the previous update.
+
+The new **LAYOUT** button beneath the pack tabs cycles:
+
+1. **3 x 1**: three cards (default).
+2. **4 x 2**: eight cards.
+3. **3 x 2**: six cards.
+4. Back to **3 x 1**.
+
+Switching grids recomputes page counts and keeps the previously first visible
+card on the resulting page. The current grid is shown on the button. Pack
+changes and closing/reopening the index retain the grid during the current menu
+scene; entering a new menu scene returns to 3x1. Card proportions, sorting,
+collection state, upgrade and ascension controls are preserved.
+
+Files changed for this follow-up:
+
+| File | Purpose |
+| --- | --- |
+| `Assets/Scripts/CardIndexUI.cs` | Own grid state, layout cycling, dynamic capacity/page counts, card positioning and current-grid label. |
+| `Assets/Scripts/Editor/UIUpdateSetup.cs` | Author 2x buttons with appropriate label sizes/spacing; add and wire the Layout button through Unity APIs. |
+| `Assets/Scenes/MainMenu.unity` | Save the new dimensions/positions and Layout button, label references and CycleLayout callback. |
+| `Assets/Scripts/Editor/UIUpdateVerification.cs` | Verify 2x dimensions and each grid's ordered card access, partial pages, navigation, retention, upgrades and ascensions. |
+| `Docs/ARCHITECTURE.md` | Describe the implemented 2x sizing and selectable-grid ownership/lifetime. |
+| `Docs/UI_UPDATE.md` | Record the final behavior, setup, verification and visual checklist. |
+
+Serialization impact: CardIndexUI adds LayoutButton and LayoutText references,
+both assigned and verified in MainMenu. Existing serialized fields and callbacks
+were retained. No new script assets, prefab changes, package changes or project
+settings changes were required. MainMenu was backed up before authoring; existing
+scene changes from previous work remain intact.
+
+Verification actually performed:
+
+- Unity compilation passed with compilationFailed=false.
+- **129 menu-flow assertions passed**, covering existing menu, shop, difficulty,
+  settings and collection behavior.
+- **94 button sizing/default index assertions passed**, including 488x96 pixel
+  buttons, preserved image proportions and the new default-sprite Layout control.
+- **595 grid assertions passed**, including all 47 cards in every layout,
+  ordering, row/column placement, partial pages, page boundaries, layout-cycle
+  order and wraparound, first-card retention, reopening the panel and real
+  upgrade/ascension callbacks in every grid.
+- Rendered MainMenu, Shop, Settings, Keybinds and all three index layouts were
+  visually inspected at **1920x1080** and **960x600**. Graphics raycaster checks
+  after rendering reached the active controls, including Layout and card actions.
+- Tests used disposable progression data. The original Game View size was
+  restored and temporary size removed. Exiting Play Mode restored preferences
+  and cleared the verification save/session override.
+- MainMenu was left saved and clean in Edit Mode, with no missing scripts.
+  Source/document whitespace checks passed. Unity-generated empty scene fields
+  retain Unity's trailing spaces; serialized YAML was not manually edited.
+  Screenshots were written outside Assets; no temporary assets remain.
+
+**Required Inspector, scene or prefab setup: none.** The new button and callback
+are already saved and verified. The optional authoring menu is now
+**Duck Defender > UI > Apply Button Sizing and Index Layout**; it is not needed
+for normal play.
+
+Play Mode checklist:
+
+1. Compare the larger main buttons with the original art, then open each panel
+   and use Back to check navigation and spacing.
+2. Open Index and click Layout three times: 3x1 -> 4x2 -> 3x2 -> 3x1.
+3. Change grids on the last page; check the page count and that the current card
+   stays accessible. Change packs and reopen Index to check grid retention.
+4. Use upgrade/ascension on an eligible card in each grid and inspect the layout
+   at your intended game window size.
+
+No standalone/WebGL player build, physical input test or mobile-hardware test
+was performed for this follow-up. The denser grids intentionally show smaller
+cards; 3x1 remains the default for readability.

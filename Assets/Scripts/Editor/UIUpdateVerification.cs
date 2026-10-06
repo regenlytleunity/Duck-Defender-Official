@@ -112,13 +112,111 @@ public static class UIUpdateVerification
         var ascension=shop.AllCards.First(c=>c!=null&&!c.IsBasic&&c.Ascension!=CardAscension.None);
         shop.GetCardData(ascension.ID).Level=6;index.SelectPack((int)ascension.PackCategory);
         var ordered=shop.AllCards.Where(c=>c!=null&&!c.IsBasic&&c.PackCategory==ascension.PackCategory).OrderBy(c=>c.Rarity).ThenBy(c=>c.CardName).ToList();
-        int page=ordered.IndexOf(ascension)/6;for(int i=0;i<page;i++)index.NextPage();
+        int page=ordered.IndexOf(ascension)/index.CardsPerPage;for(int i=0;i<page;i++)index.NextPage();
         view=index.ContentArea.GetComponentsInChildren<CardDisplay>().First(c=>c.NameText.text==ascension.CardName);
         Check(view.AscendButton.gameObject.activeSelf&&view.AscendButton.interactable,"ascension control available on paged card");
         before=shop.GetEssence(ascension.PackCategory);view.AscendButton.onClick.Invoke();
         Check(shop.GetCardData(ascension.ID).IsAscended&&shop.GetEssence(ascension.PackCategory)==before-ascension.AscensionCost,"ascension spends correct essence");
         Check(index.EssenceText.text.StartsWith(shop.GetEssence(ascension.PackCategory).ToString("N0")),"essence balance refreshes after ascension");
     }
+    public static string CheckNativeSpriteSizing()
+    {
+        Check(EditorApplication.isPlaying && !string.IsNullOrEmpty(SaveSystem.VerificationSavePath),"isolated Play Mode required");
+        _checks=0;
+        var menu=MainMenuUI.Instance;
+        var index=menu.IndexPanel.GetComponent<CardIndexUI>();
+        string[] mainNames={"PlayButton","ShopButton","IndexButton","HostButton","JoinButton",
+            "RankedButton","SettingsButton","LeaderboardButton","BackButton","KeybindsButton","ResetDataButton"};
+        var sprite=menu.MenuPanel.transform.Find("PlayButton").GetComponent<UnityEngine.UI.Image>().sprite;
+        var standard=AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/UISprite.psd");
+        float ppu=menu.GetComponent<Canvas>().referencePixelsPerUnit;
+        foreach(var button in menu.GetComponentsInChildren<UnityEngine.UI.Button>(true))
+        {
+            var image=button.GetComponent<UnityEngine.UI.Image>();
+            if(image==null || button.GetComponentInParent<CardDisplay>()!=null || button.transform.parent==menu.PackContainer)continue;
+            bool main=mainNames.Contains(button.name)||index.PackButtons.Contains(button);
+            if(main)
+            {
+                Check(image.sprite==sprite && image.type==UnityEngine.UI.Image.Type.Simple && image.preserveAspect,"native button artwork: "+button.name);
+                Check(Vector2.Distance(image.rectTransform.rect.size,sprite.rect.size*ppu/sprite.pixelsPerUnit*2)<.01f,"double-size button dimensions: "+button.name);
+                Check(button.transform.localScale==Vector3.one && image.rectTransform.anchorMin==image.rectTransform.anchorMax,"unstretched button transform: "+button.name);
+            }
+            else Check(image.sprite==standard,"default secondary button texture: "+button.name);
+        }
+        var logo=menu.MenuPanel.transform.Find("Game Logo").GetComponent<UnityEngine.UI.Image>();
+        Check(Vector2.Distance(logo.rectTransform.rect.size,logo.sprite.rect.size*ppu/logo.sprite.pixelsPerUnit)<.01f && logo.transform.localScale==Vector3.one && logo.preserveAspect,"native logo proportions");
+        Check(index.CardsPerPage==3,"three-card page capacity");
+        menu.OpenIndex();index.SelectPack((int)CardPackType.Mobility);Canvas.ForceUpdateCanvases();
+        var cards=index.ContentArea.GetComponentsInChildren<CardDisplay>();
+        Check(cards.Length==3,"three visible cards");
+        foreach(var card in cards)
+        {
+            var rect=(RectTransform)card.transform;
+            Check(Mathf.Approximately(rect.anchorMin.y,.5f),"single centered card row");
+            Check(rect.localScale.x>.8f && Mathf.Approximately(rect.localScale.x,rect.localScale.y),"larger cards with preserved proportions");
+        }
+        return _checks+" double-size buttons and default index layout checks passed";
+    }
+
+    public static string CheckIndexLayouts()
+    {
+        Check(EditorApplication.isPlaying && !string.IsNullOrEmpty(SaveSystem.VerificationSavePath),"isolated Play Mode required");
+        _checks=0;
+        var menu=MainMenuUI.Instance;
+        menu.OpenIndex();
+        var index=menu.IndexPanel.GetComponent<CardIndexUI>();
+        Check(index.LayoutButton!=null && index.LayoutText!=null,"layout button and label assigned");
+        Check(index.LayoutButton.onClick.GetPersistentEventCount()==1,"one serialized layout callback");
+        Check(index.LayoutText.color==Color.white,"layout text has white infill");
+        int[] columns={3,4,3},rows={1,2,2};
+        for(int layout=0;layout<3;layout++)
+        {
+            Check(index.LayoutColumns==columns[layout] && index.LayoutRows==rows[layout],"requested layout cycle order");
+            Check(index.LayoutText.text=="LAYOUT: "+columns[layout]+" x "+rows[layout],"current layout label");
+            CheckIndexProgression(menu,ShopManager.Instance);
+            for(int pack=0;pack<4;pack++)
+            {
+                index.PackButtons[pack].onClick.Invoke();
+                var expected=ShopManager.Instance.AllCards.Where(c=>c!=null&&!c.IsBasic&&(int)c.PackCategory==pack)
+                    .OrderBy(c=>c.Rarity).ThenBy(c=>c.CardName).ToArray();
+                Check(index.PageCount==Mathf.CeilToInt(expected.Length/(float)index.CardsPerPage),"page count for layout and pack");
+                for(int page=0;page<index.PageCount;page++)
+                {
+                    Canvas.ForceUpdateCanvases();
+                    var cards=index.ContentArea.GetComponentsInChildren<CardDisplay>();
+                    Check(cards.Length==Mathf.Min(index.CardsPerPage,expected.Length-page*index.CardsPerPage),"full and partial page capacity");
+                    Check(cards.Select(c=>c.NameText.text).SequenceEqual(expected.Skip(page*index.CardsPerPage).Take(index.CardsPerPage).Select(c=>ShopManager.Instance.GetCardData(c.ID).IsAscended?c.AscendedName:c.CardName)),"ordered cards without omissions");
+                    Check(index.PreviousButton.interactable==(page>0) && index.NextButton.interactable==(page+1<index.PageCount),"pagination button boundaries");
+                    var area=(RectTransform)index.ContentArea;
+                    for(int i=0;i<cards.Length;i++)
+                    {
+                        var rect=(RectTransform)cards[i].transform;
+                        var position=new Vector2((i%columns[layout]+.5f)/columns[layout],1-(i/columns[layout]+.5f)/rows[layout]);
+                        Check(Vector2.Distance(rect.anchorMin,position)<.001f && rect.anchorMin==rect.anchorMax,"card row and column");
+                        Check(Mathf.Approximately(rect.localScale.x,rect.localScale.y) && rect.rect.width*rect.localScale.x<area.rect.width/columns[layout] && rect.rect.height*rect.localScale.y<area.rect.height/rows[layout],"cards fit cells without distortion");
+                    }
+                    index.NextButton.onClick.Invoke();
+                }
+                int last=index.CurrentPage;index.NextPage();Check(index.CurrentPage==last,"last page cannot advance");
+                while(index.PreviousButton.interactable)index.PreviousButton.onClick.Invoke();
+                index.PreviousPage();Check(index.CurrentPage==0,"first page cannot retreat");
+            }
+            index.SelectPack((int)CardPackType.Mobility);
+            while(index.NextButton.interactable)index.NextButton.onClick.Invoke();
+            int firstCard=index.CurrentPage*index.CardsPerPage;
+            menu.OpenMenu();menu.OpenIndex();
+            Check(index.LayoutColumns==columns[layout] && index.LayoutRows==rows[layout],"layout retained after closing index");
+            // Pointer checks run after rendering; same-frame reopen has no graphic depth yet.
+            index.LayoutButton.onClick.Invoke();
+            int start=index.CurrentPage*index.CardsPerPage;
+            Check(start<=firstCard && firstCard<start+index.CardsPerPage,"layout change retains previous first card");
+            Check(index.CurrentPage<index.PageCount,"layout change clamps page");
+        }
+        Check(index.LayoutColumns==3 && index.LayoutRows==1,"layout cycle wraps to 3x1");
+        menu.OpenMenu();
+        return _checks+" index layout checks passed";
+    }
+
     public static string CheckMobileControls(bool expectedVisible = false)
     {
         Check(EditorApplication.isPlaying && !string.IsNullOrEmpty(SaveSystem.VerificationSavePath),"isolated Play Mode required");
@@ -220,8 +318,8 @@ public static class UIUpdateVerification
         {
             index.PackButtons[i].onClick.Invoke();Check((int)index.SelectedPack==i && index.CurrentPage==0,"pack selection resets page");
             int count=shop.AllCards.Count(c=>c!=null&&!c.IsBasic&&(int)c.PackCategory==i);
-            Check(index.PageCount==Mathf.CeilToInt(count/6f),"page count");
-            Check(index.ContentArea.Cast<Transform>().Count(t=>t.gameObject.activeSelf)==Mathf.Min(6,count),"six cards maximum");
+            Check(index.PageCount==Mathf.CeilToInt(count/(float)index.CardsPerPage),"page count");
+            Check(index.ContentArea.Cast<Transform>().Count(t=>t.gameObject.activeSelf)==Mathf.Min(index.CardsPerPage,count),"layout capacity");
             while(index.NextButton.interactable) index.NextButton.onClick.Invoke();
             Check(!index.NextButton.interactable && index.CurrentPage==index.PageCount-1,"last page boundary");
             index.NextPage();Check(index.CurrentPage==index.PageCount-1,"cannot advance beyond last page");

@@ -11,11 +11,15 @@ public class CardIndexUI : MonoBehaviour
     public GameObject CardGridPrefab;
     public GameObject CardDisplayPrefab;
     public UnityEngine.UI.Button[] PackButtons; // Munitions, Mobility, Survival, Gadget.
-    public UnityEngine.UI.Button PreviousButton, NextButton;
-    public TextMeshProUGUI PageText, CoinsText, EssenceText;
+    public UnityEngine.UI.Button PreviousButton, NextButton, LayoutButton;
+    public TextMeshProUGUI PageText, CoinsText, EssenceText, LayoutText;
     public CardPackType SelectedPack = CardPackType.Mobility;
+    public int LayoutColumns => _layoutIndex == 1 ? 4 : 3;
+    public int LayoutRows => _layoutIndex == 0 ? 1 : 2;
+    public int CardsPerPage => LayoutColumns * LayoutRows;
+    int _layoutIndex; // 3x1, 4x2, 3x2; retained while the menu scene is open.
     public int CurrentPage { get; private set; }
-    public int PageCount => Mathf.Max(1, Mathf.CeilToInt(_cards.Count / 6f));
+    public int PageCount => Mathf.Max(1, Mathf.CeilToInt(_cards.Count / (float)CardsPerPage));
     readonly List<CardDefinition> _cards = new List<CardDefinition>();
     readonly List<RectTransform> _displays = new List<RectTransform>();
     ShopManager _shop;
@@ -36,6 +40,13 @@ public class CardIndexUI : MonoBehaviour
         CurrentPage = 0;
         GenerateIndex();
     }
+    public void CycleLayout()
+    {
+        int firstCard = CurrentPage * CardsPerPage;
+        _layoutIndex = (_layoutIndex + 1) % 3;
+        CurrentPage = Mathf.Clamp(firstCard / CardsPerPage, 0, PageCount - 1);
+        ShowPage();
+    }
     public void PreviousPage() { if (CurrentPage > 0) { CurrentPage--; ShowPage(); } }
     public void NextPage() { if (CurrentPage + 1 < PageCount) { CurrentPage++; ShowPage(); } }
     public void GenerateIndex()
@@ -52,13 +63,14 @@ public class CardIndexUI : MonoBehaviour
         if (ContentArea == null || CardDisplayPrefab == null) return;
         foreach (Transform child in ContentArea) { child.gameObject.SetActive(false); Destroy(child.gameObject); }
         _displays.Clear();
-        for (int i = CurrentPage * 6; i < Mathf.Min(_cards.Count, CurrentPage * 6 + 6); i++)
+        for (int i = CurrentPage * CardsPerPage; i < Mathf.Min(_cards.Count, (CurrentPage + 1) * CardsPerPage); i++)
         {
             var card = Instantiate(CardDisplayPrefab, ContentArea);
             card.GetComponent<CardDisplay>().Setup(_cards[i]);
             _displays.Add((RectTransform)card.transform);
         }
         LayoutCards();
+        if (LayoutText != null) LayoutText.text = "LAYOUT: " + LayoutColumns + " x " + LayoutRows;
         if (PageText != null) PageText.text = (CurrentPage + 1) + " / " + PageCount;
         if (PreviousButton != null) PreviousButton.interactable = CurrentPage > 0;
         if (NextButton != null) NextButton.interactable = CurrentPage + 1 < PageCount;
@@ -80,13 +92,13 @@ public class CardIndexUI : MonoBehaviour
     {
         if (ContentArea == null) return;
         var area = (RectTransform)ContentArea;
-        float cellWidth = area.rect.width / 3f, cellHeight = area.rect.height / 2f;
+        float cellWidth = area.rect.width / LayoutColumns, cellHeight = area.rect.height / LayoutRows;
         float scale = Mathf.Max(.01f, Mathf.Min((cellWidth - 24) / 500f, (cellHeight - 18) / 700f));
         for (int i = 0; i < _displays.Count; i++)
         {
             var card = _displays[i];
             if (card == null) continue;
-            card.anchorMin = card.anchorMax = new Vector2((i % 3 + .5f) / 3f, 1 - (i / 3 + .5f) / 2f);
+            card.anchorMin = card.anchorMax = new Vector2((i % LayoutColumns + .5f) / LayoutColumns, 1 - (i / LayoutColumns + .5f) / LayoutRows);
             card.pivot = new Vector2(.5f, .5f);
             card.anchoredPosition = Vector2.zero;
             card.sizeDelta = new Vector2(500, 700);

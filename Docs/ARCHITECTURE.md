@@ -1125,10 +1125,24 @@ ButtonClickSound.cs
 
 `MenuController.cs` contains `MainMenuController`.
 
-MainMenu.unity stores the menu, 2x2 pack shop, six-card index pages (three columns),
+MainMenu.unity stores the menu, 2x2 pack shop, selectable index grids,
 and settings layouts. MainMenuUI owns the saved difficulty selection and panel
 navigation. CardIndexUI filters by pack and pages by rarity/name; CardDisplay
 continues to own the existing upgrade/ascension buttons and collection refreshes.
+
+Main navigation, Back, index pack selectors, Keybinds and Reset Data use the
+existing 244x48 button sprite at twice its native dimensions (488x96). The logo
+uses its native 442x157 dimensions. These images have fixed-size RectTransforms,
+unit local scale and preserved aspect ratios; the existing CanvasScaler still
+scales the whole interface uniformly for the window. Secondary controls use
+Unity's built-in UI button sprite, with dark backgrounds and white text.
+
+CardIndexUI owns a Layout button cycling 3x1, 4x2, 3x2 and back to 3x1, with
+capacities of 3, 8 and 6 cards. Columns/rows drive both pagination and proportional
+card placement. Switching keeps the previous first card on the resulting page;
+page bounds and the displayed layout label refresh immediately. The choice is
+retained across pack changes and reopening the index within the current menu
+scene; a new menu scene starts at 3x1.
 
 SettingsMenuUI binds master/SFX/music sliders, the saved tips toggle, particle
 visibility, primary/alternate key bindings, and progress reset confirmation.
