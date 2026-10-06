@@ -8,7 +8,8 @@ use +10% enemy movement speed; Hard doubles stat growth**.
 
 - Main menu: left-side navigation, difficulty selection directly below Play,
   exclusive selected border, and disabled Host, Join, Ranked and Leaderboard.
-- Shop: vertical coin/essence balances and four packs in a 2x2 grid.
+- Shop: vertical coin/essence balances and four larger pack sprites in a 2x2
+  grid, each with only its coin cost beneath it.
 - Index: pack tabs on the left, selected pack essence and coins above, a layout
   button cycling 3x1, 4x2 and 3x2, and bounded previous/next controls.
 - Settings: master, SFX and music sliders; saved tips and particle switches;
@@ -44,7 +45,7 @@ Paths below are relative to the repository root.
 | File | Purpose |
 | --- | --- |
 | `Assets/Scenes/MainMenu.unity` | Saved menu/shop/index/settings layouts, references, persistent callbacks, modal groups and InputManager, authored with Unity APIs. |
-| `Assets/Prefabs/UI Prefabs/ShopPackButton.prefab` | Pack art, name and price placement for the 2x2 shop. |
+| `Assets/Prefabs/UI Prefabs/ShopPackButton.prefab` | Larger pack art and price placement for the 2x2 shop, without background tiles or duplicate names. |
 | `Assets/Prefabs/UI Prefabs/Prefab_UI_Card_Reward.prefab` | Readable index text and upgrade button labels; existing card behavior retained. |
 | `Assets/Scripts/MainMenuUI.cs` | Difficulty selection, separate essence balances, correct pack child binding, reset prompt routing. |
 | `Assets/Scripts/CardIndexUI.cs` | Pack filtering, selectable grid pagination, responsive placement and live balances. |
@@ -370,3 +371,50 @@ Play Mode checklist:
 No standalone/WebGL player build, physical input test or mobile-hardware test
 was performed for this follow-up. The denser grids intentionally show smaller
 cards; 3x1 remains the default for readability.
+
+
+## Follow-up: shop pack artwork and price only
+
+The shop now displays each existing pack sprite and its coin cost beneath it.
+The gray tile backgrounds and duplicate name text above the packs are hidden.
+Pack sprites are 234x342 at the reference resolution: exactly 3x the original
+78x114 artwork, approximately 26% larger than their previous displayed size.
+Their original proportions are preserved. The root remains an invisible click
+target covering the art and price; hover/pressed tint now targets the artwork.
+
+Files changed:
+
+| File | Purpose |
+| --- | --- |
+| `Assets/Prefabs/UI Prefabs/ShopPackButton.prefab` | Transparent background, hidden duplicate name, larger proportional PackIcon, price below, Button targetGraphic assigned to the icon. |
+| `Assets/Scripts/Editor/UIUpdateSetup.cs` | Preserve this presentation in future layout authoring; add a targeted Apply Shop Pack Artwork operation. |
+| `Docs/ARCHITECTURE.md` | Document the current prefab presentation and pointer behavior. |
+| `Docs/UI_UPDATE.md` | Record changes, verification and visual checklist. |
+
+The existing prefab was edited with PrefabUtility and saved in Unity. Its GUID,
+runtime purchase callbacks and scene reference were retained. MainMenu itself
+was not modified; no new assets, packages or project settings were added.
+
+Verified:
+
+- Unity compilation passed.
+- 41 focused Play Mode checks passed: all four pack sprites, exact 3x sizes,
+  preserved aspect ratios, only white price text visible, correct pack selection,
+  affordability gating, one-/three-pack purchases and duplicate-purchase guard.
+- The rendered shop was visually inspected at 1920x1080 and 960x600.
+  Graphics raycaster checks reached all active shop controls and the artwork
+  and price centers of each pack.
+- Tests used disposable progression data; leaving Play Mode restored preferences
+  and cleared the save override. The original Game View resolution was restored.
+- MainMenu remains clean in Edit Mode. Source/document whitespace checks passed.
+
+**Required Inspector, scene or prefab setup: none.** The prefab is saved and
+already referenced by MainMenu. The optional editor command
+**Duck Defender > UI > Apply Shop Pack Artwork** reapplies only this presentation.
+
+Play Mode checklist: open Shop, check all four pack names on their artwork and
+prices below; hover/click a pack and verify the matching purchase confirmation;
+check one-/three-pack purchases with a disposable profile if desired.
+
+No standalone/WebGL build, physical-input test or mobile-hardware verification
+was performed for this visual follow-up.

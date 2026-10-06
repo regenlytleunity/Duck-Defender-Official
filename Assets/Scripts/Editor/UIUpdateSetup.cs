@@ -259,6 +259,17 @@ public static class UIUpdateSetup
         shop.AvailablePacks=shop.AvailablePacks.OrderBy(p=>Array.IndexOf(packOrder,(int)p.PackType)).ToList();
         EditorUtility.SetDirty(shop);
     }
+    [MenuItem("Duck Defender/UI/Apply Shop Pack Artwork")]
+    public static void ApplyShopPackArtwork()
+    {
+        if (EditorApplication.isPlaying) throw new InvalidOperationException("Exit Play Mode first.");
+        var menu = UnityEngine.Object.FindFirstObjectByType<MainMenuUI>();
+        if (menu == null || menu.PackButtonPrefab == null) throw new InvalidOperationException("Open MainMenu first.");
+        _font = menu.TotalCoinsText.font;
+        ConfigurePackPrefab(menu.PackButtonPrefab);
+        AssetDatabase.SaveAssets();
+    }
+
     static void ConfigurePackPrefab(GameObject prefab)
     {
         string path=AssetDatabase.GetAssetPath(prefab);
@@ -267,15 +278,24 @@ public static class UIUpdateSetup
         {
             ((RectTransform)root.transform).sizeDelta=new Vector2(430,400);
             root.transform.localScale=Vector3.one;
-            var image=root.GetComponent<UnityEngine.UI.Image>(); if(image!=null){image.color=new Color(1,1,1,.92f);image.raycastTarget=true;}
+            // Keep a transparent hit area for the pack and its price, without a visible tile.
+            var image=root.GetComponent<UnityEngine.UI.Image>();
+            if(image!=null){image.sprite=null;image.color=Color.clear;image.raycastTarget=true;}
             foreach(var text in root.GetComponentsInChildren<TextMeshProUGUI>(true))
             {
-                if(text.name=="Price") {Area(text.transform,.1f,.01f,.9f,.13f);LabelStyle(text,"100 G",30);}
-                else if(text.name=="Name") {Area(text.transform,.03f,.86f,.97f,.98f);LabelStyle(text,"Pack",32);}
-                else text.gameObject.SetActive(false);
+                text.gameObject.SetActive(text.name=="Price");
+                if(text.name=="Price") {Area(text.transform,.1f,0,.9f,.12f);LabelStyle(text,"100 Coins",30);}
             }
-            var icon=root.transform.Find("PackIcon");
-            if(icon!=null){Area(icon,.20f,.15f,.80f,.83f);icon.GetComponent<UnityEngine.UI.Image>().preserveAspect=true;icon.GetComponent<UnityEngine.UI.Image>().raycastTarget=false;}
+            var icon=root.transform.Find("PackIcon").GetComponent<UnityEngine.UI.Image>();
+            var rect=icon.rectTransform;
+            // Existing pack sprites are 78x114: a crisp 3x image leaves room for the price below.
+            FixedSize(rect,new Vector2(234,342));
+            rect.anchorMin=rect.anchorMax=new Vector2(.5f,1);
+            rect.pivot=new Vector2(.5f,1);
+            rect.anchoredPosition=Vector2.zero;
+            icon.type=UnityEngine.UI.Image.Type.Simple;icon.color=Color.white;
+            icon.preserveAspect=true;icon.raycastTarget=false;
+            root.GetComponent<UnityEngine.UI.Button>().targetGraphic=icon;
             PrefabUtility.SaveAsPrefabAsset(root,path);
         }
         finally {PrefabUtility.UnloadPrefabContents(root);}

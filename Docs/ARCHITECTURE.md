@@ -1130,6 +1130,12 @@ and settings layouts. MainMenuUI owns the saved difficulty selection and panel
 navigation. CardIndexUI filters by pack and pages by rarity/name; CardDisplay
 continues to own the existing upgrade/ascension buttons and collection refreshes.
 
+ShopPackButton uses only the existing named pack artwork and its coin cost.
+The root Image is transparent and remains a pointer hit area; the Button targets
+PackIcon for hover/pressed tint. Duplicate name labels are inactive. PackIcon
+uses 234x342 dimensions (3x the current 78x114 sprites) with preserved aspect,
+and the white price sits beneath it in the existing 2x2 shop grid.
+
 Main navigation, Back, index pack selectors, Keybinds and Reset Data use the
 existing 244x48 button sprite at twice its native dimensions (488x96). The logo
 uses its native 442x157 dimensions. These images have fixed-size RectTransforms,
