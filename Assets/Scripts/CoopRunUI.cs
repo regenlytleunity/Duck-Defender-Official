@@ -18,6 +18,7 @@ public class CoopRunUI : MonoBehaviour
     readonly int[] _selected = new int[4];
     readonly bool[] _ready = new bool[4];
     readonly float[] _nextMove = new float[4];
+    readonly ControllerSelectionFrame[] _selectionFrames = new ControllerSelectionFrame[4];
     LevelUpUI _levelUI;
     float _selectAfter;
 
@@ -70,6 +71,13 @@ public class CoopRunUI : MonoBehaviour
 
     void LateUpdate()
     {
+        for (int i = 0; i < _selectionFrames.Length; i++)
+        {
+            if (_selectionFrames[i] == null) continue;
+            if (_offer != null && _offer.gameObject.activeInHierarchy && !_ready[i] && i < _buttons.Count && _buttons[i].Count > 0)
+                _selectionFrames[i].Show((RectTransform)_buttons[i][_selected[i]].transform);
+            else _selectionFrames[i].Hide();
+        }
         var session = LocalCoopSession.Instance; var camera = Camera.main;
         if (session == null || camera == null || _canvas == null) return;
         for (int i = 0; i < _bars.Count; i++)
@@ -129,9 +137,9 @@ public class CoopRunUI : MonoBehaviour
                 var button = card.ClickButton; button.onClick.RemoveAllListeners(); button.onClick.AddListener(() => { if (!player.UsesGamepad) Select(seat, choice); });
                 var navigation = button.navigation; navigation.mode = UnityEngine.UI.Navigation.Mode.None; button.navigation = navigation;
                 buttons.Add(button);
-                var outline = card.BackgroundImage.gameObject.AddComponent<UnityEngine.UI.Outline>(); outline.effectColor = player.Color; outline.effectDistance = new Vector2(7, -7);
             }
             if (options.Count == 0) { _ready[i] = true; ready.text = "No eligible cards - ready"; }
+            if (player.UsesGamepad && _selectionFrames[i] == null) _selectionFrames[i] = new ControllerSelectionFrame("Player " + (i + 1) + " card selection");
             Highlight(i);
         }
         CheckReady();
@@ -139,7 +147,9 @@ public class CoopRunUI : MonoBehaviour
 
     void Highlight(int seat)
     {
-        for (int i = 0; i < _buttons[seat].Count; i++) _buttons[seat][i].GetComponentInChildren<UnityEngine.UI.Outline>().enabled = i == _selected[seat] && !_ready[seat];
+        if (_selectionFrames[seat] == null) return;
+        if (_ready[seat] || _buttons[seat].Count == 0) _selectionFrames[seat].Hide();
+        else _selectionFrames[seat].Show((RectTransform)_buttons[seat][_selected[seat]].transform);
     }
     static void ConfigureCardText(TMP_Text label, Vector2 min, Vector2 max, float size)
     {
@@ -187,7 +197,12 @@ public class CoopRunUI : MonoBehaviour
         LevelManager.Instance?.FlushCoinSave(); Time.timeScale = 1; LocalCoopSession.RequestedPlayers = 1;
         UnityEngine.SceneManagement.SceneManager.LoadScene("MainMenu");
     }
-    void OnDestroy() { if (Instance == this) Instance = null; }
+    void OnDisable() { foreach (var frame in _selectionFrames) frame?.Hide(); }
+    void OnDestroy()
+    {
+        foreach (var frame in _selectionFrames) frame?.Dispose();
+        if (Instance == this) Instance = null;
+    }
 }
 
 public static class CoopUIElements

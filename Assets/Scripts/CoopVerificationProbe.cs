@@ -16,6 +16,7 @@ public class CoopVerificationProbe : MonoBehaviour
     public static string Result = "Not started";
     public static string OutputPath => Path.Combine(Path.GetTempPath(), "duck-coop-verification");
     readonly List<Gamepad> _pads = new List<Gamepad>();
+    readonly List<Gamepad> _originalPads = new List<Gamepad>();
     readonly List<string> _checks = new List<string>();
     const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
     void Check(bool condition, string message)
@@ -54,6 +55,10 @@ public class CoopVerificationProbe : MonoBehaviour
     {
         Directory.CreateDirectory(OutputPath);
         Check(!string.IsNullOrEmpty(SaveSystem.VerificationSavePath), "Test save is isolated from the host account");
+        // The host uses Gamepad.all[0]; temporarily isolate simulated devices from
+        // connected hardware so a real controller cannot take the test host seat.
+        _originalPads.AddRange(Gamepad.all);
+        foreach (var pad in _originalPads) InputSystem.RemoveDevice(pad);
         for (int i = 0; i < 4; i++) _pads.Add(InputSystem.AddDevice<Gamepad>());
         yield return null;
         var host = MainMenuUI.Instance.GetComponent<HostMenuUI>(); host.Open();
@@ -211,6 +216,10 @@ public class CoopVerificationProbe : MonoBehaviour
         Check(LocalCoopSession.PlayerCount == 1 && LevelManager.Instance.TargetXP == 100 && CoopRunUI.Instance == null, "Solo mode retains one player, normal XP, and its original HUD");
         WaveManager.Instance.StopAllCoroutines();
     }
-    void OnDestroy() { foreach (var pad in _pads) if (pad != null && pad.added) InputSystem.RemoveDevice(pad); }
+    void OnDestroy()
+    {
+        foreach (var pad in _pads) if (pad != null && pad.added) InputSystem.RemoveDevice(pad);
+        foreach (var pad in _originalPads) if (pad != null && !pad.added) InputSystem.AddDevice(pad);
+    }
 }
 #endif

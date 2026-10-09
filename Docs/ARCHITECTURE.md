@@ -1239,6 +1239,10 @@ ControllerMenuNavigation with the first controller, right face/B to confirm and
 bottom face/A to go back. Co-op card panes handle their assigned controllers
 separately; the shared EventSystem's controller submit/move bindings are replaced
 with keyboard-only bindings to prevent duplicate or cross-player submissions.
+Controller focus uses a yellow frame with a dark border drawn in screen pixels,
+independent of button tint and card scale. Shared menus follow EventSystem focus;
+each co-op card pane has its own frame, hidden after that player's confirmation.
+The frames do not intercept pointer input and require no prefab wiring.
 
 Desktop movement, jump, dash and shooting use InputManager's saved bindings;
 mobile input still takes priority. MainMenu includes the persistent InputManager,

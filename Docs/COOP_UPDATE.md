@@ -1,5 +1,45 @@
 # Duck Defender local co-op update
 
+## Controller selection visibility follow-up
+
+Controller selection now has a bright yellow rectangular frame with a dark
+border, rendered independently of button tint, sprite transparency and card
+scale. Shared menus follow the EventSystem's selected control. Co-op card offers
+show one frame per controller and hide each frame when its player confirms.
+The frame stays visible while time is paused and never blocks pointer clicks.
+
+Files changed for this follow-up:
+
+- `Assets/Scripts/ControllerMenuNavigation.cs`: draw and clean up the shared
+  screen-space frame; resolve the current selection after movement before submit.
+  The reusable frame helper is in this existing file.
+- `Assets/Scripts/CoopRunUI.cs`: replace the faint scaled card outline with
+  independent controller frames and hide/dispose them when no longer needed.
+- `Assets/Scripts/CoopVerificationProbe.cs`: temporarily isolate simulated pads
+  from connected hardware during verification, restoring hardware on exit.
+- `Docs/ARCHITECTURE.md`: describe the implemented focus rendering.
+- `Docs/COOP_UPDATE.md`: record the follow-up and its verification.
+
+No Inspector, scene or prefab setup is required. No serialized fields were
+renamed and no scene, prefab, package or project settings were edited.
+
+Verification for this follow-up: Unity C# compilation succeeded; all 127 existing
+co-op Play Mode integration checks passed. Screenshots were reviewed for shared
+menu navigation, Host, a Settings slider/toggle, the host card filter and four
+independent card choices. Pointer hit checks passed for 8 main-menu, 11 Settings
+and 10 filter controls; frame graphics are non-raycast targets. Removing all
+simulated controllers hid the shared frame. The isolated save/preferences were
+restored on Play Mode exit. A new WebGL build and hands-on physical controller
+testing were not performed for this follow-up.
+
+Manual acceptance: with a controller connected, navigate Main Menu, Settings,
+Host and the card filter; confirm one clear frame follows the selected control.
+Check sliders/toggles, return between menus, and choose different co-op cards
+with each controller. Each confirmed player's frame should disappear while
+the other players' frames remain. Mouse clicks should continue to work.
+
+## Original update
+
 Implemented from `Duck Defender Update (2).pdf`, with the user's confirmations to
 credit the host account and extend the existing terrain equally left and right.
 XP Booster and Sabotage bonuses combine additively; Sabotage retains its existing
