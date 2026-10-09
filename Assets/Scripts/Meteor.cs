@@ -4,6 +4,8 @@ using UnityEngine;
 [RequireComponent(typeof(CircleCollider2D))]
 public class Meteor : MonoBehaviour
 {
+    [System.NonSerialized] public PlayerStats OwnerStats;
+
     readonly System.Collections.Generic.List<EnemyBase> _damageTargets = new System.Collections.Generic.List<EnemyBase>();
     [Header("Movement")]
     public float FallSpeed = 15f; 
@@ -51,7 +53,7 @@ public class Meteor : MonoBehaviour
         _hasExploded = true;
 
         float radius = 4.0f; 
-        if (PlayerStats.Instance != null) radius = PlayerStats.Instance.MeteorRadius;
+        if (OwnerStats != null) radius = OwnerStats.MeteorRadius;
 
         // 1. Visuals
         ObjectPooler.SpawnEffect(ExplosionPrefab, transform.position, Quaternion.identity, radius / 3f);
@@ -62,21 +64,22 @@ public class Meteor : MonoBehaviour
             for (int i = 0; i < CoinsToDrop; i++)
             {
                 var coin = Instantiate(CoinPrefab, transform.position, Quaternion.identity).GetComponent<Coin>();
-                if (coin != null) coin.SecondaryMeteorOnPickup = !_secondary && PlayerStats.Instance != null && PlayerStats.Instance.HasAscension(CardAscension.AbsoluteExtinction);
+                if (coin != null) coin.SecondaryMeteorOwner = OwnerStats;
+                if (coin != null) coin.SecondaryMeteorOnPickup = !_secondary && OwnerStats != null && OwnerStats.HasAscension(CardAscension.AbsoluteExtinction);
             }
         }
 
 
         // Apply once per enemy, even when it has multiple colliders.
-        float flat = PlayerStats.Instance != null ? PlayerStats.Instance.MeteorDamage : 10;
-        float damage = PlayerStats.Instance != null
-            ? PlayerStats.Instance.CalculateDamage(flat, false, _secondary ? .5f : 1f)
+        float flat = OwnerStats != null ? OwnerStats.MeteorDamage : 10;
+        float damage = OwnerStats != null
+            ? OwnerStats.CalculateDamage(flat, false, _secondary ? .5f : 1f)
             : flat * (_secondary ? .5f : 1f);
         EnemyBase.CopyActiveEnemies(_damageTargets);
         foreach (var enemy in _damageTargets)
         {
             if (enemy == null || !enemy.IsAlive || Vector2.Distance(transform.position, enemy.transform.position) > radius) continue;
-            enemy.TakeFractionalDamage(damage);
+            enemy.TakeFractionalDamage(damage, OwnerStats);
             if (GameUI.Instance != null) GameUI.Instance.ShowDamagePopup(enemy.transform.position, Mathf.RoundToInt(damage), false);
         }
 

@@ -122,6 +122,7 @@ public class MainMenuUI : MonoBehaviour
     // --- NAVIGATION ---
 public void ShowPanel(GameObject panel)
 {
+    GetComponent<HostMenuUI>()?.Hide();
     StopAllCoroutines();
     MenuPanel.SetActive(false);
     ShopPanel.SetActive(false);
@@ -154,11 +155,13 @@ public void ShowPanel(GameObject panel)
 
     public void OpenMenu()
     {
+        if (GetComponent<HostMenuUI>()?.ReturnFromCards() == true) return;
         ShowPanel(MenuPanel);
     }
     
     public void BackToMainMenu()
     {
+        if (GetComponent<HostMenuUI>()?.ReturnFromCards() == true) return;
         ShowPanel(MenuPanel);
     }
 

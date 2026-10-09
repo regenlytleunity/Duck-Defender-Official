@@ -54,9 +54,28 @@ public class LevelManager : MonoBehaviour
         DrainMeteorQueue();
     }
 
-    public void QueueSecondaryMeteors(int count) { _pendingSecondaryMeteors += Mathf.Max(0, count); }
+    public void QueueSecondaryMeteors(int count, PlayerStats owner = null)
+    {
+        var player = owner != null ? owner.GetComponent<LocalPlayer>() : null;
+        if (player != null) player.PendingSecondaryMeteors += Mathf.Max(0, count);
+        else _pendingSecondaryMeteors += Mathf.Max(0, count);
+    }
+    int _meteorPlayerCursor;
     void DrainMeteorQueue()
     {
+        var session = LocalCoopSession.Instance;
+        if (session != null && session.Players.Count > 0)
+        {
+            int budget = 2;
+            for (int i = 0; i < session.Players.Count && budget > 0; i++)
+            {
+                var player = session.Players[(_meteorPlayerCursor + i) % session.Players.Count];
+                if (!player.Alive) continue;
+                if (player.PendingMeteors > 0) { player.PendingMeteors--; player.Movement.SpawnMeteor(); budget--; }
+                if (budget > 0 && player.PendingSecondaryMeteors > 0) { player.PendingSecondaryMeteors--; player.Movement.SpawnSecondaryMeteor(); budget--; }
+            }
+            _meteorPlayerCursor = (_meteorPlayerCursor + 1) % session.Players.Count;
+        }
         if (PlayerController.Instance == null) return;
         // At most two instantiations per frame; neither reward type can starve the other.
         for (int i = 0; i < 2; i++)
@@ -97,12 +116,27 @@ public class LevelManager : MonoBehaviour
         GameObject player = GameObject.FindGameObjectWithTag("Player");
         if (player) _playerHealth = player.GetComponent<PlayerHealth>();
 
+        TargetXP = (int)System.Math.Min(int.MaxValue, (long)TargetXP * LocalCoopSession.PlayerCount);
         UpdateUI();
         UpdateCoinUI();
     }
 
     public void OnWaveComplete()
     {
+        if (LocalCoopSession.Instance != null && LocalCoopSession.Instance.Players.Count > 0)
+        {
+            int balance = TotalCoins;
+            foreach (var player in LocalCoopSession.Instance.Players)
+            {
+                player.Stats.CompleteWave();
+                if (!player.Alive) continue;
+                for (int i = 0; i < Mathf.Max(0, player.Stats.CoinsPerWave); i++) SpawnPassiveCoin(player.transform.position);
+                int interest = Mathf.FloorToInt(balance * player.Stats.InterestRate);
+                if (interest > 0) AddCoins(interest, player.Stats);
+                player.Health.ApplyWaveRegen();
+            }
+            return;
+        }
         if (PlayerStats.Instance != null) PlayerStats.Instance.CompleteWave();
         // 1.4.11: Wave-end coin gift now spawns physical coins instead of silently adding to counter
         if (CoinsPerWave > 0)
@@ -133,8 +167,7 @@ public class LevelManager : MonoBehaviour
     float _fractionalXP;
     public void AddXP(float amount)
     {
-        float totalMultiplier = XPMultiplier;
-        if (PlayerStats.Instance != null) totalMultiplier = PlayerStats.Instance.XPMultiplier;
+        float totalMultiplier = LocalCoopSession.TeamXPBonus();
 
         _fractionalXP += Mathf.Max(0, amount * totalMultiplier);
         int finalXP = Mathf.FloorToInt(_fractionalXP);
@@ -150,7 +183,7 @@ public class LevelManager : MonoBehaviour
     /// Adds coins directly to the counter. Use this for actual pickup collection (the Coin script calls this).
     /// For per-second/per-wave gifts, prefer SpawnPassiveCoin() which physically spawns coins.
     /// </summary>
-    public void AddCoins(int amount)
+    public void AddCoins(int amount, PlayerStats recipient = null)
     {
         if (amount <= 0) return;
         // Carry fractions: four individual coins and one stack of four pay equally.
@@ -162,6 +195,26 @@ public class LevelManager : MonoBehaviour
         _coinSaveDirty = true;
         UpdateCoinUI();
 
+        var localPlayer = recipient != null ? recipient.GetComponent<LocalPlayer>() : null;
+        if (localPlayer != null)
+        {
+            localPlayer.CoinsCollected += amount;
+            recipient.ReportCoinsGained(amount);
+            if (recipient.HasCoinMeteors)
+            {
+                long earned = (long)localPlayer.CoinsForMeteor + amount;
+                int threshold = Mathf.Max(1, recipient.MeteorThreshold);
+                localPlayer.PendingMeteors += earned / threshold; localPlayer.CoinsForMeteor = (int)(earned % threshold);
+            }
+            if (recipient.HasTripleshot)
+            {
+                long earned = (long)localPlayer.CoinsForShot + amount;
+                int threshold = Mathf.Max(1, recipient.TripleshotThreshold);
+                if (earned >= threshold) localPlayer.Movement.TriggerCoinShotBuff();
+                localPlayer.CoinsForShot = (int)(earned % threshold);
+            }
+            return;
+        }
         if (PlayerStats.Instance == null)
         {
             PlayerStats.Instance = FindFirstObjectByType<PlayerStats>();

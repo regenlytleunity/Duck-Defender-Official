@@ -8,6 +8,9 @@ using System.Collections;
 public abstract class EnemyBase : MonoBehaviour
 {
     public static readonly System.Collections.Generic.List<EnemyBase> ActiveEnemies = new System.Collections.Generic.List<EnemyBase>();
+    protected PlayerStats DamageOwner;
+    PlayerStats _poisonOwner, _toxinOwner;
+    float _nextRetarget;
     public bool IsMarked { get; set; }
     public float HealthRemaining => CurrentHealth;
     float _permanentSlow;
@@ -39,14 +42,14 @@ public abstract class EnemyBase : MonoBehaviour
         return nearest;
     }
 
-    public void TakeFractionalDamage(float damage)
+    public void TakeFractionalDamage(float damage, PlayerStats owner = null)
     {
         if (!CanTakeDamage) return;
         _fractionalDamage += Mathf.Max(0, damage);
         int whole = Mathf.FloorToInt(_fractionalDamage + .00001f);
         if (whole <= 0) return;
         _fractionalDamage -= whole;
-        TakeDamage(whole);
+        TakeDamage(whole, owner);
     }
 
     public void ApplyZoneSlow(float fraction, float seconds = .3f)
@@ -56,7 +59,7 @@ public abstract class EnemyBase : MonoBehaviour
         _zoneSlowUntil = Time.time + seconds;
     }
 
-    public void Defeat() { if (CanTakeDamage) Die(); }
+    public void Defeat(PlayerStats owner = null) { if (CanTakeDamage) { DamageOwner = owner; RecordDamage(CurrentHealth); Die(); } }
     [Header("Enemy Variants")]
     public bool IsElite;
     [Min(1)] public float EliteSizeMultiplier = 1.15f;
@@ -146,9 +149,9 @@ public abstract class EnemyBase : MonoBehaviour
         // === 1.4.11 SABOTAGE ===
         // If the player has Sabotage, enemies spawn with up to 50% HP missing.
         // Capped at 50% per outline (page 4): "Enemy missing health on spawn should get capped at 50%."
-        if (PlayerStats.Instance != null && PlayerStats.Instance.EnemyHealthMissingPercent > 0f)
+        if (LocalCoopSession.TeamSabotage() > 0f)
         {
-            float missingPct = Mathf.Clamp(PlayerStats.Instance.EnemyHealthMissingPercent, 0f, 0.95f);
+            float missingPct = Mathf.Clamp(LocalCoopSession.TeamSabotage(), 0f, 0.95f);
             int missingHP = Mathf.RoundToInt(MaxHealth * missingPct);
             CurrentHealth = Mathf.Max(1, (int)MaxHealth - missingHP);
         }
@@ -168,7 +171,8 @@ public abstract class EnemyBase : MonoBehaviour
         IsSpawnProtected = SpawnProtectionSeconds > 0 && !IsInView(false);
         _spawnProtectionUntil = Time.time + SpawnProtectionSeconds;
 
-        GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
+        var nearestPlayer = LocalCoopSession.NearestAlive(transform.position);
+        GameObject playerObj = nearestPlayer != null ? nearestPlayer.gameObject : null;
         if (playerObj != null)
         {
             PlayerTarget = playerObj.transform;
@@ -191,6 +195,14 @@ public abstract class EnemyBase : MonoBehaviour
     protected virtual void Update()
     {
         if (!IsAlive) return;
+        if (Time.time >= _nextRetarget || TargetHealth == null || TargetHealth.IsDead)
+        {
+            _nextRetarget = Time.time + .2f;
+            var target = LocalCoopSession.NearestAlive(transform.position);
+            PlayerTarget = target != null ? target.transform : null;
+            TargetHealth = target != null ? target.GetComponent<PlayerHealth>() : null;
+            TargetCollider = target != null ? target.GetComponent<Collider2D>() : null;
+        }
         if (IsSpawnProtected && (IsInView(false) || (GameplayCamera == null && Time.time >= _spawnProtectionUntil)))
             IsSpawnProtected = false;
         if (EnemyTipUI.Instance != null) EnemyTipUI.Instance.Observe(this);
@@ -242,19 +254,8 @@ public abstract class EnemyBase : MonoBehaviour
     /// </summary>
     void ApplySlowingAuraIfNearby()
     {
-        if (PlayerStats.Instance == null) return;
-        if (!PlayerStats.Instance.HasSlowingAura) return;
-        if (PlayerTarget == null) return;
-
-        float dist = Vector2.Distance(transform.position, PlayerTarget.position);
-        if (dist > PlayerStats.Instance.SlowingAuraRadius) return;
-
-        // Inside the slowing aura - apply the slow as a velocity damp
-        float slowPct = Mathf.Clamp(PlayerStats.Instance.SlowingAuraSlowPercent, 0f, 0.95f);
-        if (Rb != null)
-        {
-            Rb.linearVelocity = new Vector2(Rb.linearVelocity.x * (1f - slowPct), Rb.linearVelocity.y);
-        }
+        float factor = PlayerStats.ProjectileSpeedFactor(transform.position);
+        if (Rb != null) Rb.linearVelocity = new Vector2(Rb.linearVelocity.x * factor, Rb.linearVelocity.y);
     }
 
     protected abstract void Move();
@@ -269,9 +270,17 @@ public abstract class EnemyBase : MonoBehaviour
             transform.localScale = new Vector3(Mathf.Abs(_spawnScale.x), _spawnScale.y, _spawnScale.z);
     }
 
-    public virtual void TakeDamage(int damage)
+    public virtual void TakeDamage(int damage) { TakeDamage(damage, PlayerStats.Instance); }
+    public void TakeDamage(int damage, PlayerStats owner)
     {
+        if (!CanTakeDamage || damage <= 0) return;
+        DamageOwner = owner;
         ReceiveDamage(damage);
+    }
+    void RecordDamage(float amount)
+    {
+        var player = DamageOwner != null ? DamageOwner.GetComponent<LocalPlayer>() : null;
+        if (player != null) player.DamageDealt += Mathf.Max(0, amount);
     }
 
     protected virtual void ReceiveDamage(float damage)
@@ -281,7 +290,7 @@ public abstract class EnemyBase : MonoBehaviour
         {
             float redirected = damage * .5f;
             damage -= redirected;
-            Protector.AbsorbDamage(redirected);
+            Protector.AbsorbDamage(redirected, DamageOwner);
         }
         ApplyHealthDamage(damage);
     }
@@ -289,6 +298,7 @@ public abstract class EnemyBase : MonoBehaviour
     protected void ApplyHealthDamage(float damage)
     {
         if (!CanTakeDamage || damage <= 0) return;
+        RecordDamage(Mathf.Min(CurrentHealth, damage));
         CurrentHealth = Mathf.Max(0, CurrentHealth - damage);
         if (HealthBarInstance != null) HealthBarInstance.UpdateHealth(CurrentHealth);
         if (gameObject.activeInHierarchy) StartCoroutine(FlashColor(Color.white));
@@ -342,17 +352,19 @@ public abstract class EnemyBase : MonoBehaviour
         StartCoroutine(KnockbackRoutine());
     }
 
-    public void ApplyPoison(float totalDamage)
+    public void ApplyPoison(float totalDamage, PlayerStats owner = null)
     {
         if (!CanTakeDamage || _isPoisoned) return;
+        _poisonOwner = owner != null ? owner : PlayerStats.Instance;
         StartCoroutine(PoisonRoutine(totalDamage));
     }
 
     Coroutine _toxinRoutine;
     float _toxinUntil;
-    public void ApplyDeadlyToxin()
+    public void ApplyDeadlyToxin(PlayerStats owner = null)
     {
         if (!CanTakeDamage) return;
+        _toxinOwner = owner != null ? owner : PlayerStats.Instance;
         _toxinUntil = Time.time + 3;
         if (_toxinRoutine == null) _toxinRoutine = StartCoroutine(DeadlyToxinRoutine());
     }
@@ -362,8 +374,8 @@ public abstract class EnemyBase : MonoBehaviour
         {
             yield return new WaitForSeconds(1);
             if (!IsAlive) break;
-            if (Random.value < .1f) Nearest(transform.position, this)?.ApplyDeadlyToxin();
-            TakeFractionalDamage(PlayerStats.Instance != null ? PlayerStats.Instance.CalculateDamage(5, false) : 5);
+            if (Random.value < .1f) Nearest(transform.position, this)?.ApplyDeadlyToxin(_toxinOwner);
+            TakeFractionalDamage(_toxinOwner != null ? _toxinOwner.CalculateDamage(5, false) : 5, _toxinOwner);
         }
         _toxinRoutine = null;
     }
@@ -415,8 +427,8 @@ public abstract class EnemyBase : MonoBehaviour
         {
             if (_isDead) break;
 
-            float damage = PlayerStats.Instance != null ? PlayerStats.Instance.CalculateDamage(damagePerTick, false) : damagePerTick;
-            TakeFractionalDamage(damage);
+            float damage = _poisonOwner != null ? _poisonOwner.CalculateDamage(damagePerTick, false) : damagePerTick;
+            TakeFractionalDamage(damage, _poisonOwner);
             UpdateColor();
             yield return new WaitForSeconds(0.1f);
             UpdateColor();
@@ -494,6 +506,8 @@ public abstract class EnemyBase : MonoBehaviour
     {
         if (_isDead) return false;
         _isDead = true;
+        var killer = DamageOwner != null ? DamageOwner.GetComponent<LocalPlayer>() : null;
+        if (killer != null) killer.Kills++;
         CurrentHealth = 0;
         ActiveEnemies.Remove(this);
         StopAllCoroutines();
@@ -507,21 +521,21 @@ public abstract class EnemyBase : MonoBehaviour
     protected void CompleteDeath()
     {
 
-        if (PlayerStats.Instance != null && PlayerStats.Instance.HasAscension(CardAscension.Vampire))
-            PlayerStats.Instance.GetComponent<AscensionEffects>()?.DropHealingOrb(transform.position);
+        if (DamageOwner != null && DamageOwner.HasAscension(CardAscension.Vampire))
+            DamageOwner.GetComponent<AscensionEffects>()?.DropHealingOrb(transform.position);
 
         if (LevelManager.Instance != null)
             LevelManager.Instance.AddXP(XPValue * (IsElite ? 1.25f : 1f));
 
-        if (PlayerStats.Instance != null)
-            PlayerStats.Instance.RegisterEnemyKill();
+        if (DamageOwner != null)
+            DamageOwner.RegisterEnemyKill();
 
         if (CoinPrefab != null)
         {
             int baseAmount = Random.Range(CoinDropRange.x, CoinDropRange.y + 1);
 
             float mult = 1.0f;
-            if (PlayerStats.Instance != null) mult = PlayerStats.Instance.CoinDropMultiplier;
+            if (DamageOwner != null) mult = DamageOwner.CoinDropMultiplier;
 
             int finalAmount = Mathf.FloorToInt(baseAmount * mult * (IsElite ? 2f : 1f));
             if (finalAmount < 1) finalAmount = 1;

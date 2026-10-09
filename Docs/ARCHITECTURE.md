@@ -47,7 +47,8 @@ progression/combat checks through a Unity Editor menu. These use transient objec
 and a temporary save; they are not Play Mode or build verification. No project
 Unity Test Framework suite currently exists.
 
-No repository-specific automated build script currently exists.
+CoopUpdateVerification includes Editor-menu regular/development WebGL build checks.
+It uses the current WebGL target/settings and writes output to a temporary folder.
 
 ---
 
@@ -228,6 +229,34 @@ These are not currently part of the global build scene list.
 
 The player uses component composition rather than one monolithic script.
 
+## Local co-op and world camera
+
+`LocalCoopSession` on the gameplay WaveManager creates 1–4 copies of the existing
+player before their Start methods run. `LocalPlayer` owns device assignment, input
+state and run result counters. PlayerStats/PlayerController/PlayerAnimator singleton
+access remains a player-one compatibility path; gameplay components read their
+own PlayerStats. Projectiles, meteors, fire trails, ascension areas and turrets
+carry their source player explicitly, including when a pooled projectile is reused.
+
+Co-op uses one controller per player. Developer-console code `2048` toggles the
+two-player keyboard/mouse + controller test mode. The host account supplies saved
+card unlocks/levels and receives all persistent coins. Runtime card histories,
+weapons, health, coin thresholds and companions belong to each player. XP and
+Sabotage bonuses add across builds (Sabotage retains the 95% cap).
+
+`WorldCamera` follows living players, clamps to the expanded map and caps co-op
+zoom. Settings stores solo zoom in `DuckDefender_CameraZoom`. SampleScene repeats
+the existing terrain equally left/right (38 to 114 cells), with three times the
+original playable boundary width. Dynamic enemy spawns raycast terrain, remain
+outside the current viewport and use a fixed distance independent of zoom.
+
+`CoopRunUI` creates overhead health, offscreen arrows, individual card panes and
+per-player results. Every player confirms a card before a queued level-up or
+gameplay resumes. Dead players retain upgrades and optionally respawn at a living
+teammate next wave; all players dead ends the run. Disconnecting an assigned
+controller pauses gameplay until it reconnects. `PlayerPalette.shader` replaces
+the yellow duck body for orange/blue/green seats while preserving existing art.
+
 ## PlayerController
 
 ```text
@@ -249,7 +278,7 @@ Responsibilities include:
 * player facing
 * movement animation state
 
-Uses the project's singleton-style architecture.
+Reads its own PlayerStats; Instance remains the primary player's compatibility reference.
 
 ---
 
@@ -261,7 +290,7 @@ Assets/Scripts/WeaponPlayer.cs
 
 Responsibilities include:
 
-* mouse/touch aiming
+* mouse/touch or assigned-controller aiming
 * fire cadence
 * projectile spawning
 * parallel shots
@@ -369,8 +398,9 @@ Responsibilities include:
 * wave progression
 * enemy count tracking
 
-Spawn batches yield after every enemy (minimum .04 seconds). A default limit of 40
-live wave enemies holds the remainder in the queue. The HUD's remaining count still
+Spawn batches yield after every enemy (minimum .04 seconds). Both wave counts and
+the default live-enemy limit of 40 scale by the number of players. The limit holds
+the remainder in the queue. The HUD's remaining count still
 includes both queued and living enemies, so the wave cannot finish early.
 
 ---
@@ -515,11 +545,11 @@ Responsibilities include:
 * progression UI synchronization
 * coin-trigger thresholds
 
-`LevelManager.AddCoins()` calls:
-
-```text
-PlayerStats.Instance.ReportCoinsGained(amount)
-```
+`LevelManager.AddCoins(amount, recipient)` credits the host's saved balance, the
+recipient's result counter, and their ReportCoinsGained/meteor/Tripleshot effects.
+The optional recipient retains the legacy player-one path for older callers.
+Shared XP targets scale by player count. Wave income, interest and regeneration
+use each living player's build; interest uses the same initial host balance.
 
 ---
 
@@ -541,11 +571,9 @@ LevelManager credits currency and per-coin effects immediately, batches coin sav
 at most once per second, and flushes on disable, pause, focus loss and quit. Its
 meteor queues spawn at most two rewards per frame without dropping earned counts.
 
-Coin magnet behavior reads:
-
-```text
-PlayerStats.Instance.MagnetRange
-```
+Coin magnet behavior reads the nearest living player's MagnetRange. XP gems and
+healing orbs also seek living players; collection guards prevent duplicate pickup.
+Secondary-meteor coins retain their source owner through merging and collection.
 
 ---
 
@@ -1157,6 +1185,15 @@ pointer events. ParticleVisibility on existing effect prefabs hides particle
 renderers without disabling gameplay objects, colliders or sprite telegraphs.
 New particle prefabs should carry this component too.
 
+HostMenuUI opens from the existing Host button and configures 2–4 players,
+difficulty (initially Easy), next-wave respawns and health-bar coloring.
+CardIndexUI's HostFilterMode lists unlocked host cards, hides economy counters,
+and toggles run eligibility through CardDisplay's Enabled/Disabled controls.
+The regular shop and index keep their progression controls. CoopUpdateSetup
+authors saved scene wiring through Unity Editor APIs. CoopUpdateVerification and
+CoopVerificationProbe exercise co-op in an isolated save with simulated gamepads.
+See Docs/COOP_UPDATE.md for setup and verification details.
+
 GameDifficulty persists its selection in DuckDefender_Difficulty. LevelManager
 applies 1x/1.25x/1.5x positive coin rewards, retaining fractional coins across
 awards within a run. Shop prices and starting saved balances are unaffected.
@@ -1194,6 +1231,14 @@ Assets/Scripts/VirtualJoystick.cs
 ```
 
 `Inputhelper.cs` contains `InputHelper`.
+
+Gameplay passes its owning component to InputHelper. An assigned LocalPlayer
+reads only its own Input System Gamepad: D-pad/left stick movement and upward jump,
+right stick aim with a narrow horizontal snap, RT fire, LB dash. Shared menus use
+ControllerMenuNavigation with the first controller, right face/B to confirm and
+bottom face/A to go back. Co-op card panes handle their assigned controllers
+separately; the shared EventSystem's controller submit/move bindings are replaced
+with keyboard-only bindings to prevent duplicate or cross-player submissions.
 
 Desktop movement, jump, dash and shooting use InputManager's saved bindings;
 mobile input still takes priority. MainMenu includes the persistent InputManager,
@@ -1239,6 +1284,9 @@ Assets/Scripts/TurretManager.cs
 ```
 
 `TurretManager` creates/removes/repositions companions based on runtime state.
+LocalCoopSession creates one manager per player, assigns PlayerTransform before
+Start, and each manager subscribes to that player's upgrade events. TurretBase
+stores the owner stats/health and stops acting while that owner is dead.
 
 ---
 

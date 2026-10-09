@@ -31,13 +31,13 @@ public class ElementalTurret : TurretBase
 
     protected override float GetCurrentInterval()
     {
-        if (PlayerStats.Instance == null) return 99f;
-        return Mathf.Max(0.5f, PlayerStats.Instance.ElementalTurretInterval);
+        if (OwnerStats == null) return 99f;
+        return Mathf.Max(0.5f, OwnerStats.ElementalTurretInterval);
     }
 
     protected override void OnTick()
     {
-        var player = PlayerStats.Instance;
+        var player = OwnerStats;
         if (player == null) return;
         var weapon = player.GetComponent<WeaponPlayer>();
         if (weapon == null) return;

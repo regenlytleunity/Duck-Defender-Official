@@ -87,9 +87,10 @@ public class TankEnemy : SwarmerEnemy
         }
     }
 
-    public void AbsorbDamage(float damage)
+    public void AbsorbDamage(float damage, PlayerStats owner = null)
     {
         if (!CanTakeDamage || damage <= 0) return;
+        DamageOwner = owner;
         if (!IsElite) { ApplyHealthDamage(damage); return; }
         ShieldHealth += damage;
         _maxShield = Mathf.Max(_maxShield, ShieldHealth);

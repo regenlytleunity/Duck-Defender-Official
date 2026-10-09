@@ -38,18 +38,18 @@ public class SecondWindAngel : TurretBase
 
     void OnEnable()
     {
-        if (PlayerStats.Instance != null)
+        if (OwnerStats != null)
         {
-            PlayerStats.Instance.OnSecondWindChanged += UpdateVisibility;
+            OwnerStats.OnSecondWindChanged += UpdateVisibility;
         }
         UpdateVisibility();
     }
 
     void OnDisable()
     {
-        if (PlayerStats.Instance != null)
+        if (OwnerStats != null)
         {
-            PlayerStats.Instance.OnSecondWindChanged -= UpdateVisibility;
+            OwnerStats.OnSecondWindChanged -= UpdateVisibility;
         }
     }
 
@@ -72,13 +72,13 @@ public class SecondWindAngel : TurretBase
 
     void UpdateVisibility()
     {
-        if (PlayerStats.Instance == null)
+        if (OwnerStats == null)
         {
             _shouldBeVisible = false;
             return;
         }
 
-        _shouldBeVisible = PlayerStats.Instance.IsSecondWindReady();
+        _shouldBeVisible = OwnerStats.IsSecondWindReady() && OwnerHealth != null && !OwnerHealth.IsDead;
     }
 
     protected override float GetCurrentInterval()

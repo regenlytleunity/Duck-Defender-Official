@@ -41,7 +41,7 @@ public class AscensionEffects : MonoBehaviour
             _recoveryTimer += Time.deltaTime;
             if (_recoveryTimer >= 5) { _recoveryTimer -= 5; _health.Heal(1); }
         }
-        bool beam = _stats.HasAscension(CardAscension.DeathRay) && InputHelper.GetShootHeld() && _weapon != null;
+        bool beam = _stats.HasAscension(CardAscension.DeathRay) && InputHelper.GetShootHeld(this) && _weapon != null;
         if (DeathRayVisual != null) DeathRayVisual.enabled = beam;
         if (!beam) { _beamTick = 0; return; }
         Vector3 origin = _weapon.FirePoint != null ? _weapon.FirePoint.position : transform.position;
@@ -61,7 +61,7 @@ public class AscensionEffects : MonoBehaviour
             Vector2 delta = enemy.transform.position - origin;
             float along = Vector2.Dot(delta, dir);
             if (along >= 0 && along <= BeamLength && Mathf.Abs(delta.x * dir.y - delta.y * dir.x) <= BeamWidth * .5f)
-                enemy.TakeFractionalDamage(_stats.CalculateDamage(10, false) * _beamTick);
+                enemy.TakeFractionalDamage(_stats.CalculateDamage(10, false) * _beamTick, _stats);
         }
         _beamTick = 0;
     }
@@ -82,13 +82,13 @@ public class AscensionEffects : MonoBehaviour
         var area = SpawnArea(HealingAreaPrefab, position, HealingAreaRadius, 5, 0, 2, 0, true);
         area.ConfigureCircleVisual(false);
     }
-    static AscensionArea SpawnArea(AscensionArea prefab, Vector3 position, float radius, float seconds, float damage, float healing = 0, float pull = 0, bool circleFallback = false)
+    AscensionArea SpawnArea(AscensionArea prefab, Vector3 position, float radius, float seconds, float damage, float healing = 0, float pull = 0, bool circleFallback = false)
     {
         if (prefab == null && !circleFallback) { Debug.LogWarning("[Ascension] An area prefab is unassigned on AscensionEffects."); return null; }
         var area = prefab != null ? Instantiate(prefab, position, Quaternion.identity) : new GameObject("Ascension circle").AddComponent<AscensionArea>();
         area.transform.position = position;
         area.gameObject.SetActive(true);
-        area.Initialize(radius, seconds, damage, healing, pull);
+        area.Initialize(radius, seconds, damage, healing, pull, GetComponent<PlayerStats>());
         return area;
     }
     public void Erupt(Vector3 position, float radius, GameObject explosionVisual = null) { StartCoroutine(Eruption(position, radius, explosionVisual)); }
@@ -99,7 +99,7 @@ public class AscensionEffects : MonoBehaviour
         EnemyBase.CopyActiveEnemies(_damageTargets);
         foreach (var enemy in _damageTargets)
             if (enemy != null && enemy.IsAlive && ((Vector2)enemy.transform.position - (Vector2)position).sqrMagnitude <= radius * radius)
-                enemy.TakeFractionalDamage(_stats.CalculateDamage(VolcanoEruptionDamage, false));
+                enemy.TakeFractionalDamage(_stats.CalculateDamage(VolcanoEruptionDamage, false), _stats);
         SpawnArea(VolcanoFirePrefab, position, radius, 3, VolcanoFireDPS);
     }
     public void PlaceWalls()
@@ -129,7 +129,7 @@ public class AscensionEffects : MonoBehaviour
         {
             if (enemy == null || !enemy.IsAlive) continue;
             Vector3 viewport = camera.WorldToViewportPoint(enemy.transform.position);
-            if (viewport.z > 0 && viewport.x >= 0 && viewport.x <= 1 && viewport.y >= 0 && viewport.y <= 1) enemy.Defeat();
+            if (viewport.z > 0 && viewport.x >= 0 && viewport.x <= 1 && viewport.y >= 0 && viewport.y <= 1) enemy.Defeat(_stats);
         }
     }
 }

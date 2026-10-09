@@ -8,6 +8,7 @@ public class MainMenuController : MonoBehaviour
 
     public void PlayGame()
     {
+        LocalCoopSession.RequestedPlayers = 1;
         // This command loads the game scene
         SceneManager.LoadScene(GameSceneName);
     }

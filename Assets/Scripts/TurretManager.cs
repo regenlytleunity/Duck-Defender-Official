@@ -9,6 +9,9 @@ using System.Collections.Generic;
 /// </summary>
 public class TurretManager : MonoBehaviour
 {
+    PlayerStats _ownerStats;
+    PlayerStats OwnerStats => _ownerStats != null ? _ownerStats : (_ownerStats = PlayerTransform != null ? PlayerTransform.GetComponent<PlayerStats>() : null);
+
     public static TurretManager Instance;
 
     [Header("Prefabs")]
@@ -44,7 +47,7 @@ public class TurretManager : MonoBehaviour
 
     void Awake()
     {
-        Instance = this;
+        if (Instance == null) Instance = this;
     }
 
     void Start()
@@ -55,9 +58,9 @@ public class TurretManager : MonoBehaviour
             if (playerObj != null) PlayerTransform = playerObj.transform;
         }
 
-        if (PlayerStats.Instance != null)
+        if (OwnerStats != null)
         {
-            PlayerStats.Instance.OnTurretsChanged += RefreshTurrets;
+            OwnerStats.OnTurretsChanged += RefreshTurrets;
         }
 
         RefreshTurrets();
@@ -65,26 +68,26 @@ public class TurretManager : MonoBehaviour
 
     void OnDestroy()
     {
-        if (PlayerStats.Instance != null)
+        if (OwnerStats != null)
         {
-            PlayerStats.Instance.OnTurretsChanged -= RefreshTurrets;
+            OwnerStats.OnTurretsChanged -= RefreshTurrets;
         }
     }
 
     void RefreshTurrets()
     {
-        if (PlayerStats.Instance == null) return;
+        if (OwnerStats == null) return;
         if (PlayerTransform == null) return;
 
         // Spawn each turret if unlocked and not already spawned
-        TrySpawnTurret(PlayerStats.Instance.HasMarksman, MarksmanPrefab, TurretBase.TurretSlotType.Marksman);
-        TrySpawnTurret(PlayerStats.Instance.HasMedic, MedicPrefab, TurretBase.TurretSlotType.Medic);
-        TrySpawnTurret(PlayerStats.Instance.HasProtector, ProtectorPrefab, TurretBase.TurretSlotType.Protector);
-        TrySpawnTurret(PlayerStats.Instance.HasElementalTurret, ElementalPrefab, TurretBase.TurretSlotType.Elemental);
+        TrySpawnTurret(OwnerStats.HasMarksman, MarksmanPrefab, TurretBase.TurretSlotType.Marksman);
+        TrySpawnTurret(OwnerStats.HasMedic, MedicPrefab, TurretBase.TurretSlotType.Medic);
+        TrySpawnTurret(OwnerStats.HasProtector, ProtectorPrefab, TurretBase.TurretSlotType.Protector);
+        TrySpawnTurret(OwnerStats.HasElementalTurret, ElementalPrefab, TurretBase.TurretSlotType.Elemental);
 
         // Second Wind angel: spawn if Second Wind is unlocked.
         // Visibility (alpha) is handled by SecondWindAngel itself based on cooldown.
-        if ((PlayerStats.Instance.HasSecondWind || PlayerStats.Instance.HasAscension(CardAscension.Rebirth)) && _activeAngel == null && SecondWindAngelPrefab != null)
+        if ((OwnerStats.HasSecondWind || OwnerStats.HasAscension(CardAscension.Rebirth)) && _activeAngel == null && SecondWindAngelPrefab != null)
         {
             GameObject angelObj = Instantiate(SecondWindAngelPrefab);
             _activeAngel = angelObj.GetComponent<SecondWindAngel>();

@@ -15,25 +15,25 @@ public class ProtectorTurret : TurretBase
 
     protected override float GetCurrentInterval()
     {
-        if (PlayerStats.Instance == null) return 99f;
-        return Mathf.Max(0.5f, PlayerStats.Instance.ProtectorInterval);
+        if (OwnerStats == null) return 99f;
+        return Mathf.Max(0.5f, OwnerStats.ProtectorInterval);
     }
 
     protected override void OnTick()
     {
-        if (PlayerStats.Instance == null) return;
+        if (OwnerStats == null) return;
 
-        if (PlayerStats.Instance.HasAscension(CardAscension.Defender))
+        if (OwnerStats.HasAscension(CardAscension.Defender))
         {
-            PlayerStats.Instance.GetComponent<AscensionEffects>()?.PlaceWalls();
+            OwnerStats.GetComponent<AscensionEffects>()?.PlaceWalls();
             return;
         }
         Vector3 center = CenterOnPlayer && PlayerTransform != null
             ? PlayerTransform.position
             : transform.position;
 
-        float radius = Mathf.Max(0.1f, PlayerStats.Instance.ProtectorRadius);
-        float knockbackForce = Mathf.Max(0.1f, PlayerStats.Instance.ProtectorKnockback);
+        float radius = Mathf.Max(0.1f, OwnerStats.ProtectorRadius);
+        float knockbackForce = Mathf.Max(0.1f, OwnerStats.ProtectorKnockback);
 
         if (ShockwaveEffectPrefab != null)
         {

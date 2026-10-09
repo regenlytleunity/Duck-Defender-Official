@@ -22,6 +22,13 @@ public class DeveloperConsoleUI : MonoBehaviour
     public void Submit()
     {
         string code = CodeInput != null ? CodeInput.text.Trim() : "";
+        if (code == "2048")
+        {
+            LocalCoopSession.KeyboardTest = !LocalCoopSession.KeyboardTest;
+            if (ResultText != null) ResultText.text = LocalCoopSession.KeyboardTest ? "Two-player keyboard/controller test enabled in Host." : "Controller-only co-op restored.";
+            if (CodeInput != null) CodeInput.text = "";
+            return;
+        }
         bool success = code.Length == 4 && ShopManager.Instance != null && ShopManager.Instance.ExecuteDeveloperCode(code);
         if (ResultText != null) ResultText.text = success ? "Code applied. Start a new run to use the updated collection." : "Unknown code.";
         if (success && CodeInput != null) CodeInput.text = "";

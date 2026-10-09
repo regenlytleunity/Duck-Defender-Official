@@ -14,6 +14,9 @@ using System.Collections.Generic;
 /// </summary>
 public class WeaponPlayer : MonoBehaviour
 {
+    PlayerStats _ownerStats;
+    PlayerStats OwnerStats => _ownerStats != null ? _ownerStats : (_ownerStats = GetComponent<PlayerStats>());
+
     [Header("Gun Stats")]
     public Transform FirePoint;
     public float FireRate = 0.2f;
@@ -87,7 +90,7 @@ public class WeaponPlayer : MonoBehaviour
     float _baseFireInterval;
     float _fireReduction;
     public Vector2 AimDirection => ComputeAimDir();
-    float RebirthMultiplier => PlayerStats.Instance != null ? PlayerStats.Instance.RebirthStatMultiplier : 1f;
+    float RebirthMultiplier => OwnerStats != null ? OwnerStats.RebirthStatMultiplier : 1f;
     public float EffectiveFireInterval => Mathf.Max(.005f, FireRate / RebirthMultiplier);
     public int EffectiveParallelProjectiles => Mathf.Max(0, Mathf.RoundToInt(ParallelProjectiles * RebirthMultiplier));
     // Temporary Triple or Nothing projectiles are an upgrade effect, not a core-stat increase.
@@ -100,7 +103,7 @@ public class WeaponPlayer : MonoBehaviour
     }
     public float FeatherDamage(float fraction = 1f)
     {
-        return PlayerStats.Instance != null ? PlayerStats.Instance.CalculateDamage(CurrentStats.Damage, true, fraction, Mathf.Max(1, CurrentStats.DamageMultiplier) - 1)
+        return OwnerStats != null ? OwnerStats.CalculateDamage(CurrentStats.Damage, true, fraction, Mathf.Max(1, CurrentStats.DamageMultiplier) - 1)
             : CurrentStats.Damage * fraction;
     }
     private float _nextNormalFireTime;
@@ -119,8 +122,8 @@ public class WeaponPlayer : MonoBehaviour
     {
         get
         {
-            if (PlayerStats.Instance == null || PlayerStats.Instance.MiniGunOverheatThreshold <= 0) return 0f;
-            return Mathf.Clamp01(_miniGunHeat / PlayerStats.Instance.MiniGunOverheatThreshold);
+            if (OwnerStats == null || OwnerStats.MiniGunOverheatThreshold <= 0) return 0f;
+            return Mathf.Clamp01(_miniGunHeat / OwnerStats.MiniGunOverheatThreshold);
         }
     }
 
@@ -147,7 +150,7 @@ public class WeaponPlayer : MonoBehaviour
     {
         UpdateElectricChainVisuals();
         if (Time.timeScale == 0) return;
-        ProcessFireInput(InputHelper.GetShootHeld());
+        ProcessFireInput(InputHelper.GetShootHeld(this));
     }
 
     void ProcessFireInput(bool shootHeld)
@@ -168,7 +171,7 @@ public class WeaponPlayer : MonoBehaviour
         }
         if (shotsThisFrame > 16) _nextNormalFireTime = Time.time + EffectiveFireInterval;
 
-        if (PlayerStats.Instance != null && PlayerStats.Instance.HasMiniGun)
+        if (OwnerStats != null && OwnerStats.HasMiniGun)
         {
             if (!_miniGunStarted) { _nextMiniGunFireTime = Time.time; _miniGunStarted = true; }
             UpdateMiniGun(shootHeld);
@@ -194,7 +197,7 @@ public class WeaponPlayer : MonoBehaviour
         if (_mainCam == null) _mainCam = Camera.main;
         if (_mainCam == null) return 0f;
 
-        Vector3 mouseScreen = InputHelper.GetMousePosition();
+        Vector3 mouseScreen = InputHelper.GetMousePosition(this);
         Vector3 mouseWorld = _mainCam.ScreenToWorldPoint(mouseScreen);
         mouseWorld.z = 0;
 
@@ -212,7 +215,7 @@ public class WeaponPlayer : MonoBehaviour
         if (_mainCam == null) _mainCam = Camera.main;
         if (_mainCam == null) return Vector3.right;
 
-        Vector3 mouseScreen = InputHelper.GetMousePosition();
+        Vector3 mouseScreen = InputHelper.GetMousePosition(this);
         Vector3 mouseWorld = _mainCam.ScreenToWorldPoint(mouseScreen);
         mouseWorld.z = 0;
 
@@ -230,7 +233,7 @@ public class WeaponPlayer : MonoBehaviour
 
     void UpdateMiniGun(bool shootHeld)
     {
-        var stats = PlayerStats.Instance;
+        var stats = OwnerStats;
         if (stats == null) return;
 
         float threshold = Mathf.Max(0.5f, stats.MiniGunOverheatThreshold);
@@ -273,7 +276,7 @@ public class WeaponPlayer : MonoBehaviour
     void TriggerOverheat()
     {
         _miniGunOverheated = true;
-        _miniGunHeat = PlayerStats.Instance.MiniGunOverheatThreshold;
+        _miniGunHeat = OwnerStats.MiniGunOverheatThreshold;
 
         if (OverheatPopupPrefab != null)
         {
@@ -338,7 +341,7 @@ public class WeaponPlayer : MonoBehaviour
         stats.CanAirburst = true;
         stats.Lifetime = 0;
 
-        p.Initialize(stats);
+        p.Initialize(stats, OwnerStats);
         p.SetColor(MiniGunFeatherColor);
         p.SetVisualScale(MiniGunFeatherScale * GetCurrentFeatherSize());
         bulletObj.SetActive(true);
@@ -381,15 +384,15 @@ public class WeaponPlayer : MonoBehaviour
         if (others.Count == 1) SpawnSpecialFeather(angle, Vector3.zero, others[0]);
         else if (others.Count > 1) StartCoroutine(FireStaggeredSpecials(others, angle));
         TickElectricFeathers(angle);
-        if (PlayerStats.Instance != null && PlayerStats.Instance.HasAscension(CardAscension.DivineDuplicator)) FireDivineFeather();
+        if (OwnerStats != null && OwnerStats.HasAscension(CardAscension.DivineDuplicator)) FireDivineFeather();
     }
 
     List<PlayerStats.SpecialFeatherInstance> TickAndCollectReadySpecials()
     {
         var ready = new List<PlayerStats.SpecialFeatherInstance>();
-        if (PlayerStats.Instance == null) return ready;
+        if (OwnerStats == null) return ready;
 
-        foreach (var feather in PlayerStats.Instance.SpecialFeathers)
+        foreach (var feather in OwnerStats.SpecialFeathers)
         {
             // Electric feathers count successful attacks, including the separate Mini Gun path.
             if (feather.Type == PlayerStats.FeatherType.Electric) continue;
@@ -424,7 +427,7 @@ public class WeaponPlayer : MonoBehaviour
     bool FireNormalPattern(float baseAngle, Vector3 aimDir)
     {
         if (FirePoint == null) return false;
-        if (_isTripleshotActive && PlayerStats.Instance != null && PlayerStats.Instance.HasAscension(CardAscension.DoubleDown))
+        if (_isTripleshotActive && OwnerStats != null && OwnerStats.HasAscension(CardAscension.DoubleDown))
             return FireRandomVolley();
         bool fired = false;
         Vector3 perpendicular = new Vector3(-aimDir.y, aimDir.x, 0).normalized;
@@ -531,8 +534,8 @@ public class WeaponPlayer : MonoBehaviour
 
     float GetCurrentFeatherSize()
     {
-        if (PlayerStats.Instance == null) return 1f;
-        return Mathf.Max(0.5f, PlayerStats.Instance.FeatherSize) * RebirthMultiplier;
+        if (OwnerStats == null) return 1f;
+        return Mathf.Max(0.5f, OwnerStats.FeatherSize) * RebirthMultiplier;
     }
 
     // === Spawn helpers ===
@@ -553,9 +556,9 @@ public class WeaponPlayer : MonoBehaviour
 
         Projectile.BallisticData stats = CurrentStats;
 
-        if (PlayerStats.Instance != null && PlayerStats.Instance.HomingProjectiles)
+        if (OwnerStats != null && OwnerStats.HomingProjectiles)
         {
-            stats.HomingSpeed = PlayerStats.Instance.HomingSpeedBonus;
+            stats.HomingSpeed = OwnerStats.HomingSpeedBonus;
         }
 
         stats.IsHealingFeather = false;
@@ -568,12 +571,12 @@ public class WeaponPlayer : MonoBehaviour
         stats.PoisonDamage = 0;
         stats.IceSlowFactor = 0;
         stats.ExplosionRadius = 0;
-        stats.ProjectileGravity = PlayerStats.Instance != null && PlayerStats.Instance.FeatherSize > 1 ? 1 : 0;
+        stats.ProjectileGravity = OwnerStats != null && OwnerStats.FeatherSize > 1 ? 1 : 0;
         stats.DamageRatio = 1f;
-        stats.LocalDamageBonus = duplicate && PlayerStats.Instance != null ? -PlayerStats.Instance.DuplicatorDamageReduction : 0f;
+        stats.LocalDamageBonus = duplicate && OwnerStats != null ? -OwnerStats.DuplicatorDamageReduction : 0f;
         stats.Lifetime = 0;
 
-        p.Initialize(stats);
+        p.Initialize(stats, OwnerStats);
         p.SetColor(NormalFeatherColor);
         p.SetVisualScale(GetCurrentFeatherSize());
         bulletObj.SetActive(true);
@@ -586,9 +589,9 @@ public class WeaponPlayer : MonoBehaviour
 
     void TickElectricFeathers(float angle)
     {
-        if (PlayerStats.Instance == null) return;
+        if (OwnerStats == null) return;
 
-        foreach (var feather in PlayerStats.Instance.SpecialFeathers)
+        foreach (var feather in OwnerStats.SpecialFeathers)
         {
             if (feather.Type != PlayerStats.FeatherType.Electric || feather.Threshold <= 0) continue;
 
@@ -620,9 +623,9 @@ public class WeaponPlayer : MonoBehaviour
         stats.DamageMultiplier = 1f;
         stats.Speed = CurrentStats.Speed;
         stats.CritChance = CurrentStats.CritChance;
-        stats.Variant = PlayerStats.Instance.HasAscension(CardAscension.Supercharged) ? CardAscension.Supercharged : CardAscension.None;
+        stats.Variant = OwnerStats.HasAscension(CardAscension.Supercharged) ? CardAscension.Supercharged : CardAscension.None;
         // No pierce/ricochet, secondary statuses, airburst or independent critical rolls on this chain.
-        projectile.Initialize(stats);
+        projectile.Initialize(stats, OwnerStats);
         projectile.ConfigureElectricChain(damage, feather.ElectricChainCount, ElectricChainRadius, this);
         projectile.SetColor(ElectricFeatherColor);
         projectile.SetVisualScale(GetCurrentFeatherSize());
@@ -641,7 +644,7 @@ public class WeaponPlayer : MonoBehaviour
     {
         Camera camera = Camera.main;
         if (camera == null) return;
-        Vector3 screen = InputHelper.GetMousePosition();
+        Vector3 screen = InputHelper.GetMousePosition(this);
         screen.z = Mathf.Abs(camera.transform.position.z - transform.position.z);
         Vector3 target = camera.ScreenToWorldPoint(screen);
         target.z = transform.position.z;
@@ -663,7 +666,7 @@ public class WeaponPlayer : MonoBehaviour
             stats.PierceCount = Random.Range(0, 7); stats.RicochetCount = Random.Range(0, 7);
             stats.CanAirburst = true;
             float angle = Random.Range(-180f, 180f);
-            if (PlayerController.Instance != null && PlayerController.Instance.IsGrounded && Mathf.Sin(angle * Mathf.Deg2Rad) < -.95f)
+            if (GetComponent<PlayerController>() != null && GetComponent<PlayerController>().IsGrounded && Mathf.Sin(angle * Mathf.Deg2Rad) < -.95f)
                 angle = -angle;
             fired |= Emit(FirePoint.position, angle, stats, NormalFeatherColor, GetCurrentFeatherSize());
         }
@@ -679,7 +682,7 @@ public class WeaponPlayer : MonoBehaviour
         if (projectile == null) return false;
         bullet.transform.SetPositionAndRotation(position, Quaternion.Euler(0, 0, angle));
         projectile.SpriteAngleOffset = ProjectileSpriteOffset;
-        projectile.Initialize(stats); projectile.SetColor(color); projectile.SetVisualScale(scale);
+        projectile.Initialize(stats, OwnerStats); projectile.SetColor(color); projectile.SetVisualScale(scale);
         if (stats.Variant == CardAscension.Supercharged)
             projectile.ConfigureElectricChain(Mathf.RoundToInt(FeatherDamage()), 1, ElectricChainRadius, this);
         bullet.SetActive(true);
@@ -690,7 +693,7 @@ public class WeaponPlayer : MonoBehaviour
     {
         var stats = new Projectile.BallisticData { Damage = CurrentStats.Damage, DamageMultiplier = CurrentStats.DamageMultiplier,
             DamageRatio = .5f, Speed = turret.ProjectileSpeed, CritChance = CurrentStats.CritChance, CanAirburst = true };
-        var owned = PlayerStats.Instance.SpecialFeathers.Find(f => f.Type == type);
+        var owned = OwnerStats.SpecialFeathers.Find(f => f.Type == type);
         Color color = NormalFeatherColor;
         switch (type)
         {
@@ -806,33 +809,33 @@ public class WeaponPlayer : MonoBehaviour
             case PlayerStats.FeatherType.Frosty:
                 stats.IsFrostyFeather = true;
                 stats.FreezeDuration = feather.FreezeDuration;
-                if (PlayerStats.Instance.HasAscension(CardAscension.AbsoluteZero)) stats.Variant = CardAscension.AbsoluteZero;
+                if (OwnerStats.HasAscension(CardAscension.AbsoluteZero)) stats.Variant = CardAscension.AbsoluteZero;
                 featherColor = FrostyFeatherColor;
                 break;
             case PlayerStats.FeatherType.Poison:
                 stats.IsPoisonFeather = true;
                 stats.PoisonDPS = feather.PoisonDPS;
-                if (PlayerStats.Instance.HasAscension(CardAscension.DeadlyToxin)) stats.Variant = CardAscension.DeadlyToxin;
+                if (OwnerStats.HasAscension(CardAscension.DeadlyToxin)) stats.Variant = CardAscension.DeadlyToxin;
                 featherColor = PoisonFeatherColor;
                 break;
             case PlayerStats.FeatherType.Metal:
                 stats.IsMetalFeather = true;
                 stats.BonusKnockback = feather.BonusKnockback;
                 stats.ProjectileGravity = 1.0f;
-                stats.DamageRatio = PlayerStats.Instance.MetalDamageFraction;
-                if (PlayerStats.Instance.HasAscension(CardAscension.Tungsten))
+                stats.DamageRatio = OwnerStats.MetalDamageFraction;
+                if (OwnerStats.HasAscension(CardAscension.Tungsten))
                 { stats.Variant = CardAscension.Tungsten; stats.DamageRatio = 4; stats.RicochetCount = 3; stats.PierceCount = 0; }
                 featherColor = MetalFeatherColor;
                 break;
             case PlayerStats.FeatherType.Explosive:
                 stats.IsExplosiveFeather = true;
                 stats.ExplosionRadius = feather.ExplosionRadius;
-                if (PlayerStats.Instance.HasAscension(CardAscension.Volcano)) stats.Variant = CardAscension.Volcano;
+                if (OwnerStats.HasAscension(CardAscension.Volcano)) stats.Variant = CardAscension.Volcano;
                 featherColor = ExplosiveFeatherColor;
                 break;
         }
 
-        p.Initialize(stats);
+        p.Initialize(stats, OwnerStats);
         p.SetColor(featherColor);
         p.SetVisualScale(GetCurrentFeatherSize());
         bulletObj.SetActive(true);
@@ -867,7 +870,7 @@ public class WeaponPlayer : MonoBehaviour
 
         Projectile.BallisticData stats = new Projectile.BallisticData();
         stats.Damage = CurrentStats.Damage;
-        stats.DamageRatio = PlayerStats.Instance != null ? PlayerStats.Instance.BuckshotDamageFraction : .4f;
+        stats.DamageRatio = OwnerStats != null ? OwnerStats.BuckshotDamageFraction : .4f;
         stats.DamageMultiplier = CurrentStats.DamageMultiplier;
         stats.Speed = CurrentStats.Speed * BuckshotSpeedMultiplier;
         stats.Knockback = CurrentStats.Knockback * 0.5f;
@@ -884,7 +887,7 @@ public class WeaponPlayer : MonoBehaviour
         stats.CanAirburst = true;
         stats.Lifetime = BuckshotLifetime;
 
-        p.Initialize(stats);
+        p.Initialize(stats, OwnerStats);
         p.SetColor(BuckshotFeatherColor);
         p.SetVisualScale(BuckshotPelletScale);
         bulletObj.SetActive(true);
@@ -896,8 +899,8 @@ public class WeaponPlayer : MonoBehaviour
 
     public void SpawnAirburst(Vector3 enemyPos, Vector3 incomingDirection, int sourceDamage, float sourceDamageMult, int ignoredEnemy = 0)
     {
-        if (PlayerStats.Instance == null) return;
-        int count = Mathf.Max(0, PlayerStats.Instance.AirburstFeatherCount);
+        if (OwnerStats == null) return;
+        int count = Mathf.Max(0, OwnerStats.AirburstFeatherCount);
         if (count <= 0) return;
 
         Vector3 spawnPos = enemyPos + incomingDirection.normalized * 0.2f;
@@ -944,7 +947,7 @@ public class WeaponPlayer : MonoBehaviour
         stats.Lifetime = AirburstLifetime;
         stats.SuppressHitEffect = true;
 
-        p.Initialize(stats);
+        p.Initialize(stats, OwnerStats);
         p.SetColor(AirburstFeatherColor);
         p.SetVisualScale(AirburstScale);
         bulletObj.SetActive(true);
@@ -971,7 +974,7 @@ public class WeaponPlayer : MonoBehaviour
         }
 
         float duration = 5.0f;
-        if (PlayerStats.Instance != null) duration = PlayerStats.Instance.TripleshotDuration;
+        if (OwnerStats != null) duration = OwnerStats.TripleshotDuration;
 
         yield return new WaitForSeconds(duration);
 

@@ -18,6 +18,8 @@ public class Coin : MonoBehaviour
     public float PassiveForceMagnetDelay = 1.2f;
     public float PassiveCoinPickupImmunity = 1f;
     public bool SecondaryMeteorOnPickup;
+    [System.NonSerialized] public PlayerStats SecondaryMeteorOwner;
+    PlayerStats _collector;
 
     // One spatial pass for all coins, scheduled by the existing LevelManager.
     const float MergeRadius = 2f;
@@ -111,7 +113,8 @@ public class Coin : MonoBehaviour
             return;
         }
         if (_collected || Time.time < _mergeUntil) return;
-        if (_player == null && PlayerController.Instance != null) _player = PlayerController.Instance.transform;
+        _collector = LocalCoopSession.NearestAlive(transform.position);
+        _player = _collector != null ? _collector.transform : null;
         if (_player == null) return;
         if (!_isFlyingToPlayer && !_rb.simulated) _rb.simulated = true;
         if (IsPickupImmune()) return;
@@ -121,7 +124,7 @@ public class Coin : MonoBehaviour
         float delay = IsPassiveCoin ? Mathf.Min(.15f, DelayBeforeMagnet) : DelayBeforeMagnet;
         if (!_isFlyingToPlayer && Time.time - _spawnTime >= delay)
         {
-            float range = PlayerStats.Instance != null ? PlayerStats.Instance.MagnetRange : 3f;
+            float range = _collector != null ? _collector.MagnetRange : 3f;
             if (distance <= range || (IsPassiveCoin && Time.time - _spawnTime >= PassiveForceMagnetDelay))
             {
                 _isFlyingToPlayer = true;
@@ -166,7 +169,7 @@ public class Coin : MonoBehaviour
                     foreach (var candidate in bucket)
                     {
                         checks++;
-                        if (candidate != target && candidate.CanMerge && candidate.CoinValue == target.CoinValue &&
+                        if (candidate != target && candidate.CanMerge && candidate.CoinValue == target.CoinValue && candidate.SecondaryMeteorOwner == target.SecondaryMeteorOwner &&
                             ((Vector2)candidate.transform.position - (Vector2)target.transform.position).sqrMagnitude <= MergeRadius * MergeRadius)
                             Group.Add(candidate);
                         if (Group.Count == 10 || checks >= 4096) break;
@@ -210,8 +213,8 @@ public class Coin : MonoBehaviour
     {
         if (_collected || _merging || IsPickupImmune() || Time.time < _mergeUntil || LevelManager.Instance == null) return false;
         _collected = true;
-        LevelManager.Instance.QueueSecondaryMeteors(SecondaryMeteorCount);
-        LevelManager.Instance.AddCoins(CoinValue);
+        LevelManager.Instance.QueueSecondaryMeteors(SecondaryMeteorCount, SecondaryMeteorOwner);
+        LevelManager.Instance.AddCoins(CoinValue, _collector);
         if (AudioManager.Instance != null) AudioManager.Instance.PlaySFX("Coin_Collection");
         return true;
     }

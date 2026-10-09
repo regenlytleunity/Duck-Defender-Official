@@ -7,12 +7,14 @@ public class AscensionArea : MonoBehaviour
     float _radius, _damage, _healing, _pull, _remaining, _healRemainder;
     float _tick;
     PlayerHealth _health;
+    PlayerStats _owner;
     Transform _rotatingVisual;
     static Material _ringMaterial;
-    public void Initialize(float radius, float seconds, float damage = 0, float healing = 0, float pull = 0)
+    public void Initialize(float radius, float seconds, float damage = 0, float healing = 0, float pull = 0, PlayerStats owner = null)
     {
         _radius = radius; _remaining = seconds; _damage = damage; _healing = healing; _pull = pull;
-        _health = PlayerStats.Instance != null ? PlayerStats.Instance.GetComponent<PlayerHealth>() : null;
+        _owner = owner != null ? owner : PlayerStats.Instance;
+        _health = _owner != null ? _owner.GetComponent<PlayerHealth>() : null;
         transform.localScale = Vector3.one * radius;
         // Prefab colliders used for authoring must not push the player or trap enemies.
         foreach (var collider in GetComponentsInChildren<Collider2D>(true)) collider.enabled = false;
@@ -81,7 +83,7 @@ public class AscensionArea : MonoBehaviour
                 Vector2 delta = (Vector2)transform.position - (Vector2)enemy.transform.position;
                 if (delta.sqrMagnitude > _radius * _radius) continue;
                 if (_damage > 0)
-                    enemy.TakeFractionalDamage(PlayerStats.Instance != null ? PlayerStats.Instance.CalculateDamage(_damage, false) * _tick : _damage * _tick);
+                    enemy.TakeFractionalDamage(_owner != null ? _owner.CalculateDamage(_damage, false) * _tick : _damage * _tick, _owner);
                 if (_pull > 0)
                 {
                     var rb = enemy.GetComponent<Rigidbody2D>();

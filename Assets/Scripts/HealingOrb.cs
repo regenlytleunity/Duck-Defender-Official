@@ -33,6 +33,8 @@ public class HealingOrb : MonoBehaviour
     }
     void FixedUpdate()
     {
+        var target = LocalCoopSession.NearestAlive(transform.position);
+        _health = target != null ? target.GetComponent<PlayerHealth>() : null;
         if (_health == null || _collected || _health.IsDead) return;
         float distance = Vector2.Distance(transform.position, _health.transform.position);
         if (distance <= AttractionRadius) _attracting = true;
@@ -46,7 +48,8 @@ public class HealingOrb : MonoBehaviour
     }
     void OnTriggerEnter2D(Collider2D other)
     {
-        if (other.GetComponentInParent<PlayerHealth>() != null) Collect();
+        var health = other.GetComponentInParent<PlayerHealth>();
+        if (health != null && !health.IsDead) { _health = health; Collect(); }
     }
     void Collect()
     {

@@ -9,6 +9,7 @@ public class XPGem : MonoBehaviour
 
     private Transform _player;
     private bool _isMagnetized = false;
+    private bool _collected;
 
     void Start()
     {
@@ -19,6 +20,8 @@ public class XPGem : MonoBehaviour
 
     void Update()
     {
+        var target = LocalCoopSession.NearestAlive(transform.position);
+        _player = target != null ? target.transform : null;
         if (_player == null) return;
 
         float dist = Vector2.Distance(transform.position, _player.position);
@@ -40,8 +43,9 @@ public class XPGem : MonoBehaviour
 
     void OnTriggerEnter2D(Collider2D collision)
     {
-        if (collision.CompareTag("Player"))
+        if (!_collected && collision.CompareTag("Player") && collision.GetComponentInParent<PlayerHealth>()?.IsDead != true)
         {
+            _collected = true;
             // Give XP to the LevelManager
             if (LevelManager.Instance != null)
             {

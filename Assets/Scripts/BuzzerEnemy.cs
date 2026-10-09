@@ -112,7 +112,16 @@ public class BuzzerEnemy : EnemyBase
             transform.Rotate(0, 0, drift * 60 * Time.deltaTime);
             yield return null;
         }
-        if (TargetHealth != null && TargetCollider != null &&
+        if (LocalCoopSession.Instance != null)
+        {
+            foreach (var player in LocalCoopSession.Instance.Players)
+            {
+                var body = player.GetComponent<Collider2D>();
+                if (player.Alive && body != null && Vector2.Distance(body.ClosestPoint(transform.position), transform.position) <= CrashExplosionRadius)
+                    player.Health.TryTakeDamage(1);
+            }
+        }
+        else if (TargetHealth != null && TargetCollider != null &&
             Vector2.Distance(TargetCollider.ClosestPoint(transform.position), transform.position) <= CrashExplosionRadius)
             TargetHealth.TryTakeDamage(1);
         if (CrashExplosionPrefab != null) ObjectPooler.SpawnEffect(CrashExplosionPrefab, transform.position, Quaternion.identity);

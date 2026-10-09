@@ -22,6 +22,33 @@ public class CardManager : MonoBehaviour
     [Range(0f, 1f)] public float CorruptedRollWeight = 0f;
     [Range(0f, 1f)] public float BasicRollWeight = 0.07f;
 
+    PlayerStats _activePlayer;
+    PlayerStats TargetStats => _activePlayer != null ? _activePlayer : PlayerStats.Instance;
+    class PlayerRun
+    {
+        public readonly Dictionary<string, int> Picks = new Dictionary<string, int>();
+        public readonly HashSet<StatType> Stats = new HashSet<StatType>();
+        public readonly HashSet<string> Feathers = new HashSet<string>();
+    }
+    readonly Dictionary<PlayerStats, PlayerRun> _runs = new Dictionary<PlayerStats, PlayerRun>();
+    T ForPlayer<T>(PlayerStats player, System.Func<T> action)
+    {
+        if (player == null) return action();
+        if (!_runs.TryGetValue(player, out var run)) { run = new PlayerRun(); _runs.Add(player, run); }
+        var oldPlayer = _activePlayer; var oldPicks = _cardRunPickups;
+        var oldStats = _statsInitializedThisRun; var oldFeathers = _featherFieldsInitializedThisRun;
+        _activePlayer = player; _cardRunPickups = run.Picks;
+        _statsInitializedThisRun = run.Stats; _featherFieldsInitializedThisRun = run.Feathers;
+        try { return action(); }
+        finally { _activePlayer = oldPlayer; _cardRunPickups = oldPicks; _statsInitializedThisRun = oldStats; _featherFieldsInitializedThisRun = oldFeathers; }
+    }
+    public List<CardDefinition> GetRandomCards(int count, PlayerStats player) => ForPlayer(player, () => GetRandomCards(count));
+    public int GetRunPickups(string id, PlayerStats player) => ForPlayer(player, () => GetRunPickups(id));
+    public void ApplyCardEffect(CardDefinition card, PlayerStats player)
+    {
+        ForPlayer(player, () => { ApplyCardEffect(card); return true; });
+    }
+
     void Awake()
     {
         Instance = this;
@@ -71,7 +98,7 @@ public class CardManager : MonoBehaviour
         PlayerData data = _cachedPlayerData;
 
         return AllCards
-            .Where(c => c != null)
+            .Where(c => c != null && (!LocalCoopSession.Multiplayer || !LocalCoopSession.DisabledCards.Contains(c.ID)))
             .Where(c => c.PackCategory == CardPackType.BaseSet ||
                         (data.CardCollection != null && data.CardCollection.Exists(s => s.CardID == c.ID && s.IsUnlocked)))
             .ToList();
@@ -82,7 +109,7 @@ public class CardManager : MonoBehaviour
     /// </summary>
     CardRarity RollRarity()
     {
-        float luck = PlayerStats.Instance != null ? Mathf.Clamp01(PlayerStats.Instance.LuckPercent) : 0;
+        float luck = TargetStats != null ? Mathf.Clamp01(TargetStats.LuckPercent) : 0;
         float rare = RareRollWeight * (1f + luck);
         float legendary = LegendaryRollWeight * (1f + luck);
         float common = Mathf.Max(0, CommonRollWeight - (rare - RareRollWeight) - (legendary - LegendaryRollWeight));
@@ -193,9 +220,11 @@ public class CardManager : MonoBehaviour
 
         if (!card.IsBasic && pickupIndex > 0) return;
         _cardRunPickups[card.ID] = pickupIndex + 1;
+        var localPlayer = TargetStats != null ? TargetStats.GetComponent<LocalPlayer>() : null;
+        if (localPlayer != null) localPlayer.CardsPicked++;
         bool ascended = IsAscended(card.ID) && card.Ascension != CardAscension.None;
-        if (ascended && PlayerStats.Instance != null)
-            PlayerStats.Instance.ActivateAscension(card.Ascension);
+        if (ascended && TargetStats != null)
+            TargetStats.ActivateAscension(card.Ascension);
         if (ascended && !card.AscensionRetainsBase) return;
 
         if (card.Modifiers == null) return;
@@ -206,10 +235,10 @@ public class CardManager : MonoBehaviour
             ApplyStat(card, mod.StatType, amount);
         }
 
-        if (PlayerStats.Instance != null)
+        if (TargetStats != null)
         {
-            PlayerStats.Instance.NotifyTurretsChanged();
-            PlayerStats.Instance.NotifySecondWindChanged();
+            TargetStats.NotifyTurretsChanged();
+            TargetStats.NotifySecondWindChanged();
         }
     }
 
@@ -290,9 +319,9 @@ public class CardManager : MonoBehaviour
     {
         if (Mathf.Approximately(amount, 0f)) return;
 
-        PlayerStats ps = PlayerStats.Instance;
+        PlayerStats ps = TargetStats;
         WeaponPlayer weapon = ps != null ? ps.GetComponent<WeaponPlayer>() : null;
-        PlayerController controller = PlayerController.Instance;
+        PlayerController controller = ps != null ? ps.GetComponent<PlayerController>() : null;
         PlayerHealth health = ps != null ? ps.GetComponent<PlayerHealth>() : null;
 
         switch (stat)
@@ -676,7 +705,8 @@ public class CardManager : MonoBehaviour
                 if (LevelManager.Instance != null) LevelManager.Instance.XPMultiplier = ps != null ? ps.XPMultiplier : 1f;
                 break;
             case StatType.CoinsPerWave:
-                if (LevelManager.Instance != null) LevelManager.Instance.CoinsPerWave += Mathf.RoundToInt(amount);
+                if (ps != null) ps.CoinsPerWave += Mathf.RoundToInt(amount);
+                if (!LocalCoopSession.Multiplayer && LevelManager.Instance != null) LevelManager.Instance.CoinsPerWave += Mathf.RoundToInt(amount);
                 break;
             case StatType.CoinDropMultiplier:
                 if (ps != null) ps.CoinDropMultiplier += amount;
@@ -819,10 +849,10 @@ public class CardManager : MonoBehaviour
     /// </summary>
     void ApplySpecialFeather(CardDefinition card, PlayerStats.FeatherType type, string field, float amount)
     {
-        if (PlayerStats.Instance == null) return;
+        if (TargetStats == null) return;
         if (Mathf.Approximately(amount, 0f)) return;
 
-        var instance = PlayerStats.Instance.GetSpecialFeatherByCardID(card.ID);
+        var instance = TargetStats.GetSpecialFeatherByCardID(card.ID);
         if (instance == null)
         {
             // First time this card has been picked - create a fresh instance.
@@ -835,7 +865,7 @@ public class CardManager : MonoBehaviour
             instance.BonusKnockback = 2f;
             instance.ExplosionRadius = 1.5f;
             instance.BuckshotPellets = 5;
-            PlayerStats.Instance.SpecialFeathers.Add(instance);
+            TargetStats.SpecialFeathers.Add(instance);
         }
 
         // Per-card-per-field initialization key. A given card's frosty threshold is 

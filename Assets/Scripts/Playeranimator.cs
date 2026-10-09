@@ -41,7 +41,7 @@ public class PlayerAnimator : MonoBehaviour
 
     void Awake()
     {
-        Instance = this;
+        if (Instance == null) Instance = this;
         
         _anim = GetComponent<Animator>();
         _rb = GetComponent<Rigidbody2D>();
@@ -79,13 +79,16 @@ public class PlayerAnimator : MonoBehaviour
         }
     }
 
+    bool _wasShooting;
+    public void Revive() { _isDead = false; _anim.Rebind(); _anim.Update(0); }
     void CheckShootInput()
     {
         // Trigger animation on click (not hold)
-        if (Input.GetButtonDown("Fire1"))
+        if (InputHelper.GetShootHeld(this) && !_wasShooting)
         {
             TriggerShoot();
         }
+        _wasShooting = InputHelper.GetShootHeld(this);
     }
 
     /// <summary>

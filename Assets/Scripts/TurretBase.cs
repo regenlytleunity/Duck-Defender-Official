@@ -25,6 +25,8 @@ public abstract class TurretBase : MonoBehaviour
     [Tooltip("Optional replacement artwork for this turret's ascended form.")]
     public Sprite AscendedSprite;
 
+    protected PlayerStats OwnerStats { get; private set; }
+    protected PlayerHealth OwnerHealth { get; private set; }
     protected Transform PlayerTransform { get; private set; }
     protected Vector3 SlotOffset { get; private set; }
 
@@ -53,6 +55,7 @@ public abstract class TurretBase : MonoBehaviour
         if (stats != null && stats.HasAscension(ascension) && AscendedSprite != null && TurretRenderer != null)
             TurretRenderer.sprite = AscendedSprite;
         PlayerTransform = player;
+        OwnerStats = stats; OwnerHealth = player != null ? player.GetComponent<PlayerHealth>() : null;
         SlotOffset = slotOffset;
         _lastPlayerPos = player != null ? player.position : Vector3.zero;
 
@@ -69,7 +72,7 @@ public abstract class TurretBase : MonoBehaviour
 
     void Update()
     {
-        if (PlayerTransform == null) return;
+        if (PlayerTransform == null || OwnerHealth != null && OwnerHealth.IsDead) return;
 
         FollowPlayer();
         TickAction();

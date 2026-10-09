@@ -65,6 +65,7 @@ public class Projectile : MonoBehaviour
     }
 
     public BallisticData Stats;
+    public PlayerStats OwnerStats { get; private set; }
 
     [Header("Default Lifetime")]
     [Tooltip("Lifetime in seconds if BallisticData.Lifetime is 0 (the standard case).")]
@@ -138,12 +139,13 @@ public class Projectile : MonoBehaviour
         _defaultLocalScale = transform.localScale;
     }
 
-    public void Initialize(BallisticData incomingStats)
+    public void Initialize(BallisticData incomingStats, PlayerStats owner = null)
     {
         // Pool growth may return an object whose Awake has not run yet.
         if (_rb == null) Awake();
+        OwnerStats = owner != null ? owner : PlayerStats.Instance;
         Stats = incomingStats;
-        if (!Stats.NonFeather && PlayerStats.Instance != null && PlayerStats.Instance.FeatherSize > 1f)
+        if (!Stats.NonFeather && OwnerStats != null && OwnerStats.FeatherSize > 1f)
             Stats.ProjectileGravity = Mathf.Max(1f, Stats.ProjectileGravity);
         Stats.PierceCount = Mathf.Max(0, Stats.PierceCount);
         Stats.RicochetCount = Mathf.Max(0, Stats.RicochetCount);
@@ -217,7 +219,7 @@ public class Projectile : MonoBehaviour
             _needsDelayedRetarget = false;
             StartCoroutine(DelayedTargetAcquisition());
         }
-        if (PlayerStats.Instance != null && !Stats.NonFeather && PlayerStats.Instance.HasAscension(CardAscension.QuantumLeap))
+        if (OwnerStats != null && !Stats.NonFeather && OwnerStats.HasAscension(CardAscension.QuantumLeap))
             TraceInstant();
     }
 
@@ -324,8 +326,8 @@ public class Projectile : MonoBehaviour
         float baseMult = Stats.DamageMultiplier > 0 ? Stats.DamageMultiplier : 1.0f;
 
         float ratio = (Stats.DamageRatio > 0 ? Stats.DamageRatio : 1f) * _currentDamageMultiplier;
-        float damage = PlayerStats.Instance != null
-            ? PlayerStats.Instance.CalculateDamage(Stats.Damage, !Stats.NonFeather, ratio, baseMult - 1f + Stats.LocalDamageBonus)
+        float damage = OwnerStats != null
+            ? OwnerStats.CalculateDamage(Stats.Damage, !Stats.NonFeather, ratio, baseMult - 1f + Stats.LocalDamageBonus)
             : Stats.Damage * baseMult * ratio;
         int baseDamage = Mathf.Max(1, Mathf.RoundToInt(damage));
 
@@ -335,7 +337,7 @@ public class Projectile : MonoBehaviour
         if (isCrit) damageToDeal *= 2;
 
         if (Stats.MarkTarget) enemy.IsMarked = true;
-        enemy.TakeDamage(damageToDeal);
+        enemy.TakeDamage(damageToDeal, OwnerStats);
 
         float knockbackForce = Stats.Knockback;
         if (Stats.IsMetalFeather) knockbackForce += Stats.BonusKnockback;
@@ -350,16 +352,16 @@ public class Projectile : MonoBehaviour
         if (Stats.IsPoisonFeather && Stats.PoisonDPS > 0)
         {
             float totalPoisonDamage = Stats.PoisonDPS * 3f;
-            if (Stats.Variant == CardAscension.DeadlyToxin) enemy.ApplyDeadlyToxin();
-            else enemy.ApplyPoison(totalPoisonDamage);
+            if (Stats.Variant == CardAscension.DeadlyToxin) enemy.ApplyDeadlyToxin(OwnerStats);
+            else enemy.ApplyPoison(totalPoisonDamage, OwnerStats);
         }
 
-        if (!Stats.IsPoisonFeather && Stats.PoisonDamage > 0) enemy.ApplyPoison(Stats.PoisonDamage);
+        if (!Stats.IsPoisonFeather && Stats.PoisonDamage > 0) enemy.ApplyPoison(Stats.PoisonDamage, OwnerStats);
         if (!Stats.IsFrostyFeather && Stats.IceSlowFactor > 0) enemy.ApplySlow(Stats.IceSlowFactor);
 
         if (Stats.IsHealingFeather && Stats.HealAmount > 0)
         {
-            PlayerHealth ph = PlayerStats.Instance != null ? PlayerStats.Instance.GetComponent<PlayerHealth>() : null;
+            PlayerHealth ph = OwnerStats != null ? OwnerStats.GetComponent<PlayerHealth>() : null;
             if (ph != null)
             {
                 ph.Heal(Stats.HealAmount);
@@ -376,9 +378,9 @@ public class Projectile : MonoBehaviour
         // === 1.4.11 AIRBURST ===
         // Spawn airburst sub-feathers behind the enemy on hit, if this is a normal feather
         // and the player has the Airburst upgrade. Only normal feathers airburst (CanAirburst).
-        if (Stats.CanAirburst && PlayerStats.Instance != null && PlayerStats.Instance.AirburstFeatherCount > 0)
+        if (Stats.CanAirburst && OwnerStats != null && OwnerStats.AirburstFeatherCount > 0)
         {
-            WeaponPlayer wp = PlayerStats.Instance.GetComponent<WeaponPlayer>();
+            WeaponPlayer wp = OwnerStats.GetComponent<WeaponPlayer>();
             if (wp != null)
             {
                 Vector3 incomingDir = _rb.linearVelocity.normalized;
@@ -448,14 +450,14 @@ public class Projectile : MonoBehaviour
     {
         if (_electricHitResolved) return;
         _electricHitResolved = true;
-        if (_electricOwner != null && PlayerStats.Instance != null && PlayerStats.Instance.AirburstFeatherCount > 0)
+        if (_electricOwner != null && OwnerStats != null && OwnerStats.AirburstFeatherCount > 0)
             _electricOwner.SpawnAirburst(firstTarget.transform.position, _rb.linearVelocity.normalized,
                 _electricOwner.CurrentStats.Damage, _electricOwner.CurrentStats.DamageMultiplier, firstTarget.GetInstanceID());
         if (AudioManager.Instance != null) AudioManager.Instance.PlaySFX("Feather_Hit_Enemy");
         if (Stats.Variant == CardAscension.Supercharged)
         {
             if (_electricOwner != null) _electricOwner.ShowElectricChain(firstTarget.transform.position + Vector3.up * 15, firstTarget.transform.position);
-            firstTarget.TakeDamage(Mathf.CeilToInt(firstTarget.MaxHealth));
+            firstTarget.TakeDamage(Mathf.CeilToInt(firstTarget.MaxHealth), OwnerStats);
             Deactivate();
             return;
         }
@@ -477,7 +479,7 @@ public class Projectile : MonoBehaviour
             int hitDamage = Mathf.Max(1, Mathf.RoundToInt(damage));
             bool critical = target.IsMarked || Random.value < Stats.CritChance;
             if (critical) hitDamage *= 2;
-            target.TakeDamage(hitDamage);
+            target.TakeDamage(hitDamage, OwnerStats);
             if (GameUI.Instance != null) GameUI.Instance.ShowDamagePopup(hitPosition, hitDamage, false);
 
             if (hitIndex == _electricChainCount) break;
@@ -562,19 +564,19 @@ public class Projectile : MonoBehaviour
         if (Stats.Variant == CardAscension.Volcano && !_eruptionSpawned)
         {
             _eruptionSpawned = true;
-            if (PlayerStats.Instance != null) PlayerStats.Instance.GetComponent<AscensionEffects>()?.Erupt(transform.position, actualRadius, ExplosionPrefab);
+            if (OwnerStats != null) OwnerStats.GetComponent<AscensionEffects>()?.Erupt(transform.position, actualRadius, ExplosionPrefab);
         }
 
         ObjectPooler.SpawnEffect(ExplosionPrefab, transform.position, Quaternion.identity, actualRadius);
 
         float baseMult = Stats.DamageMultiplier > 0 ? Stats.DamageMultiplier : 1f;
-        float boomDamage = PlayerStats.Instance != null
-            ? PlayerStats.Instance.CalculateDamage(Stats.Damage, false, .5f * _currentDamageMultiplier, baseMult - 1)
+        float boomDamage = OwnerStats != null
+            ? OwnerStats.CalculateDamage(Stats.Damage, false, .5f * _currentDamageMultiplier, baseMult - 1)
             : Stats.Damage * .5f * baseMult * _currentDamageMultiplier;
         EnemyBase.CopyActiveEnemies(_areaEnemies);
         foreach (var enemy in _areaEnemies)
             if (enemy != null && enemy.IsAlive && ((Vector2)enemy.transform.position - (Vector2)transform.position).sqrMagnitude <= actualRadius * actualRadius)
-                enemy.TakeFractionalDamage(boomDamage);
+                enemy.TakeFractionalDamage(boomDamage, OwnerStats);
     }
 
     void ApplyBounceScaling()
@@ -588,7 +590,7 @@ public class Projectile : MonoBehaviour
             }
             return;
         }
-        float loss = PlayerStats.Instance != null ? PlayerStats.Instance.RicochetDamageLoss : .5f;
+        float loss = OwnerStats != null ? OwnerStats.RicochetDamageLoss : .5f;
         _currentDamageMultiplier *= 1f - Mathf.Clamp01(loss);
         _currentSpeedMultiplier *= 1.5f;
     }

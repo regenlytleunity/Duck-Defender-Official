@@ -142,6 +142,9 @@ public static class LateGameFixVerification
         wave.EnemyPrefabs=new[]{template}; wave.SpawnPoints=new[]{Make("spawn").transform};
         wave.MaxConcurrentEnemies=1; wave.BaseMultiSpawnChance=wave.MaxMultiSpawnChance=1;
         wave.BaseExtraSpawns=2; wave.MaxExtraSpawns=2;
+        // SpawnRoutine consumes the authored plan introduced by the enemy update.
+        var plan = Get<List<WaveManager.SpawnRequest>>(wave,"_spawnPlan");
+        for (int i = 0; i < 3; i++) plan.Add(new WaveManager.SpawnRequest { Prefab = template, SpawnPointIndex = 0, Interval = -1 });
         Set(wave,"_enemiesRemainingToSpawn",3); Set(wave,"_enemiesAlive",3);
         var spawn=(IEnumerator)Call(wave,"SpawnRoutine");
         Time.timeScale=0; spawn.MoveNext(); Check(wave.QueuedEnemies==3,"paused wave does not spawn");

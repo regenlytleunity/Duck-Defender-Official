@@ -70,10 +70,11 @@ public class EnemyTipUI : MonoBehaviour
     {
         if (!IsShowing) return;
         bool graceOver = Time.unscaledTime - _shownAt >= InputGraceSeconds;
-        bool held = Input.GetMouseButton(0) || Input.touchCount > 0;
+        var pad = UnityEngine.InputSystem.Gamepad.all.Count > 0 ? UnityEngine.InputSystem.Gamepad.all[0] : null;
+        bool held = Input.GetMouseButton(0) || Input.touchCount > 0 || pad != null && pad.buttonEast.isPressed;
         if (graceOver && !held) _released = true;
-        ContinueText.text = graceOver && _released ? "Click or tap to continue" : "Take a moment to read...";
-        bool pressed = Input.GetMouseButtonDown(0);
+        ContinueText.text = graceOver && _released ? "Click, tap, or press B to continue" : "Take a moment to read...";
+        bool pressed = Input.GetMouseButtonDown(0) || pad != null && pad.buttonEast.wasPressedThisFrame;
         for (int i = 0; i < Input.touchCount; i++) pressed |= Input.GetTouch(i).phase == TouchPhase.Began;
         if (graceOver && _released && pressed) Dismiss();
     }
@@ -130,7 +131,7 @@ public class EnemyTipUI : MonoBehaviour
         TitleText = Text(box.transform, "Title", 34, new Vector2(210, -22), new Vector2(-28, -70));
         DescriptionText = Text(box.transform, "Description", 27, new Vector2(210, -78), new Vector2(-28, -215));
         ContinueText = Text(box.transform, "Continue", 22, new Vector2(210, -229), new Vector2(-28, -269));
-        ContinueText.color = new Color(.7f, .85f, 1);
+        ContinueText.color = Color.white;
         Panel.SetActive(false);
     }
 

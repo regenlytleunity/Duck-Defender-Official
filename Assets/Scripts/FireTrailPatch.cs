@@ -33,6 +33,8 @@ using System.Collections.Generic;
 /// </summary>
 public class FireTrailPatch : MonoBehaviour
 {
+    [System.NonSerialized] public PlayerStats OwnerStats;
+
     readonly System.Collections.Generic.List<EnemyBase> _damageTargets = new System.Collections.Generic.List<EnemyBase>();
     [Header("Damage")]
     [Tooltip("How often (in seconds) damage is applied to enemies inside the patch.")]
@@ -196,8 +198,8 @@ public class FireTrailPatch : MonoBehaviour
         foreach (var enemy in _damageTargets)
         {
             if (enemy == null || !enemy.IsAlive || Vector2.Distance(transform.position, enemy.transform.position) > _resolvedDamageRadius) continue;
-            float damage = PlayerStats.Instance != null ? PlayerStats.Instance.CalculateDamage(_damagePerSecond, false) * seconds : _damagePerSecond * seconds;
-            enemy.TakeFractionalDamage(damage);
+            float damage = OwnerStats != null ? OwnerStats.CalculateDamage(_damagePerSecond, false) * seconds : _damagePerSecond * seconds;
+            enemy.TakeFractionalDamage(damage, OwnerStats);
             if (SlowPercent > 0) enemy.ApplyZoneSlow(SlowPercent, DamageTickInterval + .1f);
         }
     }

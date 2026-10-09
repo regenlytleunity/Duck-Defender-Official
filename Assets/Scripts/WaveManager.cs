@@ -92,7 +92,7 @@ public class WaveManager : MonoBehaviour
     [Min(.01f)] public float MinimumTimeBetweenEnemies = .04f;
     public int SpawnedEnemiesAlive => Mathf.Max(0, _enemiesAlive - _enemiesRemainingToSpawn);
     public int QueuedEnemies => _enemiesRemainingToSpawn;
-    bool HasSpawnCapacity => SpawnedEnemiesAlive < Mathf.Max(1, MaxConcurrentEnemies);
+    bool HasSpawnCapacity => SpawnedEnemiesAlive < Mathf.Max(1, MaxConcurrentEnemies) * LocalCoopSession.PlayerCount;
     
     [Header("Difficulty Tier Scaling")]
     [Tooltip("How many waves per difficulty tier. Every N waves, non-speed scaling multiplies.")]
@@ -131,6 +131,8 @@ public class WaveManager : MonoBehaviour
     {
         yield return new WaitForSeconds(TimeBetweenWaves);
 
+        if (LocalCoopSession.Instance != null && LocalCoopSession.Instance.GameOver) yield break;
+        LocalCoopSession.Instance?.BeginWave();
         _currentWave++;
         
         _definition = WaveDefinitions.Find(w => w != null && w.WaveNumber == _currentWave);
@@ -140,6 +142,9 @@ public class WaveManager : MonoBehaviour
             Debug.LogError("[WaveManager] " + error);
             yield break;
         }
+        int baseCount = _spawnPlan.Count;
+        for (int player = 1; player < LocalCoopSession.PlayerCount; player++)
+            for (int i = 0; i < baseCount; i++) _spawnPlan.Add(_spawnPlan[i]);
         _spawnIndex = 0;
         int enemiesThisWave = _spawnPlan.Count;
         
@@ -191,11 +196,16 @@ public class WaveManager : MonoBehaviour
                 while (Time.timeScale == 0 || !HasSpawnCapacity) yield return null;
                 SpawnRequest request = _spawnPlan[_spawnIndex];
                 if (request.DelayBefore > 0) yield return new WaitForSeconds(request.DelayBefore);
-                if (!SpawnEnemy(request))
+                while (!SpawnEnemy(request))
                 {
-                    HasWaveError = true;
-                    Debug.LogError("[WaveManager] Assign valid enemy prefabs and spawn points. Wave spawning stopped.");
-                    yield break;
+                    if (WorldCamera.Instance == null)
+                    {
+                        HasWaveError = true;
+                        Debug.LogError("[WaveManager] Assign valid enemy prefabs and spawn points. Wave spawning stopped.");
+                        yield break;
+                    }
+                    // Keep the request queued until terrain outside the view becomes available.
+                    yield return new WaitForSeconds(.25f);
                 }
                 _enemiesRemainingToSpawn--;
                 _spawnIndex++;
@@ -214,7 +224,9 @@ public class WaveManager : MonoBehaviour
         Transform spawnPoint = SpawnPoints[request.SpawnPointIndex >= 0 ? request.SpawnPointIndex : Random.Range(0, SpawnPoints.Length)];
         GameObject prefabToSpawn = request.Prefab;
         if (spawnPoint == null || prefabToSpawn == null || prefabToSpawn.GetComponent<EnemyBase>() == null) return false;
-        GameObject newEnemy = Instantiate(prefabToSpawn, spawnPoint.position, Quaternion.identity);
+        Vector3 position = spawnPoint.position;
+        if (WorldCamera.Instance != null && !WorldCamera.Instance.TrySpawnPosition(prefabToSpawn, out position)) return false;
+        GameObject newEnemy = Instantiate(prefabToSpawn, position, Quaternion.identity);
 
         EnemyBase enemyScript = newEnemy.GetComponent<EnemyBase>();
         

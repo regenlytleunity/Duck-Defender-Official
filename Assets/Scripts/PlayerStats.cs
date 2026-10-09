@@ -21,6 +21,7 @@ using System.Collections.Generic;
 public class PlayerStats : MonoBehaviour
 {
     public static PlayerStats Instance;
+    public int CoinsPerWave;
     public const float RebirthBonus = 1.5f;
 
     [Header("Card Rework")]
@@ -43,6 +44,17 @@ public class PlayerStats : MonoBehaviour
     public float SpeedMultiplier => Mathf.Max(.05f, 1f + RunSpeedBonus + (HasAscension(CardAscension.Untouchable) ? 4f : 0f)) * RebirthStatMultiplier;
     public static float ProjectileSpeedFactor(Vector2 position)
     {
+        if (LocalCoopSession.Instance != null && LocalCoopSession.Instance.Players.Count > 0)
+        {
+            float factor = 1;
+            foreach (var player in LocalCoopSession.Instance.Players)
+            {
+                var other = player.Stats;
+                if (player.Alive && other.HasSlowingAura && Vector2.Distance(position, player.transform.position) <= other.SlowingAuraRadius)
+                    factor = Mathf.Min(factor, Mathf.Max(.05f, 1 - other.SlowingAuraSlowPercent));
+            }
+            return factor;
+        }
         var stats = Instance;
         if (stats == null || !stats.HasSlowingAura || Vector2.Distance(position, stats.transform.position) > stats.SlowingAuraRadius) return 1;
         return Mathf.Max(.05f, 1f - stats.SlowingAuraSlowPercent);
@@ -336,7 +348,7 @@ public class PlayerStats : MonoBehaviour
 
     void Awake()
     {
-        Instance = this;
+        if (Instance == null) Instance = this;
         if (GetComponent<AscensionEffects>() == null) gameObject.AddComponent<AscensionEffects>();
     }
 

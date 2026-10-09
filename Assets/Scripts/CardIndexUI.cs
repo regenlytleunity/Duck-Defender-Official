@@ -5,6 +5,7 @@ using System.Linq;
 
 public class CardIndexUI : MonoBehaviour
 {
+    [System.NonSerialized] public bool HostFilterMode;
     [Header("References")]
     public Transform ContentArea;
     public GameObject CategoryHeaderPrefab; // Retained for existing serialization.
@@ -53,7 +54,7 @@ public class CardIndexUI : MonoBehaviour
     {
         _cards.Clear();
         if (ShopManager.Instance != null && ShopManager.Instance.AllCards != null)
-            _cards.AddRange(ShopManager.Instance.AllCards.Where(c => c != null && !c.IsBasic && c.PackCategory == SelectedPack)
+            _cards.AddRange(ShopManager.Instance.AllCards.Where(c => c != null && !c.IsBasic && c.PackCategory == SelectedPack && (!HostFilterMode || ShopManager.Instance.GetCardData(c.ID)?.IsUnlocked == true))
                 .OrderBy(c => c.Rarity).ThenBy(c => c.CardName));
         CurrentPage = Mathf.Clamp(CurrentPage, 0, PageCount - 1);
         ShowPage();
@@ -66,9 +67,12 @@ public class CardIndexUI : MonoBehaviour
         for (int i = CurrentPage * CardsPerPage; i < Mathf.Min(_cards.Count, (CurrentPage + 1) * CardsPerPage); i++)
         {
             var card = Instantiate(CardDisplayPrefab, ContentArea);
-            card.GetComponent<CardDisplay>().Setup(_cards[i]);
+            var display = card.GetComponent<CardDisplay>();
+            if (HostFilterMode) display.SetupHostFilter(_cards[i]); else display.Setup(_cards[i]);
             _displays.Add((RectTransform)card.transform);
         }
+        if (CoinsText != null) CoinsText.gameObject.SetActive(!HostFilterMode);
+        if (EssenceText != null) EssenceText.gameObject.SetActive(!HostFilterMode);
         LayoutCards();
         if (LayoutText != null) LayoutText.text = "LAYOUT: " + LayoutColumns + " x " + LayoutRows;
         if (PageText != null) PageText.text = (CurrentPage + 1) + " / " + PageCount;

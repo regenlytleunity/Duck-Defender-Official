@@ -31,6 +31,11 @@ public class LevelUpUI : MonoBehaviour
     public void ShowLevelUpOptions()
     {
         if (_offering) { _queuedOffers++; return; }
+        if (LocalCoopSession.Multiplayer && CoopRunUI.Instance != null)
+        {
+            _offering = true; Time.timeScale = 0;
+            CoopRunUI.Instance.ShowCards(this); return;
+        }
         if (CardPrefab == null || CardContainer == null)
         {
             Debug.LogError("LevelUpUI: CardPrefab or CardContainer is not assigned!");
@@ -78,6 +83,13 @@ public class LevelUpUI : MonoBehaviour
         ClearContainer();
         Panel.SetActive(false);
         Time.timeScale = EnemyTipUI.Instance != null && EnemyTipUI.Instance.IsShowing ? 0 : 1;
+        if (_queuedOffers > 0) { _queuedOffers--; ShowLevelUpOptions(); }
+    }
+
+    public void CompleteCoopOffer()
+    {
+        _offering = false;
+        Time.timeScale = EnemyTipUI.Instance != null && EnemyTipUI.Instance.IsShowing || LocalCoopSession.Instance != null && (LocalCoopSession.Instance.DevicesMissing || LocalCoopSession.Instance.GameOver) ? 0 : 1;
         if (_queuedOffers > 0) { _queuedOffers--; ShowLevelUpOptions(); }
     }
 

@@ -18,30 +18,30 @@ public class MedicTurret : TurretBase
     protected override void Awake()
     {
         base.Awake();
-        _cachedPlayerHealth = FindFirstObjectByType<PlayerHealth>();
+        _cachedPlayerHealth = OwnerHealth;
     }
 
     protected override float GetCurrentInterval()
     {
-        if (PlayerStats.Instance == null) return 99f;
-        return Mathf.Max(0.5f, PlayerStats.Instance.MedicInterval);
+        if (OwnerStats == null) return 99f;
+        return Mathf.Max(0.5f, OwnerStats.MedicInterval);
     }
 
     protected override void OnTick()
     {
-        if (PlayerStats.Instance == null) return;
+        if (OwnerStats == null) return;
         if (_cachedPlayerHealth == null)
         {
-            _cachedPlayerHealth = FindFirstObjectByType<PlayerHealth>();
+            _cachedPlayerHealth = OwnerHealth;
             if (_cachedPlayerHealth == null) return;
         }
 
-        if (PlayerStats.Instance.HasAscension(CardAscension.Savior))
+        if (OwnerStats.HasAscension(CardAscension.Savior))
         {
-            PlayerStats.Instance.GetComponent<AscensionEffects>()?.SpawnHealingArea(_cachedPlayerHealth.transform.position);
+            OwnerStats.GetComponent<AscensionEffects>()?.SpawnHealingArea(_cachedPlayerHealth.transform.position);
             return;
         }
-        int healAmount = Mathf.Max(1, PlayerStats.Instance.MedicHealAmount);
+        int healAmount = Mathf.Max(1, OwnerStats.MedicHealAmount);
 
         bool atFullHealth = false;
         if (SuppressEffectAtFullHP)

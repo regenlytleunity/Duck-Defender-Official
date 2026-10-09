@@ -10,6 +10,9 @@ using System.Collections;
 /// </summary>
 public class PlayerHealth : MonoBehaviour
 {
+    PlayerStats _ownerStats;
+    PlayerStats OwnerStats => _ownerStats != null ? _ownerStats : (_ownerStats = GetComponent<PlayerStats>());
+
     [Header("Health Stats")]
     public int MaxHealth = 5;
     [Tooltip("Base invulnerability window after taking damage.")]
@@ -84,8 +87,11 @@ public class PlayerHealth : MonoBehaviour
     public void Heal(int amount)
     {
         if (_isDead) return;
-        _currentHealth += amount;
+        int previous = _currentHealth;
+        _currentHealth += Mathf.Max(0, amount);
         if (_currentHealth >= MaxHealth) { _currentHealth = MaxHealth; _fractionalIncomingDamage = 0; }
+        var player = GetComponent<LocalPlayer>();
+        if (player != null) player.Healing += Mathf.Max(0, _currentHealth - previous);
         UpdateUI();
     }
 
@@ -141,7 +147,7 @@ public class PlayerHealth : MonoBehaviour
         int wholeDamage = Mathf.FloorToInt(_fractionalIncomingDamage + .00001f);
         _fractionalIncomingDamage -= wholeDamage;
         _currentHealth -= wholeDamage;
-        if (PlayerStats.Instance != null && PlayerStats.Instance.HasAscension(CardAscension.Pincushion))
+        if (OwnerStats != null && OwnerStats.HasAscension(CardAscension.Pincushion))
             GetComponent<AscensionEffects>()?.ReleaseNeedles();
         UpdateUI();
 
@@ -182,8 +188,8 @@ public class PlayerHealth : MonoBehaviour
     /// </summary>
     bool TryTriggerSecondWind()
     {
-        if (PlayerStats.Instance == null) return false;
-        var stats = PlayerStats.Instance;
+        if (OwnerStats == null) return false;
+        var stats = OwnerStats;
         if (stats.HasAscension(CardAscension.Rebirth) && !stats.RebirthUsed)
         {
             stats.RebirthUsed = true;
@@ -196,19 +202,19 @@ public class PlayerHealth : MonoBehaviour
             UpdateUI();
             return true;
         }
-        if (!PlayerStats.Instance.IsSecondWindReady()) return false;
+        if (!OwnerStats.IsSecondWindReady()) return false;
 
         // Restore % of max health
-        float pct = Mathf.Clamp01(PlayerStats.Instance.SecondWindHealthRecovery);
+        float pct = Mathf.Clamp01(OwnerStats.SecondWindHealthRecovery);
         int recoveredHP = Mathf.Max(1, Mathf.RoundToInt(MaxHealth * pct));
         _currentHealth = recoveredHP;
         UpdateUI();
 
         // Consume the Second Wind charge (starts the cooldown)
-        PlayerStats.Instance.ConsumeSecondWind();
+        OwnerStats.ConsumeSecondWind();
 
         // Invulnerability window
-        float invulnDur = Mathf.Max(0.5f, PlayerStats.Instance.SecondWindInvulnDuration);
+        float invulnDur = Mathf.Max(0.5f, OwnerStats.SecondWindInvulnDuration);
         StartCoroutine(InvulnerabilityRoutine(invulnDur));
 
         // SFX / visual feedback
@@ -231,13 +237,13 @@ public class PlayerHealth : MonoBehaviour
         if (ThornsDamage > 0 && collision.gameObject.CompareTag("Enemy"))
         {
             EnemyBase enemy = collision.gameObject.GetComponent<EnemyBase>();
-            if (enemy != null) enemy.TakeDamage(Mathf.RoundToInt(PlayerStats.Instance != null ? PlayerStats.Instance.CalculateDamage(ThornsDamage, false) : ThornsDamage));
+            if (enemy != null) enemy.TakeDamage(Mathf.RoundToInt(OwnerStats != null ? OwnerStats.CalculateDamage(ThornsDamage, false) : ThornsDamage), OwnerStats);
         }
     }
 
     void UpdateUI()
     {
-        if (GameUI.Instance != null)
+        if (!LocalCoopSession.Multiplayer && GameUI.Instance != null)
         {
             GameUI.Instance.UpdatePlayerHealth(_currentHealth, MaxHealth);
         }
@@ -247,6 +253,17 @@ public class PlayerHealth : MonoBehaviour
     {
         if (_isDead) return;
         _isDead = true;
+        if (LocalCoopSession.Multiplayer && LocalCoopSession.Instance != null)
+        {
+            StopAllCoroutines();
+            if (_spriteRen != null) _spriteRen.enabled = false;
+            var movement = GetComponent<PlayerController>(); movement.StopAllCoroutines(); movement.enabled = false;
+            if (movement.AuraChild != null) movement.AuraChild.UpdateAura(0, 0);
+            var weapon = GetComponent<WeaponPlayer>(); weapon.StopAllCoroutines(); weapon.enabled = false;
+            GetComponent<Rigidbody2D>().simulated = false;
+            LocalCoopSession.Instance.PlayerDied(GetComponent<LocalPlayer>());
+            return;
+        }
 
         if (AudioManager.Instance != null)
         {
@@ -270,6 +287,20 @@ public class PlayerHealth : MonoBehaviour
         if (GameUI.Instance != null) GameUI.Instance.ShowGameOver();
 
         StartCoroutine(ReturnToMenuRoutine());
+    }
+
+    public void Respawn(Vector3 position)
+    {
+        if (!_isDead) return;
+        StopAllCoroutines();
+        _isDead = false; _isInvulnerable = false; _currentHealth = MaxHealth;
+        _stunnedUntil = _slowedUntil = _poisonUntil = 0; _poisonStacks = 0; _fractionalIncomingDamage = 0;
+        transform.position = position;
+        var body = GetComponent<Rigidbody2D>(); body.simulated = true; body.linearVelocity = Vector2.zero;
+        GetComponent<PlayerController>().ResetAfterRespawn(); GetComponent<PlayerController>().enabled = true;
+        GetComponent<WeaponPlayer>().enabled = true;
+        _animator?.Revive(); if (_spriteRen != null) _spriteRen.enabled = true;
+        StartCoroutine(InvulnerabilityRoutine(2)); UpdateUI();
     }
 
     IEnumerator ReturnToMenuRoutine()

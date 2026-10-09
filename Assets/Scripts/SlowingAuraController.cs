@@ -17,6 +17,9 @@ using UnityEngine;
 [RequireComponent(typeof(LineRenderer))]
 public class SlowingAuraController : MonoBehaviour
 {
+    PlayerStats _ownerStats;
+    PlayerStats OwnerStats => _ownerStats != null ? _ownerStats : (_ownerStats = GetComponentInParent<PlayerStats>());
+
     [Header("Visual Settings")]
     public int Segments = 60;
     public float LineWidth = 0.12f;
@@ -48,14 +51,14 @@ public class SlowingAuraController : MonoBehaviour
 
     void Update()
     {
-        if (PlayerStats.Instance == null || !PlayerStats.Instance.HasSlowingAura)
+        if (OwnerStats == null || !OwnerStats.HasSlowingAura || OwnerStats.GetComponent<PlayerHealth>()?.IsDead == true)
         {
             _lineRenderer.enabled = false;
             return;
         }
 
         _lineRenderer.enabled = true;
-        DrawCircle(PlayerStats.Instance.SlowingAuraRadius * VisualInsetFactor);
+        DrawCircle(OwnerStats.SlowingAuraRadius * VisualInsetFactor);
 
         // Subtle pulse - slightly less aggressive than the damage aura
         float alpha = RingColor.a * (0.7f + Mathf.PingPong(Time.time * 1.5f, 0.3f));

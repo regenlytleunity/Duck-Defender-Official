@@ -11,6 +11,9 @@ using System.Collections.Generic;
 [RequireComponent(typeof(LineRenderer))]
 public class AuraController : MonoBehaviour
 {
+    PlayerStats _ownerStats;
+    PlayerStats OwnerStats => _ownerStats != null ? _ownerStats : (_ownerStats = GetComponentInParent<PlayerStats>());
+
     readonly System.Collections.Generic.List<EnemyBase> _damageTargets = new System.Collections.Generic.List<EnemyBase>();
     [Header("Visual Settings")]
     public int Segments = 60;
@@ -43,12 +46,12 @@ public class AuraController : MonoBehaviour
 
     public void UpdateAura(float radius, float damage)
     {
-        if (PlayerStats.Instance != null && PlayerStats.Instance.HasAscension(CardAscension.CursorAura))
+        if (OwnerStats != null && OwnerStats.HasAscension(CardAscension.CursorAura))
         {
             Camera cam = Camera.main;
-            if (cam != null) { Vector3 point = cam.ScreenToWorldPoint(InputHelper.GetMousePosition()); point.z = 0; transform.position = point; }
+            if (cam != null) { Vector3 point = cam.ScreenToWorldPoint(InputHelper.GetMousePosition(this)); point.z = 0; transform.position = point; }
         }
-        else if (PlayerStats.Instance != null) transform.position = PlayerStats.Instance.transform.position;
+        else if (OwnerStats != null) transform.position = OwnerStats.transform.position;
         _currentRadius = radius;
         _currentDamage = damage;
 
@@ -82,11 +85,11 @@ public class AuraController : MonoBehaviour
 
     void PulseDamage()
     {
-        float damage = PlayerStats.Instance != null ? PlayerStats.Instance.CalculateDamage(_currentDamage, false) : _currentDamage;
+        float damage = OwnerStats != null ? OwnerStats.CalculateDamage(_currentDamage, false) : _currentDamage;
         EnemyBase.CopyActiveEnemies(_damageTargets);
         foreach (var enemy in _damageTargets)
             if (enemy != null && enemy.IsAlive && Vector2.Distance(transform.position, enemy.transform.position) <= _currentRadius)
-                enemy.TakeFractionalDamage(damage);
+                enemy.TakeFractionalDamage(damage, OwnerStats);
     }
 
     void DrawCircle(float radius)

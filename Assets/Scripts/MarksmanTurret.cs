@@ -23,16 +23,16 @@ public class MarksmanTurret : TurretBase
 
     protected override float GetCurrentInterval()
     {
-        if (PlayerStats.Instance == null) return 99f;
-        return Mathf.Max(0.3f, PlayerStats.Instance.MarksmanInterval);
+        if (OwnerStats == null) return 99f;
+        return Mathf.Max(0.3f, OwnerStats.MarksmanInterval);
     }
 
     protected override void OnTick()
     {
-        if (PlayerStats.Instance == null) return;
+        if (OwnerStats == null) return;
 
         int targetCount = Mathf.Clamp(
-            Mathf.Max(0, PlayerStats.Instance.MarksmanTargetCount),
+            Mathf.Max(0, OwnerStats.MarksmanTargetCount),
             1,
             Mathf.Max(0, MaxTargetsPerVolleyHardCap)
         );
@@ -41,7 +41,7 @@ public class MarksmanTurret : TurretBase
 
         if (DebugLogTargetCount)
         {
-            Debug.Log($"[Marksman] stat count: {PlayerStats.Instance.MarksmanTargetCount}, " +
+            Debug.Log($"[Marksman] stat count: {OwnerStats.MarksmanTargetCount}, " +
                       $"clamped: {targetCount}, found: {targets.Count}, interval: {GetCurrentInterval():F2}s");
         }
 
@@ -115,7 +115,7 @@ public class MarksmanTurret : TurretBase
         float playerDamageMult = 1f;
         float playerCrit = 0f;
 
-        if (_weapon == null && PlayerStats.Instance != null) _weapon = PlayerStats.Instance.GetComponent<WeaponPlayer>();
+        if (_weapon == null && OwnerStats != null) _weapon = OwnerStats.GetComponent<WeaponPlayer>();
         if (_weapon != null)
         {
             playerDamage = _weapon.CurrentStats.Damage;
@@ -146,9 +146,9 @@ public class MarksmanTurret : TurretBase
         stats.IsExplosiveFeather = false;
         stats.IsBuckshotPellet = false;
         stats.CanAirburst = true;
-        stats.MarkTarget = PlayerStats.Instance != null && PlayerStats.Instance.HasAscension(CardAscension.Marksman);
+        stats.MarkTarget = OwnerStats != null && OwnerStats.HasAscension(CardAscension.Marksman);
 
-        p.Initialize(stats);
+        p.Initialize(stats, OwnerStats);
         p.SetColor(new Color(0.7f, 0.9f, 1f, 1f));
 
         bullet.SetActive(true);

@@ -182,6 +182,48 @@ public class CardDisplay : MonoBehaviour, IPointerEnterHandler
         if (_hideShopControls) HideShopControls();
     }
 
+    public void SetupHostFilter(CardDefinition card)
+    {
+        Setup(card);
+        if (ClickButton == null) ClickButton = gameObject.GetComponent<UnityEngine.UI.Button>() ?? gameObject.AddComponent<UnityEngine.UI.Button>();
+        if (BackgroundImage != null) { BackgroundImage.raycastTarget = true; ClickButton.targetGraphic = BackgroundImage; }
+        bool disabled = LocalCoopSession.DisabledCards.Contains(card.ID);
+        if (disabled && BackgroundImage != null) BackgroundImage.color = new Color(.8f, .18f, .18f);
+        if (LevelGroup != null) LevelGroup.SetActive(true);
+        if (UpgradeButton != null) { UpgradeButton.gameObject.SetActive(true); UpgradeButton.interactable = true; UpgradeButton.onClick.RemoveAllListeners(); UpgradeButton.onClick.AddListener(ToggleHostCard); }
+        if (UpgradeButton != null)
+            foreach (var label in UpgradeButton.GetComponentsInChildren<TMP_Text>(true))
+                if (label != UpgradeCostText) label.gameObject.SetActive(false);
+        if (UpgradeCostText != null)
+        {
+            UpgradeCostText.gameObject.SetActive(true); UpgradeCostText.text = disabled ? "Disabled" : "Enabled"; CoopUIElements.WhiteInfill(UpgradeCostText);
+            CoopUIElements.Stretch(UpgradeCostText.rectTransform, new Vector2(.04f, .05f), new Vector2(.96f, .95f));
+            UpgradeCostText.enableAutoSizing = true; UpgradeCostText.fontSizeMin = 18; UpgradeCostText.fontSizeMax = 30;
+            UpgradeCostText.textWrappingMode = TextWrappingModes.NoWrap;
+            UpgradeButton.targetGraphic.color = new Color(.12f, .17f, .23f);
+        }
+        // Keep the slider's child status label visible while hiding the obsolete copies bar.
+        if (ProgressSlider != null)
+        {
+            ProgressSlider.gameObject.SetActive(true); ProgressSlider.interactable = false;
+            foreach (var graphic in ProgressSlider.GetComponentsInChildren<Image>(true)) graphic.enabled = false;
+        }
+        if (ProgressText != null)
+        {
+            ProgressText.gameObject.SetActive(true); ProgressText.text = disabled ? "Disabled" : "Enabled"; CoopUIElements.WhiteInfill(ProgressText);
+            ProgressText.enableAutoSizing = true; ProgressText.fontSizeMin = 18; ProgressText.fontSizeMax = 30;
+            ProgressText.textWrappingMode = TextWrappingModes.NoWrap;
+        }
+        if (AscensionGroup != null) AscensionGroup.SetActive(false);
+        if (AscendButton != null) AscendButton.gameObject.SetActive(false);
+        if (ClickButton != null) { ClickButton.interactable = true; ClickButton.onClick.RemoveAllListeners(); ClickButton.onClick.AddListener(ToggleHostCard); }
+    }
+    void ToggleHostCard()
+    {
+        if (!LocalCoopSession.DisabledCards.Add(_assignedCard.ID)) LocalCoopSession.DisabledCards.Remove(_assignedCard.ID);
+        SetupHostFilter(_assignedCard);
+    }
+
     void UpdateLevelUI(CardSaveData data)
     {
         bool ascensionAvailable = data.Level >= _assignedCard.MaxLevel && !data.IsAscended && _assignedCard.Ascension != CardAscension.None;

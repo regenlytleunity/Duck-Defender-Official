@@ -3,6 +3,8 @@ using TMPro;
 
 public class SettingsMenuUI : MonoBehaviour
 {
+    public UnityEngine.UI.Slider CameraZoomSlider;
+    public TextMeshProUGUI CameraZoomText;
     [Header("Tutorials and Effects")]
     public UnityEngine.UI.Toggle ShowTipsToggle;
     public UnityEngine.UI.Toggle ParticlesToggle;
@@ -32,6 +34,8 @@ public class SettingsMenuUI : MonoBehaviour
     void Start() { Initialize(); }
     void Initialize()
     {
+        BindSlider(CameraZoomSlider, PlayerPrefs.GetFloat(WorldCamera.ZoomPreference, 2f / 7f), SetCameraZoom);
+        RefreshZoomLabel();
         if (ShowTipsToggle != null)
         {
             ShowTipsToggle.SetIsOnWithoutNotify(SaveSystem.LoadData().ShowTips);
@@ -61,6 +65,11 @@ public class SettingsMenuUI : MonoBehaviour
         slider.onValueChanged.AddListener(changed);
     }
     static void Percent(TextMeshProUGUI label, float value) { if (label != null) label.text = Mathf.RoundToInt(value * 100) + "%"; }
+    public void SetCameraZoom(float value)
+    {
+        PlayerPrefs.SetFloat(WorldCamera.ZoomPreference, Mathf.Clamp01(value)); PlayerPrefs.Save(); RefreshZoomLabel();
+    }
+    void RefreshZoomLabel() { if (CameraZoomText != null) CameraZoomText.text = "Solo camera zoom: " + Mathf.RoundToInt(PlayerPrefs.GetFloat(WorldCamera.ZoomPreference, 2f / 7f) * 100) + "%"; }
     public void SetShowTips(bool enabled)
     {
         var data = SaveSystem.LoadData();

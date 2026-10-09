@@ -13,6 +13,9 @@ using System.Collections;
 [RequireComponent(typeof(Animator))]
 public class PlayerController : MonoBehaviour
 {
+    PlayerStats _ownerStats;
+    PlayerStats OwnerStats => _ownerStats != null ? _ownerStats : (_ownerStats = GetComponent<PlayerStats>());
+
     public static PlayerController Instance;
 
     [Header("Visual FX")]
@@ -132,8 +135,8 @@ public class PlayerController : MonoBehaviour
     float _lastShockwaveTime = -100;
     float _flightUntil = -1, _flightReady;
     public bool IsGrounded => _isGrounded;
-    public float EffectiveMaxSpeed => MaxRunSpeed * (PlayerStats.Instance != null ? PlayerStats.Instance.SpeedMultiplier : 1f) * (_health != null ? _health.MovementMultiplier : 1f);
-    float RebirthMultiplier => PlayerStats.Instance != null ? PlayerStats.Instance.RebirthStatMultiplier : 1f;
+    public float EffectiveMaxSpeed => MaxRunSpeed * (OwnerStats != null ? OwnerStats.SpeedMultiplier : 1f) * (_health != null ? _health.MovementMultiplier : 1f);
+    float RebirthMultiplier => OwnerStats != null ? OwnerStats.RebirthStatMultiplier : 1f;
     public float EffectiveAcceleration => Acceleration * RebirthMultiplier;
     // Jump apex scales with impulse squared. Keep gravity/upgraded jump counts unchanged.
     public float EffectiveJumpForce => JumpForce * Mathf.Sqrt(RebirthMultiplier);
@@ -150,7 +153,7 @@ public class PlayerController : MonoBehaviour
 
     void Awake()
     {
-        Instance = this;
+        if (Instance == null) Instance = this;
         _rb = GetComponent<Rigidbody2D>();
         _bodyCollider = GetComponent<Collider2D>();
         _health = GetComponent<PlayerHealth>();
@@ -167,17 +170,17 @@ public class PlayerController : MonoBehaviour
 
         if (AuraChild == null) AuraChild = GetComponentInChildren<AuraController>();
 
-        if (PlayerStats.Instance != null)
+        if (OwnerStats != null)
         {
-            PlayerStats.Instance.AuraRadius = AuraRadius;
-            PlayerStats.Instance.AuraDamage = AuraDamage;
-            PlayerStats.Instance.HasCoinMeteors = HasCoinMeteors;
-            PlayerStats.Instance.MeteorThreshold = MeteorThreshold;
-            PlayerStats.Instance.MeteorDamage = MeteorDamage;
-            PlayerStats.Instance.MeteorRadius = MeteorRadius;
-            PlayerStats.Instance.HasTripleshot = HasCoinShot;
-            PlayerStats.Instance.TripleshotThreshold = CoinShotThreshold;
-            PlayerStats.Instance.TripleshotDuration = CoinShotDuration;
+            OwnerStats.AuraRadius = AuraRadius;
+            OwnerStats.AuraDamage = AuraDamage;
+            OwnerStats.HasCoinMeteors = HasCoinMeteors;
+            OwnerStats.MeteorThreshold = MeteorThreshold;
+            OwnerStats.MeteorDamage = MeteorDamage;
+            OwnerStats.MeteorRadius = MeteorRadius;
+            OwnerStats.HasTripleshot = HasCoinShot;
+            OwnerStats.TripleshotThreshold = CoinShotThreshold;
+            OwnerStats.TripleshotDuration = CoinShotDuration;
         }
 
         if (_weapon != null) _weapon.BonusSpreadProjectiles = 0;
@@ -187,12 +190,12 @@ public class PlayerController : MonoBehaviour
     {
         if (_isDead || Time.timeScale == 0) return;
 
-        if ((_health == null || !_health.IsStunned) && InputHelper.GetDashDown()) OnDashKeyPressed();
+        if ((_health == null || !_health.IsStunned) && InputHelper.GetDashDown(this)) OnDashKeyPressed();
 
         if (AuraChild != null)
         {
-            float rad = (PlayerStats.Instance != null) ? PlayerStats.Instance.AuraRadius : AuraRadius;
-            float dmg = (PlayerStats.Instance != null) ? PlayerStats.Instance.AuraDamage : AuraDamage;
+            float rad = (OwnerStats != null) ? OwnerStats.AuraRadius : AuraRadius;
+            float dmg = (OwnerStats != null) ? OwnerStats.AuraDamage : AuraDamage;
             AuraChild.UpdateAura(rad, dmg);
         }
 
@@ -202,9 +205,9 @@ public class PlayerController : MonoBehaviour
         // threshold path in LevelManager.AddCoins (which still works correctly).
 
         // Coins-per-second now spawns physical coins via LevelManager.SpawnPassiveCoin()
-        if (PlayerStats.Instance != null && PlayerStats.Instance.CoinsPerSecond > 0)
+        if (OwnerStats != null && OwnerStats.CoinsPerSecond > 0)
         {
-            _coinAccumulator += PlayerStats.Instance.CoinsPerSecond * Time.deltaTime;
+            _coinAccumulator += OwnerStats.CoinsPerSecond * Time.deltaTime;
             if (_coinAccumulator >= 1.0f)
             {
                 int coinsToAdd = Mathf.FloorToInt(_coinAccumulator);
@@ -227,8 +230,8 @@ public class PlayerController : MonoBehaviour
             return;
         }
 
-        float xInput = InputHelper.GetHorizontal();
-        float yInput = InputHelper.GetVertical();
+        float xInput = InputHelper.GetHorizontal(this);
+        float yInput = InputHelper.GetVertical(this);
         _moveInput = new Vector2(xInput, 0);
 
         CheckGround();
@@ -248,9 +251,9 @@ public class PlayerController : MonoBehaviour
         // (PerformShockwaveDamage is gated on ShockwaveDamage > 0, but the prefab 
         // spawned regardless). Now the whole slam routine only runs if the player 
         // actually has the upgrade that grants it.
-        bool hasShockwaveUpgrade = PlayerStats.Instance != null &&
-                                   PlayerStats.Instance.HasShockwaveDownDash;
-        if (hasShockwaveUpgrade && !IsFlying && !_isGrounded && yInput < -0.5f && InputHelper.GetJumpDown())
+        bool hasShockwaveUpgrade = OwnerStats != null &&
+                                   OwnerStats.HasShockwaveDownDash;
+        if (hasShockwaveUpgrade && !IsFlying && !_isGrounded && yInput < -0.5f && InputHelper.GetJumpDown(this))
             StartCoroutine(GroundSlamRoutine());
 
         UpdateAnimationState();
@@ -271,7 +274,7 @@ public class PlayerController : MonoBehaviour
         if (IsFlying)
         {
             _rb.gravityScale = 0;
-            float vertical = InputHelper.GetVertical() < -.1f ? -1f : InputHelper.GetJumpHeld() ? 1f : 0f;
+            float vertical = InputHelper.GetVertical(this) < -.1f ? -1f : InputHelper.GetJumpHeld(this) ? 1f : 0f;
             _rb.linearVelocity = new Vector2(_rb.linearVelocity.x, vertical * EffectiveMaxSpeed);
         }
         else ApplyGravityModifiers();
@@ -284,7 +287,7 @@ public class PlayerController : MonoBehaviour
 
     void HandleBlink(float xInput)
     {
-        if (PlayerStats.Instance == null || !PlayerStats.Instance.HasBlink) return;
+        if (OwnerStats == null || !OwnerStats.HasBlink) return;
         if (_isBlinking) return;
         if (Mathf.Abs(xInput) < 0.1f) return; // only blinks while moving
         if (Time.time < _nextBlinkTime) return;
@@ -297,7 +300,7 @@ public class PlayerController : MonoBehaviour
         _isBlinking = true;
         IsInvulnerable = true;
         // The card interval is measured between blinks, including invulnerability.
-        _nextBlinkTime = Time.time + PlayerStats.Instance.BlinkInterval * (PlayerStats.Instance.HasAscension(CardAscension.Wormhole) ? 2 : 1);
+        _nextBlinkTime = Time.time + OwnerStats.BlinkInterval * (OwnerStats.HasAscension(CardAscension.Wormhole) ? 2 : 1);
 
         Vector2 origin = _rb.position;
         Vector2 targetPos = GetBlinkDestination(xInput);
@@ -313,14 +316,14 @@ public class PlayerController : MonoBehaviour
             AudioManager.Instance.PlaySFX("Player_Dash");
         }
 
-        if (PlayerStats.Instance.HasAscension(CardAscension.Wormhole))
+        if (OwnerStats.HasAscension(CardAscension.Wormhole))
             GetComponent<AscensionEffects>()?.SpawnWormhole(origin);
         // Set physics position directly. MovePosition would turn the teleport into velocity,
         // while changing transform in Update fights Rigidbody interpolation at high speed.
         _rb.position = targetPos;
 
         // Player is invulnerable for BlinkDuration seconds
-        float duration = PlayerStats.Instance.BlinkDuration;
+        float duration = OwnerStats.BlinkDuration;
         yield return new WaitForSeconds(duration);
 
         IsInvulnerable = false;
@@ -358,8 +361,8 @@ public class PlayerController : MonoBehaviour
 
     void HandleFireTrail(float xInput)
     {
-        if (PlayerStats.Instance == null || !PlayerStats.Instance.HasFireTrail) return;
-        GameObject trailPrefab = PlayerStats.Instance.HasAscension(CardAscension.ObsidianTrail) && ObsidianTrailPatchPrefab != null
+        if (OwnerStats == null || !OwnerStats.HasFireTrail) return;
+        GameObject trailPrefab = OwnerStats.HasAscension(CardAscension.ObsidianTrail) && ObsidianTrailPatchPrefab != null
             ? ObsidianTrailPatchPrefab : FireTrailPatchPrefab;
         if (trailPrefab == null) return;
         if (Mathf.Abs(_rb.linearVelocity.x) < .1f && Mathf.Abs(_rb.linearVelocity.y) < .1f) return; // need movement or air motion
@@ -370,10 +373,11 @@ public class PlayerController : MonoBehaviour
         FireTrailPatch ft = patch.GetComponent<FireTrailPatch>();
         if (ft != null)
         {
-            ft.SlowPercent = PlayerStats.Instance.HasAscension(CardAscension.ObsidianTrail) ? .5f : 0;
+            ft.OwnerStats = OwnerStats;
+            ft.SlowPercent = OwnerStats.HasAscension(CardAscension.ObsidianTrail) ? .5f : 0;
             ft.Initialize(
-                PlayerStats.Instance.FireTrailDamage,
-                PlayerStats.Instance.FireTrailDuration
+                OwnerStats.FireTrailDamage,
+                OwnerStats.FireTrailDuration
             );
         }
 
@@ -390,16 +394,16 @@ public class PlayerController : MonoBehaviour
         if (Time.time < _lastDashTime + DashCooldown) return;
         if (!CanPlayerDash()) return;
 
-        bool isShockwaveDash = PlayerStats.Instance != null &&
-                               PlayerStats.Instance.HasShockwaveDownDash &&
-                               !PlayerStats.Instance.HasFullDash &&
+        bool isShockwaveDash = OwnerStats != null &&
+                               OwnerStats.HasShockwaveDownDash &&
+                               !OwnerStats.HasFullDash &&
                                MaxDashes <= 0;
 
         if (!isShockwaveDash && _currentDashCount <= 0) return;
 
         bool downwardOnly = isShockwaveDash;
-        float x = InputHelper.GetHorizontal();
-        float y = InputHelper.GetVertical();
+        float x = InputHelper.GetHorizontal(this);
+        float y = InputHelper.GetVertical(this);
         Vector2 dashDirection = new Vector2(x, y).normalized;
 
         if (downwardOnly) dashDirection = Vector2.down;
@@ -422,7 +426,7 @@ public class PlayerController : MonoBehaviour
     private void HandleAttackAnimation()
     {
         if (_animator == null) return;
-        _animator.SetBool(AnimIsAttacking, InputHelper.GetShootHeld());
+        _animator.SetBool(AnimIsAttacking, InputHelper.GetShootHeld(this));
     }
 
     public void TriggerDeathAnimation()
@@ -443,12 +447,20 @@ public class PlayerController : MonoBehaviour
         if (_weapon != null) _weapon.TriggerTripleshot();
     }
 
+    public void ResetAfterRespawn()
+    {
+        StopAllCoroutines(); _isDead = false; _isDashing = _isBlinking = _dashEnding = false;
+        IsInvulnerable = false; _flightUntil = -1; _currentJumpCount = 0; _currentDashCount = MaxDashes;
+        _rb.gravityScale = _defaultGravity;
+    }
+
     public void SpawnMeteor()
     {
         if (CoinMeteorPrefab == null) return;
         var nearest = EnemyBase.Nearest(transform.position);
         Vector3 targetPos = nearest != null ? nearest.transform.position : transform.position;
-        Instantiate(CoinMeteorPrefab, targetPos + Vector3.up * 10, Quaternion.identity);
+        var meteor = Instantiate(CoinMeteorPrefab, targetPos + Vector3.up * 10, Quaternion.identity).GetComponent<Meteor>();
+        if (meteor != null) meteor.OwnerStats = OwnerStats;
     }
 
     public void SpawnSecondaryMeteor()
@@ -458,7 +470,7 @@ public class PlayerController : MonoBehaviour
         Vector3 position = cam != null ? cam.ViewportToWorldPoint(new Vector3(Random.Range(.08f, .92f), .92f, Mathf.Abs(cam.transform.position.z))) : transform.position + Vector3.up * 5;
         position.z = 0;
         var meteor = Instantiate(CoinMeteorPrefab, position, Quaternion.identity).GetComponent<Meteor>();
-        if (meteor != null) meteor.ConfigureSecondary();
+        if (meteor != null) { meteor.OwnerStats = OwnerStats; meteor.ConfigureSecondary(); }
     }
 
     void HandleDashPhysics()
@@ -486,7 +498,7 @@ public class PlayerController : MonoBehaviour
         _lastShockwaveTime = Time.time;
         Vector3 position = GroundCheck != null ? GroundCheck.position : transform.position;
         ShockwaveAt(position, 1);
-        if (PlayerStats.Instance != null && PlayerStats.Instance.HasAscension(CardAscension.Earthquake))
+        if (OwnerStats != null && OwnerStats.HasAscension(CardAscension.Earthquake))
             StartCoroutine(SecondaryShockwave(position));
     }
     IEnumerator SecondaryShockwave(Vector3 position)
@@ -502,17 +514,17 @@ public class PlayerController : MonoBehaviour
         foreach (var enemy in _shockwaveTargets)
         {
             if (enemy == null || !enemy.IsAlive || Vector2.Distance(position, enemy.transform.position) > ShockwaveRadius) continue;
-            float damage = PlayerStats.Instance != null ? PlayerStats.Instance.CalculateDamage(ShockwaveDamage, false, fraction) : ShockwaveDamage * fraction;
-            enemy.TakeFractionalDamage(damage);
+            float damage = OwnerStats != null ? OwnerStats.CalculateDamage(ShockwaveDamage, false, fraction) : ShockwaveDamage * fraction;
+            enemy.TakeFractionalDamage(damage, OwnerStats);
             enemy.ApplyKnockback(((Vector2)enemy.transform.position - (Vector2)position).normalized * 10);
         }
     }
 
     private void HandleJump()
     {
-        if (InputHelper.GetJumpDown())
+        if (InputHelper.GetJumpDown(this))
         {
-            if (PlayerStats.Instance != null && PlayerStats.Instance.HasAscension(CardAscension.LearnToFly) && Time.time >= _flightReady)
+            if (OwnerStats != null && OwnerStats.HasAscension(CardAscension.LearnToFly) && Time.time >= _flightReady)
             {
                 _flightUntil = Time.time + 7;
                 _flightReady = _flightUntil + 10;
@@ -539,7 +551,7 @@ public class PlayerController : MonoBehaviour
     private bool CanPlayerDash()
     {
         if (MaxDashes > 0) return true;
-        if (PlayerStats.Instance != null && PlayerStats.Instance.HasShockwaveDownDash) return true;
+        if (OwnerStats != null && OwnerStats.HasShockwaveDownDash) return true;
         return false;
     }
 
@@ -594,11 +606,11 @@ public class PlayerController : MonoBehaviour
     /// </summary>
     private void ApplyGravityModifiers()
     {
-        float playerGravMult = PlayerStats.Instance != null ? PlayerStats.Instance.PlayerGravityMultiplier : 1f;
+        float playerGravMult = OwnerStats != null ? OwnerStats.PlayerGravityMultiplier : 1f;
 
         if (_rb.linearVelocity.y < 0)
             _rb.gravityScale = _defaultGravity * FallGravityMultiplier * playerGravMult;
-        else if (_rb.linearVelocity.y > 0 && !InputHelper.GetJumpHeld())
+        else if (_rb.linearVelocity.y > 0 && !InputHelper.GetJumpHeld(this))
             _rb.gravityScale = _defaultGravity * JumpCutMultiplier * playerGravMult;
         else
             _rb.gravityScale = _defaultGravity * playerGravMult;
@@ -674,8 +686,8 @@ public class PlayerController : MonoBehaviour
     /// </summary>
     void OnCollisionEnter2D(Collision2D collision)
     {
-        if (PlayerStats.Instance == null) return;
-        if (PlayerStats.Instance.HypersonicDamageFraction <= 0) return;
+        if (OwnerStats == null) return;
+        if (OwnerStats.HypersonicDamageFraction <= 0) return;
 
         if (collision.collider.GetComponentInParent<EnemyBase>() == null) return;
 
@@ -685,8 +697,8 @@ public class PlayerController : MonoBehaviour
         EnemyBase enemy = collision.collider.GetComponentInParent<EnemyBase>();
         if (enemy != null)
         {
-            int dmg = Mathf.Max(1, Mathf.RoundToInt(_weapon.FeatherDamage(PlayerStats.Instance.HypersonicDamageFraction)));
-            enemy.TakeDamage(dmg);
+            int dmg = Mathf.Max(1, Mathf.RoundToInt(_weapon.FeatherDamage(OwnerStats.HypersonicDamageFraction)));
+            enemy.TakeDamage(dmg, OwnerStats);
 
             // Knock the enemy away from the player
             Vector2 awayDir = (enemy.transform.position - transform.position).normalized;
