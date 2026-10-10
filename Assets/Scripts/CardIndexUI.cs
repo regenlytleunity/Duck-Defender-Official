@@ -15,10 +15,10 @@ public class CardIndexUI : MonoBehaviour
     public UnityEngine.UI.Button PreviousButton, NextButton, LayoutButton;
     public TextMeshProUGUI PageText, CoinsText, EssenceText, LayoutText;
     public CardPackType SelectedPack = CardPackType.Mobility;
-    public int LayoutColumns => _layoutIndex == 1 ? 4 : 3;
-    public int LayoutRows => _layoutIndex == 0 ? 1 : 2;
+    public int LayoutColumns => _layoutIndex == 2 ? Mathf.Max(1, Mathf.CeilToInt(Mathf.Sqrt(_cards.Count * 1.6f))) : _layoutIndex == 1 ? 4 : 3;
+    public int LayoutRows => _layoutIndex == 2 ? Mathf.Max(1, Mathf.CeilToInt(_cards.Count / (float)LayoutColumns)) : _layoutIndex == 0 ? 1 : 2;
     public int CardsPerPage => LayoutColumns * LayoutRows;
-    int _layoutIndex; // 3x1, 4x2, 3x2; retained while the menu scene is open.
+    int _layoutIndex; // 3x1, 4x2, ALL (the selected category).
     public int CurrentPage { get; private set; }
     public int PageCount => Mathf.Max(1, Mathf.CeilToInt(_cards.Count / (float)CardsPerPage));
     readonly List<CardDefinition> _cards = new List<CardDefinition>();
@@ -62,19 +62,21 @@ public class CardIndexUI : MonoBehaviour
     void ShowPage()
     {
         if (ContentArea == null || CardDisplayPrefab == null) return;
+        var events = UnityEngine.EventSystems.EventSystem.current;
+        bool restoreCardFocus = events != null && events.currentSelectedGameObject != null && events.currentSelectedGameObject.transform.IsChildOf(ContentArea);
         foreach (Transform child in ContentArea) { child.gameObject.SetActive(false); Destroy(child.gameObject); }
         _displays.Clear();
         for (int i = CurrentPage * CardsPerPage; i < Mathf.Min(_cards.Count, (CurrentPage + 1) * CardsPerPage); i++)
         {
             var card = Instantiate(CardDisplayPrefab, ContentArea);
             var display = card.GetComponent<CardDisplay>();
-            if (HostFilterMode) display.SetupHostFilter(_cards[i]); else display.Setup(_cards[i]);
+            display.SetupIndex(_cards[i], HostFilterMode);
             _displays.Add((RectTransform)card.transform);
         }
         if (CoinsText != null) CoinsText.gameObject.SetActive(!HostFilterMode);
         if (EssenceText != null) EssenceText.gameObject.SetActive(!HostFilterMode);
         LayoutCards();
-        if (LayoutText != null) LayoutText.text = "LAYOUT: " + LayoutColumns + " x " + LayoutRows;
+        if (LayoutText != null) LayoutText.text = _layoutIndex == 2 ? "LAYOUT: ALL" : "LAYOUT: " + LayoutColumns + " x " + LayoutRows;
         if (PageText != null) PageText.text = (CurrentPage + 1) + " / " + PageCount;
         if (PreviousButton != null) PreviousButton.interactable = CurrentPage > 0;
         if (NextButton != null) NextButton.interactable = CurrentPage + 1 < PageCount;
@@ -90,6 +92,49 @@ public class CardIndexUI : MonoBehaviour
             if (outline != null) outline.enabled = i == (int)SelectedPack;
         }
         RefreshBalances();
+        ConfigureNavigation();
+        if (restoreCardFocus && _displays.Count > 0) events.SetSelectedGameObject(_displays[0].GetComponent<CardDisplay>().ClickButton.gameObject);
+    }
+    public void ConfigureNavigation()
+    {
+        for (int i = 0; i < _displays.Count; i++)
+        {
+            var card = _displays[i].GetComponent<CardDisplay>();
+            var root = card.ClickButton;
+            var action = card.UpgradeButton != null && card.UpgradeButton.gameObject.activeSelf && card.UpgradeButton.IsInteractable() ? card.UpgradeButton : card.AscendButton;
+            if (action != null && (!action.gameObject.activeInHierarchy || !action.IsInteractable())) action = null;
+            var nav = root.navigation; nav.mode = UnityEngine.UI.Navigation.Mode.Explicit;
+            nav.selectOnLeft = i % LayoutColumns > 0 ? _displays[i - 1].GetComponent<CardDisplay>().ClickButton : PackButtons[(int)SelectedPack];
+            nav.selectOnRight = i % LayoutColumns < LayoutColumns - 1 && i + 1 < _displays.Count ? _displays[i + 1].GetComponent<CardDisplay>().ClickButton : null;
+            nav.selectOnUp = i >= LayoutColumns ? _displays[i - LayoutColumns].GetComponent<CardDisplay>().ClickButton : PackButtons[(int)SelectedPack];
+            nav.selectOnDown = action != null ? action : i + LayoutColumns < _displays.Count ? _displays[i + LayoutColumns].GetComponent<CardDisplay>().ClickButton : LayoutButton;
+            root.navigation = nav;
+            if (action != null)
+            {
+                var actionNav = nav; actionNav.selectOnUp = root;
+                actionNav.selectOnDown = i + LayoutColumns < _displays.Count ? _displays[i + LayoutColumns].GetComponent<CardDisplay>().ClickButton : LayoutButton;
+                action.navigation = actionNav;
+            }
+        }
+        // PackButtons follows enum IDs for category selection, not screen order.
+        var sidebar = new[] {
+            transform.Find("BackButton")?.GetComponent<UnityEngine.UI.Button>(),
+            PackButtons[(int)CardPackType.Mobility], PackButtons[(int)CardPackType.Munitions],
+            PackButtons[(int)CardPackType.Survival], PackButtons[(int)CardPackType.Gadget], LayoutButton
+        };
+        for (int i = 0; i < sidebar.Length; i++)
+        {
+            var button = sidebar[i];
+            if (button == null) continue;
+            var nav = button.navigation; nav.mode = UnityEngine.UI.Navigation.Mode.Explicit;
+            nav.selectOnUp = i > 0 ? sidebar[i - 1] : null;
+            nav.selectOnDown = i + 1 < sidebar.Length ? sidebar[i + 1] : null;
+            nav.selectOnLeft = null;
+            // Retain geometric rightward entry from Back/Layout to cards or paging.
+            nav.selectOnRight = i == 0 || i == sidebar.Length - 1 ? button.FindSelectable(Vector3.right) :
+                _displays.Count > 0 ? _displays[0].GetComponent<CardDisplay>().ClickButton : LayoutButton;
+            button.navigation = nav;
+        }
     }
     void OnRectTransformDimensionsChange() { LayoutCards(); }
     void LayoutCards()

@@ -36,6 +36,32 @@ public class CardDisplay : MonoBehaviour, IPointerEnterHandler
     private CardDefinition _assignedCard;
     private bool _isLocked = false;
     private bool _hideShopControls;
+    bool _indexContext, _hostFilter;
+
+    void Awake() { foreach (var label in GetComponentsInChildren<TMP_Text>(true)) CoopUIElements.WhiteInfill(label); }
+
+    public void SetupIndex(CardDefinition card, bool hostFilter)
+    {
+        _indexContext = true; _hostFilter = hostFilter;
+        if (hostFilter) SetupHostFilter(card); else Setup(card);
+    }
+    void ConfigureIndexNavigation()
+    {
+        if (ClickButton == null) ClickButton = GetComponent<Button>() ?? gameObject.AddComponent<Button>();
+        ClickButton.interactable = true;
+        if (BackgroundImage != null) { BackgroundImage.raycastTarget = true; ClickButton.targetGraphic = BackgroundImage; }
+        if (!_hostFilter)
+        {
+            ClickButton.onClick.RemoveAllListeners();
+            ClickButton.onClick.AddListener(() => {
+                var action = UpgradeButton != null && UpgradeButton.gameObject.activeInHierarchy && UpgradeButton.IsInteractable() ? UpgradeButton : AscendButton;
+                if (action != null && action.gameObject.activeInHierarchy && action.IsInteractable()) EventSystem.current?.SetSelectedGameObject(action.gameObject);
+            });
+        }
+        foreach (var control in new Selectable[] { ClickButton, UpgradeButton, AscendButton })
+            if (control != null) { var nav = control.navigation; nav.mode = Navigation.Mode.Automatic; control.navigation = nav; }
+        if (ProgressSlider != null) { ProgressSlider.interactable = false; var nav = ProgressSlider.navigation; nav.mode = Navigation.Mode.None; ProgressSlider.navigation = nav; }
+    }
     
     // True while the flip animation is playing. New hovers during this time are 
     // ignored (per design choice - prevents choppy interruption mid-flip).
@@ -179,6 +205,7 @@ public class CardDisplay : MonoBehaviour, IPointerEnterHandler
 
         bool locked = !card.IsBasic && ShopManager.Instance != null && ShopManager.Instance.GetCardData(card.ID)?.IsUnlocked != true;
         SetLockedState(locked);
+        if (_indexContext) ConfigureIndexNavigation();
         if (_hideShopControls) HideShopControls();
     }
 
@@ -308,7 +335,12 @@ public class CardDisplay : MonoBehaviour, IPointerEnterHandler
         }
     }
 
-    void Refresh() { if (_assignedCard != null) Setup(_assignedCard); }
+    void Refresh()
+    {
+        if (_assignedCard == null) return;
+        if (_hostFilter) SetupHostFilter(_assignedCard); else Setup(_assignedCard);
+        if (_indexContext) GetComponentInParent<CardIndexUI>()?.ConfigureNavigation();
+    }
     void OnDestroy() { if (_subscribedShop != null) _subscribedShop.OnCollectionChanged -= Refresh; }
     public void HideShopControls()
     {

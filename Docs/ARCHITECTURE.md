@@ -244,18 +244,39 @@ card unlocks/levels and receives all persistent coins. Runtime card histories,
 weapons, health, coin thresholds and companions belong to each player. XP and
 Sabotage bonuses add across builds (Sabotage retains the 95% cap).
 
+After hosting, `CoopLobbyUI` gives each assigned controller its own customization
+pane and onscreen name keyboard. Selecting Name clears the current name for new
+entry. Names allow 10 characters, with blank names defaulting to PLAYER N.
+Six body colors are available; duplicates are allowed. The color preview uses
+HostMenuUI.DuckPreviewSprite (the gameplay duck) with DuckPreviewPalette, matching
+the gameplay body recoloring while retaining its beak and outline.
+The session starts after every seat is ready for 1.25 seconds. Profiles and the
+Classic/Above player health style are session options, not account-save fields.
+
 `WorldCamera` follows living players, clamps to the expanded map and caps co-op
 zoom. Settings stores solo zoom in `DuckDefender_CameraZoom`. SampleScene repeats
-the existing terrain equally left/right (38 to 114 cells), with three times the
-original playable boundary width. Dynamic enemy spawns raycast terrain, remain
-outside the current viewport and use a fixed distance independent of zoom.
+the existing terrain equally left/right (190 ground cells including the spawn
+reserve), with three times the original playable boundary width. A 30-unit spawn
+reserve extends beyond each player boundary. Enemies ignore the four side-wall
+and anti-falloff colliders; players still collide with them. Dynamic enemy spawns
+raycast terrain, remain outside the current viewport and use a fixed distance
+independent of zoom.
 
-`CoopRunUI` creates overhead health, offscreen arrows, individual card panes and
-per-player results. Every player confirms a card before a queued level-up or
-gameplay resumes. Dead players retain upgrades and optionally respawn at a living
-teammate next wave; all players dead ends the run. Disconnecting an assigned
-controller pauses gameplay until it reconnects. `PlayerPalette.shader` replaces
-the yellow duck body for orange/blue/green seats while preserving existing art.
+`CoopRunUI` creates overhead health or stacked clones of the solo health artwork,
+player names, offscreen arrows, individual card panes and results. The co-op XP
+bar occupies 60% of the top width. Cards remain pending and reversible until all
+players are ready for 1.25 seconds, then apply exactly once. Dead players retain
+upgrades and optionally respawn at a living teammate next wave; all players dead
+ends the run. Death animations use unscaled time, and results wait two seconds.
+Disconnecting an assigned controller pauses gameplay until it reconnects.
+`PlayerPalette.shader` preserves body shading, outlines and beaks for all six
+colors. `HealthPalette.shader` recolors the classic bar's green fill.
+
+New UI uses the exact `Fonts/DuckDefenderTestFontv2.asset` font, including its
+authored bitmap atlas and material. MainMenuUI and GameUI reference it through
+their `UIFont` fields and initialize the shared runtime UI helper.
+`CoopAdjustmentSetup` applies saved menu, font and terrain changes through Editor
+APIs, including regenerating the ground's composite collider geometry.
 
 ## PlayerController
 
@@ -1171,8 +1192,8 @@ unit local scale and preserved aspect ratios; the existing CanvasScaler still
 scales the whole interface uniformly for the window. Secondary controls use
 Unity's built-in UI button sprite, with dark backgrounds and white text.
 
-CardIndexUI owns a Layout button cycling 3x1, 4x2, 3x2 and back to 3x1, with
-capacities of 3, 8 and 6 cards. Columns/rows drive both pagination and proportional
+CardIndexUI owns a Layout button cycling 3x1, 4x2, ALL and back to 3x1, with
+capacities of 3, 8 and every card in the selected category. Columns/rows drive both pagination and proportional
 card placement. Switching keeps the previous first card on the resulting page;
 page bounds and the displayed layout label refresh immediately. The choice is
 retained across pack changes and reopening the index within the current menu
@@ -1236,12 +1257,16 @@ Gameplay passes its owning component to InputHelper. An assigned LocalPlayer
 reads only its own Input System Gamepad: D-pad/left stick movement and upward jump,
 right stick aim with a narrow horizontal snap, RT fire, LB dash. Shared menus use
 ControllerMenuNavigation with the first controller, right face/B to confirm and
-bottom face/A to go back. Co-op card panes handle their assigned controllers
+bottom face/A to go back by default. `ControllerBindings` saves remappable Jump,
+Dash, Shoot, Confirm and Back buttons plus move/aim stick swapping in PlayerPrefs;
+the existing keybind panel has keyboard and controller tabs. Menu movement stays
+on D-pad/left stick. Solo automatically prioritizes an attached controller and
+falls back to keyboard/mouse when disconnected. Co-op card panes handle their assigned controllers
 separately; the shared EventSystem's controller submit/move bindings are replaced
 with keyboard-only bindings to prevent duplicate or cross-player submissions.
 Controller focus uses a yellow frame with a dark border drawn in screen pixels,
 independent of button tint and card scale. Shared menus follow EventSystem focus;
-each co-op card pane has its own frame, hidden after that player's confirmation.
+each co-op card pane has its own frame, green while selected and yellow while browsing.
 The frames do not intercept pointer input and require no prefab wiring.
 
 Desktop movement, jump, dash and shooting use InputManager's saved bindings;

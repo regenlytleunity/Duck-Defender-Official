@@ -256,7 +256,8 @@ public class PlayerHealth : MonoBehaviour
         if (LocalCoopSession.Multiplayer && LocalCoopSession.Instance != null)
         {
             StopAllCoroutines();
-            if (_spriteRen != null) _spriteRen.enabled = false;
+            if (_spriteRen != null) { _spriteRen.enabled = true; _spriteRen.color = Color.white; }
+            _animator?.TriggerDeath();
             var movement = GetComponent<PlayerController>(); movement.StopAllCoroutines(); movement.enabled = false;
             if (movement.AuraChild != null) movement.AuraChild.UpdateAura(0, 0);
             var weapon = GetComponent<WeaponPlayer>(); weapon.StopAllCoroutines(); weapon.enabled = false;
@@ -299,7 +300,7 @@ public class PlayerHealth : MonoBehaviour
         var body = GetComponent<Rigidbody2D>(); body.simulated = true; body.linearVelocity = Vector2.zero;
         GetComponent<PlayerController>().ResetAfterRespawn(); GetComponent<PlayerController>().enabled = true;
         GetComponent<WeaponPlayer>().enabled = true;
-        _animator?.Revive(); if (_spriteRen != null) _spriteRen.enabled = true;
+        _animator?.Revive(); if (_spriteRen != null) { _spriteRen.enabled = true; _spriteRen.color = Color.white; }
         StartCoroutine(InvulnerabilityRoutine(2)); UpdateUI();
     }
 

@@ -1,5 +1,9 @@
 # Duck Defender local co-op update
 
+The later [Update 3 report](UPDATE_3_REPORT.md) supersedes the health-style,
+customization, card-confirmation, font, zoom placement, and controller-binding
+behavior recorded below. This document retains the earlier update's history.
+
 ## Controller selection visibility follow-up
 
 Controller selection now has a bright yellow rectangular frame with a dark

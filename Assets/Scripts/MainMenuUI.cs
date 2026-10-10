@@ -7,6 +7,7 @@ using System.Collections.Generic;
 public class MainMenuUI : MonoBehaviour
 {
     public static MainMenuUI Instance;
+    public TMP_FontAsset UIFont;
 
     [Header("Main Panels")]
     public GameObject MenuPanel;
@@ -58,10 +59,12 @@ public class MainMenuUI : MonoBehaviour
     private bool _isSlicingMode = false;
     private Vector2 _lastMousePos;
     private float _sliceProgress = 0f;
+    bool _shopBlocked;
 
     void Awake()
     {
         Instance = this;
+        CoopUIElements.SetFont(UIFont);
         GameDifficulty.Load();
         RefreshDifficulty();
     }
@@ -83,6 +86,7 @@ public class MainMenuUI : MonoBehaviour
 
     void Update()
     {
+        RefreshShopModal();
         if (_isSlicingMode && Input.GetMouseButton(0))
         {
             PerformSlice();
@@ -134,6 +138,7 @@ public void ShowPanel(GameObject panel)
     _isSlicingMode = false;
 
     panel.SetActive(true);
+    RefreshShopModal();
     
     // Switch music to match the panel being shown.
     // AudioManager.PlayMusic() crossfades smoothly and ignores duplicate calls 
@@ -161,6 +166,8 @@ public void ShowPanel(GameObject panel)
     
     public void BackToMainMenu()
     {
+        if (ConfirmPanel.activeInHierarchy) { CancelPurchase(); return; }
+        if (SettingsPanel.activeInHierarchy && SettingsPanel.GetComponent<SettingsMenuUI>().HandleBack()) return;
         if (GetComponent<HostMenuUI>()?.ReturnFromCards() == true) return;
         ShowPanel(MenuPanel);
     }
@@ -232,6 +239,7 @@ public void OpenShop()
 
 void OnPackClicked(ShopPackDefinition pack)
 {
+    if (ConfirmPanel.activeInHierarchy || OpeningOverlay.activeInHierarchy || _purchaseInProgress) return;
     if (AudioManager.Instance != null) AudioManager.Instance.PlaySFX("UI_button_Click");
     
     _selectedPack = pack;
@@ -248,6 +256,50 @@ void OnPackClicked(ShopPackDefinition pack)
         BuyThreeButton.interactable = (long)pack.Cost * 3 <= int.MaxValue && ShopManager.Instance.CanAfford(pack.Cost * 3);
     }
     if (BuyThreeText != null) BuyThreeText.text = "Open 3 - " + ((long)pack.Cost * 3) + " Coins";
+    RefreshShopModal();
+    FocusFirstControl(ConfirmPanel);
+}
+
+public void CancelPurchase()
+{
+    ConfirmPanel.SetActive(false); RefreshShopModal(); FocusFirstControl(ShopPanel);
+}
+void RefreshShopModal()
+{
+    bool blocked = ConfirmPanel.activeInHierarchy || OpeningOverlay.activeInHierarchy;
+    if (blocked == _shopBlocked && ShopPanel.GetComponent<CanvasGroup>() != null) return;
+    _shopBlocked = blocked;
+    var group = ShopPanel.GetComponent<CanvasGroup>();
+    if (group == null) group = ShopPanel.AddComponent<CanvasGroup>();
+    group.interactable = !blocked; group.blocksRaycasts = !blocked;
+    foreach (var panel in new[] { ConfirmPanel, OpeningOverlay })
+    {
+        var modal = panel.GetComponent<CanvasGroup>();
+        if (modal == null) modal = panel.AddComponent<CanvasGroup>();
+        modal.ignoreParentGroups = true; modal.interactable = true; modal.blocksRaycasts = true;
+    }
+}
+public GameObject NavigationScope
+{
+    get
+    {
+        if (OpeningOverlay.activeInHierarchy) return OpeningOverlay;
+        if (ConfirmPanel.activeInHierarchy) return ConfirmPanel;
+        if (SettingsPanel.activeInHierarchy) return SettingsPanel.GetComponent<SettingsMenuUI>().NavigationScope;
+        var host = GetComponent<HostMenuUI>();
+        if (host != null && host.Panel != null && host.Panel.activeInHierarchy) return host.Panel;
+        if (IndexPanel.activeInHierarchy) return IndexPanel;
+        if (ShopPanel.activeInHierarchy) return ShopPanel;
+        return MenuPanel;
+    }
+}
+public static void FocusFirstControl(GameObject panel)
+{
+    if (panel == null || !panel.activeInHierarchy || UnityEngine.EventSystems.EventSystem.current == null) return;
+    foreach (var control in panel.GetComponentsInChildren<UnityEngine.UI.Selectable>())
+        if (control.IsActive() && control.IsInteractable() && control.navigation.mode != UnityEngine.UI.Navigation.Mode.None)
+        { UnityEngine.EventSystems.EventSystem.current.SetSelectedGameObject(control.gameObject); return; }
+    UnityEngine.EventSystems.EventSystem.current.SetSelectedGameObject(null);
 }
 
 public void BuyPack() { Purchase(1); }

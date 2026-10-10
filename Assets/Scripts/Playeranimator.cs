@@ -80,7 +80,7 @@ public class PlayerAnimator : MonoBehaviour
     }
 
     bool _wasShooting;
-    public void Revive() { _isDead = false; _anim.Rebind(); _anim.Update(0); }
+    public void Revive() { _isDead = false; _anim.updateMode = AnimatorUpdateMode.Normal; _anim.Rebind(); _anim.Update(0); }
     void CheckShootInput()
     {
         // Trigger animation on click (not hold)
@@ -121,6 +121,7 @@ public class PlayerAnimator : MonoBehaviour
     {
         if (_isDead) return;
         _isDead = true;
+        if (LocalCoopSession.Multiplayer) _anim.updateMode = AnimatorUpdateMode.UnscaledTime;
 
         // Reset any active triggers that might interfere
         _anim.ResetTrigger(ShootTrigger);

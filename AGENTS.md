@@ -172,6 +172,12 @@ When code requires Unity-side setup, provide exact instructions instead of prete
 
 # UI Text Appearance
 
+Use the project's stylized **DuckDefenderTestFontv2** for all new UI text.
+Use the exact existing `Assets/Fonts/DuckDefenderTestFontv2.asset` font asset and
+its authored bitmap atlas/material. Do not regenerate it from the TTF or substitute
+another font. Runtime UI should use `CoopUIElements.Text` / `WhiteInfill`; the
+MainMenuUI and GameUI `UIFont` fields supply the original asset.
+
 All future text additions must have a **white infill** (the visible glyph face),
 including labels, buttons, menus, HUD text, and dynamically created text.
 

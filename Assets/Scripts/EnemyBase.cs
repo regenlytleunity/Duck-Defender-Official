@@ -143,6 +143,7 @@ public abstract class EnemyBase : MonoBehaviour
 
     public virtual void Initialize(float waveDifficulty)
     {
+        WorldCamera.Instance?.AllowEnemyThroughPlayerWalls(gameObject);
         MaxHealth = Mathf.Max(1, Mathf.Floor(HealthAtWave(Mathf.Max(1, (int)waveDifficulty)) * (IsElite ? EliteHealthMultiplier : 1f))) * GameDifficulty.HealthMultiplier;
         CurrentHealth = MaxHealth;
 

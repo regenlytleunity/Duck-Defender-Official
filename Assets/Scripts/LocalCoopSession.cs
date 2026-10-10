@@ -7,13 +7,19 @@ public class LocalCoopSession : MonoBehaviour
 {
     public static LocalCoopSession Instance { get; private set; }
     public static int RequestedPlayers = 1;
-    public static bool KeyboardTest, Respawning = true, ColoredHealthBars = true;
+    public static bool KeyboardTest, Respawning = true;
+    public enum HealthBarStyle { Classic, AbovePlayer }
+    public static HealthBarStyle HealthStyle = HealthBarStyle.AbovePlayer;
+    public static readonly string[] PlayerNames = { "PLAYER 1", "PLAYER 2", "PLAYER 3", "PLAYER 4" };
+    public static readonly int[] PlayerColors = { 2, 1, 4, 3 };
+    public static readonly Gamepad[] PlayerControllers = new Gamepad[4];
     public static readonly HashSet<string> DisabledCards = new HashSet<string>();
     public readonly List<LocalPlayer> Players = new List<LocalPlayer>(4);
     public static int PlayerCount => Instance != null ? Mathf.Max(1, Instance.Players.Count) : Mathf.Clamp(RequestedPlayers, 1, 4);
     public static bool Multiplayer => PlayerCount > 1;
     public bool GameOver { get; private set; }
     public bool DevicesMissing { get; private set; }
+    public float ResultsAt { get; private set; }
     bool _devicePause;
 
     void Awake() { Instance = this; }
@@ -32,10 +38,11 @@ public class LocalCoopSession : MonoBehaviour
         }
         for (int i = 0; i < count; i++)
         {
-            bool pad = count > 1 && !(KeyboardTest && count == 2 && i == 0);
+            bool pad = count == 1 ? Gamepad.all.Count > 0 : !(KeyboardTest && count == 2 && i == 0);
             int deviceIndex = KeyboardTest && count == 2 ? i - 1 : i;
             var player = bodies[i].GetComponent<LocalPlayer>() ?? bodies[i].AddComponent<LocalPlayer>();
-            player.Configure(i, pad && deviceIndex >= 0 && deviceIndex < Gamepad.all.Count ? Gamepad.all[deviceIndex] : null, pad);
+            var controller = count > 1 && PlayerControllers[i] != null ? PlayerControllers[i] : pad && deviceIndex >= 0 && deviceIndex < Gamepad.all.Count ? Gamepad.all[deviceIndex] : null;
+            player.Configure(i, controller, pad);
             Players.Add(player);
             if (turretTemplate != null)
             {
@@ -57,7 +64,15 @@ public class LocalCoopSession : MonoBehaviour
 
     void Update()
     {
-        if (!Multiplayer || GameOver) return;
+        if (GameOver) return;
+        if (!Multiplayer)
+        {
+            if (Players.Count == 0) return;
+            var current = Players[0].Controller;
+            var controller = current != null && current.added ? current : Gamepad.all.Count > 0 ? Gamepad.all[0] : null;
+            if (current != controller || Players[0].UsesGamepad != (controller != null)) Players[0].AssignController(controller, controller != null);
+            return;
+        }
         DevicesMissing = false;
         foreach (var player in Players) if (!player.Connected) DevicesMissing = true;
         if (DevicesMissing) { _devicePause = true; Time.timeScale = 0; }
@@ -72,7 +87,7 @@ public class LocalCoopSession : MonoBehaviour
     {
         player.Deaths++;
         foreach (var other in Players) if (other.Alive) return;
-        GameOver = true; Time.timeScale = 0;
+        GameOver = true; Time.timeScale = 0; ResultsAt = Time.unscaledTime + 2;
         LevelManager.Instance?.FlushCoinSave();
         AudioManager.Instance?.PlaySFX("Game_Over"); AudioManager.Instance?.StopMusic();
     }

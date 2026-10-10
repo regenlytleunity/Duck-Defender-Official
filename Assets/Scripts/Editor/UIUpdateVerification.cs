@@ -9,7 +9,7 @@ public static class UIUpdateVerification
 {
     const string SnapshotKey = "DuckDefender.UIVerificationPrefs";
     [Serializable] class PreferenceSnapshot { public Entry[] entries; }
-    [Serializable] class Entry { public string key; public bool exists, floating; public int integer; public float number; }
+    [Serializable] class Entry { public string key, text; public bool exists, floating, isString; public int integer; public float number; }
     static int _checks;
     static void Check(bool value, string message) { if (!value) throw new InvalidOperationException("UI verification: " + message); _checks++; }
     static UIUpdateVerification()
@@ -23,6 +23,7 @@ public static class UIUpdateVerification
                 foreach (var e in JsonUtility.FromJson<PreferenceSnapshot>(json).entries)
                 {
                     if (!e.exists) PlayerPrefs.DeleteKey(e.key);
+                    else if (e.isString) PlayerPrefs.SetString(e.key,e.text);
                     else if (e.floating) PlayerPrefs.SetFloat(e.key,e.number);
                     else PlayerPrefs.SetInt(e.key,e.integer);
                 }
@@ -40,9 +41,10 @@ public static class UIUpdateVerification
     {
         if (EditorApplication.isPlaying) throw new InvalidOperationException("Exit Play Mode first.");
         if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().isDirty) throw new InvalidOperationException("Save scene changes first.");
-        string[] floats={"DuckDefender_MasterVolume","DuckDefender_SFXVolume","DuckDefender_MusicVolume"};
+        string[] floats={"DuckDefender_MasterVolume","DuckDefender_SFXVolume","DuckDefender_MusicVolume",WorldCamera.ZoomPreference};
         string[] ints={GameDifficulty.PreferenceKey,ParticleVisibility.PreferenceKey,"Key_MoveLeft","Key_MoveRight","Key_Jump","Key_Crouch","Key_Dash","Key_Shoot","Key_Pause","Key_MoveLeftAlt","Key_MoveRightAlt","Key_JumpAlt","Key_CrouchAlt"};
-        var entries=floats.Concat(ints).Select(k=>new Entry{key=k,exists=PlayerPrefs.HasKey(k),floating=floats.Contains(k),integer=PlayerPrefs.GetInt(k),number=PlayerPrefs.GetFloat(k)}).ToArray();
+        var strings=ControllerBindings.Actions.Select(a=>ControllerBindings.Prefix+a).ToArray();
+        var entries=floats.Concat(ints).Concat(new[]{ControllerBindings.Prefix+"RightMoveStick"}).Concat(strings).Select(k=>new Entry{key=k,exists=PlayerPrefs.HasKey(k),floating=floats.Contains(k),isString=strings.Contains(k),text=PlayerPrefs.GetString(k),integer=PlayerPrefs.GetInt(k),number=PlayerPrefs.GetFloat(k)}).ToArray();
         SessionState.SetString(SnapshotKey,JsonUtility.ToJson(new PreferenceSnapshot{entries=entries}));
         SessionState.SetString(UIUpdatePlayProbe.SessionKey,Path.Combine(Path.GetTempPath(),"duck-ui-"+Guid.NewGuid().ToString("N")+".json"));
         UnityEditor.SceneManagement.EditorSceneManager.OpenScene("Assets/Scenes/MainMenu.unity");
@@ -168,11 +170,11 @@ public static class UIUpdateVerification
         Check(index.LayoutButton!=null && index.LayoutText!=null,"layout button and label assigned");
         Check(index.LayoutButton.onClick.GetPersistentEventCount()==1,"one serialized layout callback");
         Check(index.LayoutText.color==Color.white,"layout text has white infill");
-        int[] columns={3,4,3},rows={1,2,2};
+        int[] columns={3,4},rows={1,2};
         for(int layout=0;layout<3;layout++)
         {
-            Check(index.LayoutColumns==columns[layout] && index.LayoutRows==rows[layout],"requested layout cycle order");
-            Check(index.LayoutText.text=="LAYOUT: "+columns[layout]+" x "+rows[layout],"current layout label");
+            Check(layout == 2 ? index.PageCount == 1 : index.LayoutColumns==columns[layout] && index.LayoutRows==rows[layout],"requested layout cycle order");
+            Check(index.LayoutText.text==(layout == 2 ? "LAYOUT: ALL" : "LAYOUT: "+columns[layout]+" x "+rows[layout]),"current layout label");
             CheckIndexProgression(menu,ShopManager.Instance);
             for(int pack=0;pack<4;pack++)
             {
@@ -180,6 +182,7 @@ public static class UIUpdateVerification
                 var expected=ShopManager.Instance.AllCards.Where(c=>c!=null&&!c.IsBasic&&(int)c.PackCategory==pack)
                     .OrderBy(c=>c.Rarity).ThenBy(c=>c.CardName).ToArray();
                 Check(index.PageCount==Mathf.CeilToInt(expected.Length/(float)index.CardsPerPage),"page count for layout and pack");
+                if (layout == 2) Check(index.PageCount == 1 && index.CardsPerPage >= expected.Length, "ALL fits the complete category");
                 for(int page=0;page<index.PageCount;page++)
                 {
                     Canvas.ForceUpdateCanvases();
@@ -191,9 +194,9 @@ public static class UIUpdateVerification
                     for(int i=0;i<cards.Length;i++)
                     {
                         var rect=(RectTransform)cards[i].transform;
-                        var position=new Vector2((i%columns[layout]+.5f)/columns[layout],1-(i/columns[layout]+.5f)/rows[layout]);
+                        var position=new Vector2((i%index.LayoutColumns+.5f)/index.LayoutColumns,1-(i/index.LayoutColumns+.5f)/index.LayoutRows);
                         Check(Vector2.Distance(rect.anchorMin,position)<.001f && rect.anchorMin==rect.anchorMax,"card row and column");
-                        Check(Mathf.Approximately(rect.localScale.x,rect.localScale.y) && rect.rect.width*rect.localScale.x<area.rect.width/columns[layout] && rect.rect.height*rect.localScale.y<area.rect.height/rows[layout],"cards fit cells without distortion");
+                        Check(Mathf.Approximately(rect.localScale.x,rect.localScale.y) && rect.rect.width*rect.localScale.x<area.rect.width/index.LayoutColumns && rect.rect.height*rect.localScale.y<area.rect.height/index.LayoutRows,"cards fit cells without distortion");
                     }
                     index.NextButton.onClick.Invoke();
                 }
@@ -204,8 +207,8 @@ public static class UIUpdateVerification
             index.SelectPack((int)CardPackType.Mobility);
             while(index.NextButton.interactable)index.NextButton.onClick.Invoke();
             int firstCard=index.CurrentPage*index.CardsPerPage;
-            menu.OpenMenu();menu.OpenIndex();
-            Check(index.LayoutColumns==columns[layout] && index.LayoutRows==rows[layout],"layout retained after closing index");
+            string layoutLabel = index.LayoutText.text; menu.OpenMenu();menu.OpenIndex();
+            Check(index.LayoutText.text==layoutLabel,"layout retained after closing index");
             // Pointer checks run after rendering; same-frame reopen has no graphic depth yet.
             index.LayoutButton.onClick.Invoke();
             int start=index.CurrentPage*index.CardsPerPage;
@@ -301,7 +304,8 @@ public static class UIUpdateVerification
         Check(GameDifficulty.HealthMultiplier==2 && GameDifficulty.DamageMultiplier==2 && GameDifficulty.SpeedMultiplier==1.1f,"Hard modifiers");
         float hardGrowth=WaveManager.HealthIncreaseAtWave(20);menu.SelectDifficulty(0);
         Check(Mathf.Approximately(hardGrowth,WaveManager.HealthIncreaseAtWave(20)*2),"Hard doubles health growth");
-        foreach(string name in new[]{"HostButton","JoinButton","RankedButton","LeaderboardButton"})
+        Check(menu.MenuPanel.transform.Find("HostButton").GetComponent<UnityEngine.UI.Button>().interactable,"host enabled");
+        foreach(string name in new[]{"JoinButton","RankedButton","LeaderboardButton"})
             Check(!menu.MenuPanel.transform.Find(name).GetComponent<UnityEngine.UI.Button>().interactable,"disabled "+name);
         menu.OpenShop();
         Check(menu.PackContainer.childCount==4,"four shop packs");

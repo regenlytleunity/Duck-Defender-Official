@@ -6,6 +6,7 @@ using System.Collections;
 public class GameUI : MonoBehaviour
 {
     public static GameUI Instance; 
+    public TMP_FontAsset UIFont;
 
     [Header("HUD")]
     public TextMeshProUGUI WaveText;
@@ -37,6 +38,7 @@ public class GameUI : MonoBehaviour
     void Awake()
     {
         Instance = this;
+        CoopUIElements.SetFont(UIFont);
     }
 
     public void ShowDamagePopup(Vector3 worldPos, int amount, bool isCrit)

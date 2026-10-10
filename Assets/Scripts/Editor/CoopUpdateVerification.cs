@@ -12,6 +12,9 @@ public static class CoopUpdateVerification
             SessionState.EraseBool(CoopVerificationProbe.SessionKey);
             LocalCoopSession.RequestedPlayers = 1; LocalCoopSession.KeyboardTest = false;
             LocalCoopSession.Respawning = true; LocalCoopSession.DisabledCards.Clear();
+            LocalCoopSession.HealthStyle = LocalCoopSession.HealthBarStyle.AbovePlayer;
+            int[] colors = { 2, 1, 4, 3 };
+            for (int i = 0; i < 4; i++) { LocalCoopSession.PlayerControllers[i] = null; LocalCoopSession.PlayerNames[i] = "PLAYER " + (i + 1); LocalCoopSession.PlayerColors[i] = colors[i]; }
         };
     }
     [MenuItem("Duck Defender/Co-op/Run isolated Play Mode verification")]

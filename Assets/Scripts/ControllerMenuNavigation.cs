@@ -29,17 +29,21 @@ public class ControllerMenuNavigation : MonoBehaviour
     void Update()
     {
         if (Gamepad.all.Count == 0 || EventSystem.current == null) return;
+        if (CoopLobbyUI.Instance != null && CoopLobbyUI.Instance.IsOpen) return;
+        var menu = MainMenuUI.Instance;
+        if (menu != null && menu.SettingsPanel.activeInHierarchy && menu.SettingsPanel.GetComponent<SettingsMenuUI>().CapturingInput) return;
         if (LocalCoopSession.Multiplayer && LevelUpUI.Instance != null && LevelUpUI.Instance.IsOffering) return;
         var pad = Gamepad.all[0]; var events = EventSystem.current;
+        var scope = menu != null ? menu.NavigationScope.transform : null;
         var selected = events.currentSelectedGameObject != null ? events.currentSelectedGameObject.GetComponent<UnityEngine.UI.Selectable>() : null;
-        if (selected == null || !selected.IsActive() || !selected.IsInteractable())
+        if (selected == null || !selected.IsActive() || !selected.IsInteractable() || scope != null && !selected.transform.IsChildOf(scope))
         {
             selected = null;
             foreach (var item in UnityEngine.UI.Selectable.allSelectablesArray)
-                if (item.IsActive() && item.IsInteractable() && item.navigation.mode != UnityEngine.UI.Navigation.Mode.None) { selected = item; break; }
+                if (item.IsActive() && item.IsInteractable() && item.navigation.mode != UnityEngine.UI.Navigation.Mode.None && (scope == null || item.transform.IsChildOf(scope))) { selected = item; break; }
             if (selected != null) events.SetSelectedGameObject(selected.gameObject);
         }
-        Vector2 direction = pad.dpad.ReadValue(); if (direction.sqrMagnitude < .1f) direction = pad.leftStick.ReadValue();
+        Vector2 direction = ControllerBindings.MenuMove(pad);
         if (direction.sqrMagnitude < .2f) _nextMove = 0;
         else if (Time.unscaledTime >= _nextMove && selected != null)
         {
@@ -48,9 +52,10 @@ public class ControllerMenuNavigation : MonoBehaviour
                 moveDir = Mathf.Abs(direction.x) > Mathf.Abs(direction.y) ? direction.x > 0 ? MoveDirection.Right : MoveDirection.Left : direction.y > 0 ? MoveDirection.Up : MoveDirection.Down };
             ExecuteEvents.Execute(selected.gameObject, data, ExecuteEvents.moveHandler);
             selected = events.currentSelectedGameObject != null ? events.currentSelectedGameObject.GetComponent<UnityEngine.UI.Selectable>() : null;
+            if (scope != null && selected != null && !selected.transform.IsChildOf(scope)) { MainMenuUI.FocusFirstControl(scope.gameObject); selected = events.currentSelectedGameObject?.GetComponent<UnityEngine.UI.Selectable>(); }
         }
-        if (selected != null && pad.buttonEast.wasPressedThisFrame) ExecuteEvents.Execute(selected.gameObject, new BaseEventData(events), ExecuteEvents.submitHandler);
-        if (pad.buttonSouth.wasPressedThisFrame && MainMenuUI.Instance != null) MainMenuUI.Instance.BackToMainMenu();
+        if (selected != null && ControllerBindings.Pressed(pad, "Confirm")) ExecuteEvents.Execute(selected.gameObject, new BaseEventData(events), ExecuteEvents.submitHandler);
+        if (ControllerBindings.Pressed(pad, "Back") && menu != null) menu.BackToMainMenu();
     }
     void LateUpdate()
     {
@@ -58,7 +63,7 @@ public class ControllerMenuNavigation : MonoBehaviour
         var selected = events != null && events.currentSelectedGameObject != null
             ? events.currentSelectedGameObject.GetComponent<UnityEngine.UI.Selectable>() : null;
         bool separateCards = LocalCoopSession.Multiplayer && LevelUpUI.Instance != null && LevelUpUI.Instance.IsOffering;
-        if (Gamepad.all.Count == 0 || separateCards || selected == null || !selected.IsActive() || !selected.IsInteractable())
+        if (Gamepad.all.Count == 0 || separateCards || CoopLobbyUI.Instance != null && CoopLobbyUI.Instance.IsOpen || selected == null || !selected.IsActive() || !selected.IsInteractable())
         { _selectionFrame?.Hide(); return; }
         if (_selectionFrame == null) _selectionFrame = new ControllerSelectionFrame("Controller menu selection");
         _selectionFrame.Show((RectTransform)selected.transform);
@@ -82,6 +87,7 @@ public sealed class ControllerSelectionFrame
     readonly Canvas _canvas;
     readonly RectTransform _frame;
     readonly RectTransform[] _edges = new RectTransform[8];
+    readonly UnityEngine.UI.Image[] _graphics = new UnityEngine.UI.Image[8];
     readonly Vector3[] _corners = new Vector3[4];
 
     public ControllerSelectionFrame(string name)
@@ -98,13 +104,14 @@ public sealed class ControllerSelectionFrame
             var edge = new GameObject(i < 4 ? "Dark border" : "Yellow border", typeof(RectTransform), typeof(UnityEngine.UI.Image));
             _edges[i] = edge.GetComponent<RectTransform>(); _edges[i].SetParent(_frame, false);
             var graphic = edge.GetComponent<UnityEngine.UI.Image>();
+            _graphics[i] = graphic;
             graphic.color = i < 4 ? new Color(.025f, .035f, .05f, 1) : new Color(1, .9f, .08f, 1);
             graphic.raycastTarget = false;
         }
         Hide();
     }
 
-    public void Show(RectTransform target)
+    public void Show(RectTransform target, Color? color = null)
     {
         if (target == null || !target.gameObject.activeInHierarchy) { Hide(); return; }
         var targetCanvas = target.GetComponentInParent<Canvas>();
@@ -124,6 +131,7 @@ public sealed class ControllerSelectionFrame
         _canvas.sortingLayerID = targetCanvas.sortingLayerID;
         _canvas.sortingOrder = targetCanvas.sortingOrder + 1;
         _canvas.gameObject.SetActive(true);
+        for (int i = 4; i < 8; i++) _graphics[i].color = color ?? new Color(1, .9f, .08f, 1);
         _frame.anchoredPosition = min - Vector2.one * padding;
         _frame.sizeDelta = max - min + Vector2.one * (padding * 2);
         SetRing(0, 0, 8 * scale);

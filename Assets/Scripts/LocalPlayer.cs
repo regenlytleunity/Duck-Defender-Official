@@ -12,7 +12,9 @@ public class LocalPlayer : MonoBehaviour
     public PlayerHealth Health { get; private set; }
     public PlayerController Movement { get; private set; }
     public WeaponPlayer Weapon { get; private set; }
+    public SpriteRenderer Sprite { get; private set; }
     public Color Color { get; private set; } = Color.white;
+    public string DisplayName { get; private set; }
     public bool Alive => Health != null && !Health.IsDead;
     public bool Connected => !UsesGamepad || Controller != null && Controller.added;
     public double DamageDealt;
@@ -22,7 +24,7 @@ public class LocalPlayer : MonoBehaviour
     public long PendingMeteors, PendingSecondaryMeteors;
     public Vector2 Aim { get; private set; } = Vector2.right;
     public bool JumpDown { get; private set; }
-    public bool JumpHeld => Connected && Controller != null && (Controller.dpad.up.isPressed || Controller.leftStick.y.ReadValue() > .65f);
+    public bool JumpHeld => Connected && Controller != null && (ControllerBindings.Get("Jump") == "MoveUp" ? Move.y > .65f : ControllerBindings.Held(Controller, "Jump"));
     bool _stickUp;
     LineRenderer _aimArrow;
     static Material _arrowMaterial;
@@ -30,18 +32,27 @@ public class LocalPlayer : MonoBehaviour
 
     public void Configure(int index, Gamepad controller, bool usesGamepad)
     {
-        Index = index; Controller = controller; UsesGamepad = usesGamepad;
+        Index = index;
         Stats = GetComponent<PlayerStats>(); Health = GetComponent<PlayerHealth>();
         Movement = GetComponent<PlayerController>(); Weapon = GetComponent<WeaponPlayer>();
-        Color = index == 1 ? new Color(1, .5f, .12f) : index == 2 ? new Color(.2f, .55f, 1) : index == 3 ? new Color(.25f, 1, .4f) : Color.white;
-        if (index > 0)
+        Sprite = GetComponent<SpriteRenderer>();
+        bool multiplayer = LocalCoopSession.RequestedPlayers > 1;
+        DisplayName = multiplayer ? LocalCoopSession.PlayerNames[index] : "PLAYER 1";
+        Color = multiplayer ? CoopLobbyUI.Colors[LocalCoopSession.PlayerColors[index]] : Color.white;
+        if (multiplayer)
         {
             // Replace the yellow body palette, preserving the authored outline and beak.
             _paletteMaterial = new Material(Resources.Load<Shader>("PlayerPalette"));
             _paletteMaterial.SetColor("_PlayerColor", Color);
-            GetComponent<SpriteRenderer>().sharedMaterial = _paletteMaterial;
+            Sprite.sharedMaterial = _paletteMaterial;
         }
-        if (!usesGamepad) return;
+        AssignController(controller, usesGamepad);
+    }
+
+    public void AssignController(Gamepad controller, bool usesGamepad)
+    {
+        Controller = controller; UsesGamepad = usesGamepad; _stickUp = false; JumpDown = false;
+        if (!usesGamepad || _aimArrow != null) return;
         if (_arrowMaterial == null) _arrowMaterial = new Material(Shader.Find("Sprites/Default"));
         _aimArrow = new GameObject("Aim direction").AddComponent<LineRenderer>();
         _aimArrow.transform.SetParent(transform, false);
@@ -54,11 +65,11 @@ public class LocalPlayer : MonoBehaviour
     {
         JumpDown = false;
         if (!UsesGamepad || !Connected) return;
-        float up = Controller.leftStick.y.ReadValue();
-        JumpDown = Controller.dpad.up.wasPressedThisFrame || up > .7f && !_stickUp;
+        float up = Move.y;
+        JumpDown = ControllerBindings.Get("Jump") == "MoveUp" ? up > .7f && !_stickUp : ControllerBindings.Pressed(Controller, "Jump");
         if (up < .4f) _stickUp = false;
         else if (up > .7f) _stickUp = true;
-        Vector2 stick = Controller.rightStick.ReadValue();
+        Vector2 stick = ControllerBindings.Aim(Controller);
         if (stick.sqrMagnitude > .04f)
         {
             Aim = stick.normalized;
@@ -70,7 +81,7 @@ public class LocalPlayer : MonoBehaviour
     void LateUpdate()
     {
         if (_aimArrow == null) return;
-        _aimArrow.enabled = Alive;
+        _aimArrow.enabled = Alive && UsesGamepad && Connected;
         Vector3 start = transform.position + Vector3.up * .15f;
         Vector3 tip = start + (Vector3)Aim * 1.5f;
         Vector3 side = new Vector3(-Aim.y, Aim.x) * .18f;
@@ -80,7 +91,7 @@ public class LocalPlayer : MonoBehaviour
     }
 
     public Vector2 Move => !Connected || Controller == null ? Vector2.zero :
-        Controller.dpad.ReadValue().sqrMagnitude > .01f ? Controller.dpad.ReadValue() : Controller.leftStick.ReadValue();
+        ControllerBindings.Move(Controller);
     public Vector3 AimScreenPosition()
     {
         var camera = Camera.main;

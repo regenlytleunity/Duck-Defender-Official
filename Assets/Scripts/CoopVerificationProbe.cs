@@ -60,7 +60,43 @@ public class CoopVerificationProbe : MonoBehaviour
         _originalPads.AddRange(Gamepad.all);
         foreach (var pad in _originalPads) InputSystem.RemoveDevice(pad);
         for (int i = 0; i < 4; i++) _pads.Add(InputSystem.AddDevice<Gamepad>());
+        ControllerBindings.Reset();
         yield return null;
+        var testData = SaveSystem.LoadData(); testData.TotalCoins = 100000;
+        testData.CardCollection = ShopManager.Instance.AllCards.Where(c => c != null && !c.IsBasic).Select(c => new CardSaveData(c.ID) { Duplicates = 100 }).ToList();
+        SaveSystem.SaveData(testData); ShopManager.Instance.LoadEconomy();
+        var menu = MainMenuUI.Instance;
+        menu.OpenShop(); yield return null;
+        Call(menu, "OnPackClicked", ShopManager.Instance.AvailablePacks[0]); yield return null;
+        Check(!menu.ShopPanel.GetComponent<CanvasGroup>().interactable && menu.NavigationScope == menu.ConfirmPanel, "Purchase confirmation locks shop input and navigation scope");
+        Check(UnityEngine.EventSystems.EventSystem.current.currentSelectedGameObject.transform.IsChildOf(menu.ConfirmPanel.transform), "Purchase confirmation takes controller focus");
+        menu.CancelPurchase(); Check(menu.ShopPanel.GetComponent<CanvasGroup>().interactable, "Cancel restores shop input");
+        menu.OpenSettings(); yield return null;
+        var settings = menu.SettingsPanel.GetComponent<SettingsMenuUI>();
+        Check(settings.CameraZoomSlider.gameObject.activeInHierarchy, "Zoom is visible on the main settings screen");
+        settings.OpenKeybinds(); yield return null;
+        Check(!settings.CameraZoomSlider.gameObject.activeInHierarchy && settings.KeybindPanel.transform.Find("Controller bindings") != null, "Keybinds hides zoom and includes controller tab");
+        var bindings = (ControllerBindingsUI)typeof(SettingsMenuUI).GetField("_controllerBindings", Private).GetValue(settings);
+        bindings.Show(true); bindings.Begin(0); yield return new WaitForSecondsRealtime(.4f);
+        InputSystem.QueueStateEvent(_pads[0], new GamepadState().WithButton(GamepadButton.North)); yield return null; yield return null;
+        Check(ControllerBindings.Get("Jump") == "buttonNorth" && !bindings.Capturing, "Controller remapping captures and saves the chosen button");
+        Check(!ControllerBindings.TrySet("Dash", "buttonNorth", out _), "Conflicting gameplay mappings are rejected");
+        ControllerBindings.Reset(); InputSystem.QueueStateEvent(_pads[0], new GamepadState());
+        ScreenCapture.CaptureScreenshot(Path.Combine(OutputPath, "controller-bindings.png")); yield return new WaitForEndOfFrame();
+        settings.CloseKeybinds(); yield return null;
+        ScreenCapture.CaptureScreenshot(Path.Combine(OutputPath, "settings.png")); yield return new WaitForEndOfFrame();
+        menu.OpenIndex(); yield return null;
+        var normalIndex = menu.IndexPanel.GetComponent<CardIndexUI>(); normalIndex.CycleLayout(); normalIndex.CycleLayout();
+        yield return null;
+        Check(normalIndex.PageCount == 1 && normalIndex.LayoutText.text.Contains("ALL") && normalIndex.ContentArea.GetComponentsInChildren<CardDisplay>().Length == ShopManager.Instance.AllCards.Count(c => c != null && !c.IsBasic && c.PackCategory == normalIndex.SelectedPack), "ALL layout displays every card in the current category");
+        var indexCard = normalIndex.ContentArea.GetComponentInChildren<CardDisplay>();
+        Check(indexCard.ClickButton.interactable && indexCard.ClickButton.navigation.mode == UnityEngine.UI.Navigation.Mode.Explicit, "Index cards are reachable with explicit controller navigation");
+        if (indexCard.UpgradeButton.IsInteractable())
+        {
+            indexCard.ClickButton.onClick.Invoke();
+            Check(UnityEngine.EventSystems.EventSystem.current.currentSelectedGameObject == indexCard.UpgradeButton.gameObject, "Confirm on an index card focuses its upgrade action");
+        }
+        ScreenCapture.CaptureScreenshot(Path.Combine(OutputPath, "index-all.png")); yield return new WaitForEndOfFrame();
         var host = MainMenuUI.Instance.GetComponent<HostMenuUI>(); host.Open();
         Check(host.Panel.activeSelf && !MainMenuUI.Instance.MenuPanel.activeSelf, "Host menu opens exclusively");
         var playerRow = host.Panel.GetComponentsInChildren<TMPro.TMP_Text>().First(t => t.text.StartsWith("Players:")).GetComponentInParent<UnityEngine.UI.Button>();
@@ -85,12 +121,50 @@ public class CoopVerificationProbe : MonoBehaviour
         yield return new WaitForEndOfFrame(); yield return null;
         displayed.ClickButton.onClick.Invoke(); Check(LocalCoopSession.DisabledCards.Count == beforeDisabled, "Host can re-enable a card");
         host.ReturnFromCards(); host.StartGame();
+        yield return new WaitForSecondsRealtime(.4f);
+        var lobby = CoopLobbyUI.Instance;
+        Check(lobby != null && lobby.IsOpen && !UnityEngine.EventSystems.EventSystem.current.sendNavigationEvents, "Start co-op opens independent customization panels");
+        int originalColor = LocalCoopSession.PlayerColors[0];
+        InputSystem.QueueStateEvent(_pads[1], new GamepadState().WithButton(GamepadButton.East)); yield return null; yield return null;
+        Check(LocalCoopSession.PlayerColors[0] == originalColor && LocalCoopSession.PlayerColors[1] == 2, "Only the sending controller changes its duck color");
+        InputSystem.QueueStateEvent(_pads[1], new GamepadState()); yield return null;
+        var previews = (UnityEngine.UI.Image[])typeof(CoopLobbyUI).GetField("_previews", Private).GetValue(lobby);
+        Check(host.DuckPreviewSprite != null && previews.All(p => p.sprite == host.DuckPreviewSprite && p.preserveAspect && !p.raycastTarget && p.color == Color.white), "All seats preview the authored duck sprite with its aspect ratio intact");
+        var otherPreview = previews[1].material;
+        for (int color = 0; color < CoopLobbyUI.Colors.Length; color++)
+        {
+            LocalCoopSession.PlayerColors[0] = color; Call(lobby, "Refresh", 0);
+            Check(previews[0].material.shader.name == "Duck Defender/Duck Preview Palette" && previews[0].material.GetColor("_PlayerColor") == CoopLobbyUI.Colors[color] && previews[1].material == otherPreview, "Duck preview palette updates independently for color " + color);
+        }
+        yield return null;
+        ScreenCapture.CaptureScreenshot(Path.Combine(OutputPath, "duck-previews.png")); yield return new WaitForEndOfFrame();
+        LocalCoopSession.PlayerColors[0] = originalColor; Call(lobby, "Refresh", 0);
+        var lobbyFocus = (int[])typeof(CoopLobbyUI).GetField("_focus", Private).GetValue(lobby);
+        lobbyFocus[2] = 1;
+        InputSystem.QueueStateEvent(_pads[2], new GamepadState().WithButton(GamepadButton.East)); yield return null; yield return null;
+        Check(LocalCoopSession.PlayerNames[2] == "" && LocalCoopSession.PlayerNames[0] == "PLAYER 1", "Selecting Name clears only the editing player's default name");
+        InputSystem.QueueStateEvent(_pads[2], new GamepadState()); yield return null;
+        Call(lobby, "FinishName", 2);
+        Check(LocalCoopSession.PlayerNames[2] == "PLAYER 3", "Finishing an empty name restores the seat's default");
+        Call(lobby, "Activate", 2); Call(lobby, "TypeKey", 2, 36); Call(lobby, "FinishName", 2);
+        Check(LocalCoopSession.PlayerNames[2] == "PLAYER 3", "Whitespace-only names also restore the default");
+        LocalCoopSession.PlayerNames[2] = "OLD NAME"; Call(lobby, "Activate", 2);
+        Check(LocalCoopSession.PlayerNames[2] == "", "Reopening Name clears a previous custom name too");
+        for (int k = 0; k < 12; k++) Call(lobby, "TypeKey", 2, k);
+        Check(LocalCoopSession.PlayerNames[2] == "ABCDEFGHIJ" && LocalCoopSession.PlayerNames[0] == "PLAYER 1", "Names cap at ten characters and remain isolated by seat");
+        yield return null;
+        ScreenCapture.CaptureScreenshot(Path.Combine(OutputPath, "customization.png")); yield return new WaitForEndOfFrame();
+        Call(lobby, "FinishName", 2);
+        for (int i = 0; i < 4; i++) { lobbyFocus[i] = 2; Call(lobby, "Activate", i); }
+        yield return new WaitForSecondsRealtime(1.5f);
         yield return null; yield return null;
         GameDifficulty.Select(0, false); EnemyTipUI.Instance.enabled = false;
         var session = LocalCoopSession.Instance; var players = session.Players;
         Check(players.Count == 4 && players.Select(p => p.Stats).Distinct().Count() == 4, "Four independent player instances spawn");
         Check(players.Select(p => p.Controller).Distinct().Count() == 4 && players.All(p => p.UsesGamepad), "Four devices are assigned independently");
         Check(PlayerStats.Instance == players[0].Stats && PlayerController.Instance == players[0].Movement, "Compatibility singleton stays on player one");
+        var authoredFont = UnityEditor.AssetDatabase.LoadAssetAtPath<TMPro.TMP_FontAsset>("Assets/Fonts/DuckDefenderTestFontv2.asset");
+        Check(GameUI.Instance.UIFont == authoredFont && CoopRunUI.Instance.GetComponentsInChildren<TMPro.TMP_Text>(true).All(t => t.font == authoredFont), "Co-op UI uses the exact authored DuckDefenderTestFontv2 asset");
         Check(LevelManager.Instance.TargetXP == 400, "Four-player shared XP target scales by four");
         Check(players[2].GetComponent<SpriteRenderer>().sharedMaterial.shader.name == "Duck Defender/Player Palette", "Player blue uses palette replacement instead of multiplying yellow artwork");
         InputSystem.QueueStateEvent(_pads[0], new GamepadState { leftStick = Vector2.left, rightStick = Vector2.right });
@@ -143,16 +217,23 @@ public class CoopVerificationProbe : MonoBehaviour
         int picked = players[0].CardsPicked;
         InputSystem.QueueStateEvent(_pads[0], new GamepadState().WithButton(GamepadButton.East));
         yield return null; yield return null;
-        Check(players[0].CardsPicked == picked + 1 && players[1].CardsPicked == 0, "B selects only the sending player's card");
+        var ready = (bool[])typeof(CoopRunUI).GetField("_ready", Private).GetValue(CoopRunUI.Instance);
+        Check(players[0].CardsPicked == picked && ready[0] && !ready[1], "B marks only the sending player's card pending without applying it");
+        InputSystem.QueueStateEvent(_pads[0], new GamepadState()); yield return null; yield return null;
+        InputSystem.QueueStateEvent(_pads[0], new GamepadState().WithButton(GamepadButton.East)); yield return null; yield return null;
+        Check(!ready[0] && players[0].CardsPicked == picked, "B deselects without granting or removing an upgrade");
+        InputSystem.QueueStateEvent(_pads[0], new GamepadState()); yield return null; yield return null;
+        InputSystem.QueueStateEvent(_pads[0], new GamepadState().WithButton(GamepadButton.East)); yield return null; yield return null;
+        ScreenCapture.CaptureScreenshot(Path.Combine(OutputPath, "selected-card.png")); yield return new WaitForEndOfFrame();
         Check(LevelUpUI.Instance.IsOffering && Time.timeScale == 0, "One selection cannot resume other players' choices");
         LevelUpUI.Instance.ShowLevelUpOptions();
         for (int i = 1; i < 4; i++) InputSystem.QueueStateEvent(_pads[i], new GamepadState().WithButton(GamepadButton.East));
-        yield return null; yield return null;
+        yield return new WaitForSecondsRealtime(1.5f);
         Check(LevelUpUI.Instance.IsOffering && Time.timeScale == 0 && players.All(p => p.CardsPicked >= 1), "Queued level-ups present the next choices without unpausing");
         foreach (var pad in _pads) InputSystem.QueueStateEvent(pad, new GamepadState());
         yield return new WaitForSecondsRealtime(.4f);
         foreach (var pad in _pads) InputSystem.QueueStateEvent(pad, new GamepadState().WithButton(GamepadButton.East));
-        yield return null; yield return null;
+        yield return new WaitForSecondsRealtime(1.5f);
         Check(!LevelUpUI.Instance.IsOffering && Time.timeScale == 1, "All four selections resume gameplay");
         foreach (var pad in _pads) InputSystem.QueueStateEvent(pad, new GamepadState());
         ScreenCapture.CaptureScreenshot(Path.Combine(OutputPath, "gameplay.png"));
@@ -170,14 +251,27 @@ public class CoopVerificationProbe : MonoBehaviour
         yield return new WaitForEndOfFrame(); yield return null;
         foreach (var player in players) player.transform.position = new Vector3(WorldCamera.Instance.Right - 2, 0, 0);
         Physics2D.SyncTransforms(); yield return new WaitForSecondsRealtime(.6f);
+        bool spawnedBeyondRight = false, spawnedLeft = false;
         for (int i = 0; i < 30; i++)
         {
             Check(WorldCamera.Instance.TrySpawnPosition(wave.EnemyPrefabs[0], out var point), "Valid spawn exists near the map edge " + i);
             var view = Camera.main.WorldToViewportPoint(point);
-            Check(point.x > WorldCamera.Instance.Left && point.x < WorldCamera.Instance.Right && (view.x < 0 || view.x > 1), "Spawn remains on terrain and outside the camera " + i);
+            Check(point.x > WorldCamera.Instance.Left - WorldCamera.Instance.SpawnPadding && point.x < WorldCamera.Instance.Right + WorldCamera.Instance.SpawnPadding && (view.x < 0 || view.x > 1), "Spawn remains on extended terrain and outside the camera " + i);
+            spawnedBeyondRight |= point.x > WorldCamera.Instance.Right; spawnedLeft |= point.x < players[0].transform.position.x;
         }
+        Check(spawnedBeyondRight && spawnedLeft, "Enemies can spawn on both sides while players stand at the right edge");
+        foreach (var player in players) player.transform.position = new Vector3(WorldCamera.Instance.Left + 2, 0, 0);
+        Physics2D.SyncTransforms(); yield return new WaitForSecondsRealtime(.6f);
+        bool spawnedBeyondLeft = false, spawnedRight = false;
+        for (int i = 0; i < 30; i++)
+        {
+            Check(WorldCamera.Instance.TrySpawnPosition(wave.EnemyPrefabs[0], out var point), "Valid spawn exists at the left edge " + i);
+            spawnedBeyondLeft |= point.x < WorldCamera.Instance.Left; spawnedRight |= point.x > players[0].transform.position.x;
+        }
+        Check(spawnedBeyondLeft && spawnedRight, "Enemies can spawn on both sides while players stand at the left edge");
         var enemyObject = Instantiate(wave.EnemyPrefabs[0], Camera.main.transform.position + new Vector3(0, 0, 10), Quaternion.identity);
         var enemy = enemyObject.GetComponent<EnemyBase>(); enemy.BaseHealth = 100; enemy.SpawnProtectionSeconds = 0; enemy.Initialize(1);
+        Check(WorldCamera.Instance.PlayerWalls.All(w => Physics2D.GetIgnoreCollision(enemy.BodyCollider, w)), "Enemies can cross player boundary colliders");
         var projectile = ObjectPooler.Instance.GetPooledObject().GetComponent<Projectile>();
         players[1].Stats.GlobalDamageBonus = 1;
         var ballistic = new Projectile.BallisticData { Damage = 3, DamageMultiplier = 1, PierceCount = 10 };
@@ -190,6 +284,7 @@ public class CoopVerificationProbe : MonoBehaviour
         Time.timeScale = 1;
         Set(players[0].Health, "_isInvulnerable", false); players[0].Health.TakeDamage(10000);
         Check(players[0].Health.IsDead && !session.GameOver, "One death does not end co-op");
+        Check(players[0].GetComponent<SpriteRenderer>().enabled && players[0].GetComponent<Animator>().GetBool("isDead") && players[0].GetComponent<SpriteRenderer>().sharedMaterial.GetColor("_PlayerColor") == players[0].Color, "Co-op death plays the animation and retains the player's palette");
         int upgrades = cards.GetRunPickups(basic.ID, players[0].Stats);
         session.BeginWave(); Check(players[0].Alive && players[0].Health.CurrentHealth == players[0].Health.MaxHealth && cards.GetRunPickups(basic.ID, players[0].Stats) == upgrades, "Next-wave respawn restores health and preserves upgrades");
         LocalCoopSession.Respawning = false; Set(players[0].Health, "_isInvulnerable", false); players[0].Health.TakeDamage(10000); session.BeginWave();
@@ -197,12 +292,16 @@ public class CoopVerificationProbe : MonoBehaviour
         for (int i = 1; i < players.Count; i++) { Set(players[i].Health, "_isInvulnerable", false); players[i].Health.TakeDamage(10000); }
         yield return null;
         Check(session.GameOver && Time.timeScale == 0, "Game over waits for all four deaths");
+        Check(Time.unscaledTime < session.ResultsAt, "Results leave time for the final death animation");
+        yield return new WaitForSecondsRealtime(2.1f);
         ScreenCapture.CaptureScreenshot(Path.Combine(OutputPath, "results.png"));
         yield return new WaitForEndOfFrame(); yield return null;
-        LocalCoopSession.RequestedPlayers = 3;
+        LocalCoopSession.RequestedPlayers = 3; LocalCoopSession.HealthStyle = LocalCoopSession.HealthBarStyle.Classic;
         UnityEngine.SceneManagement.SceneManager.LoadScene("SampleScene"); yield return null; yield return null;
         EnemyTipUI.Instance.enabled = false;
         Check(LocalCoopSession.PlayerCount == 3 && LevelManager.Instance.TargetXP == 300, "Three-player run has three seats and triple XP target");
+        Check(CoopRunUI.Instance.GetComponentsInChildren<SpriteHealthBar>().Length == 3, "Classic style clones the existing health artwork for every player");
+        ScreenCapture.CaptureScreenshot(Path.Combine(OutputPath, "classic-health.png")); yield return new WaitForEndOfFrame();
         LevelUpUI.Instance.ShowLevelUpOptions(); yield return new WaitForSecondsRealtime(.4f);
         Check(CoopRunUI.Instance.GetComponentsInChildren<CardDisplay>().Length == 9, "Three-player card screen offers three options per seat");
         LocalCoopSession.RequestedPlayers = 2; LocalCoopSession.KeyboardTest = true; LocalCoopSession.Respawning = true;
@@ -214,6 +313,11 @@ public class CoopVerificationProbe : MonoBehaviour
         UnityEngine.SceneManagement.SceneManager.LoadScene("SampleScene"); yield return null; yield return null;
         EnemyTipUI.Instance.enabled = false;
         Check(LocalCoopSession.PlayerCount == 1 && LevelManager.Instance.TargetXP == 100 && CoopRunUI.Instance == null, "Solo mode retains one player, normal XP, and its original HUD");
+        Check(LocalCoopSession.Instance.Players[0].UsesGamepad, "A connected controller takes priority in solo gameplay");
+        foreach (var pad in _pads) InputSystem.RemoveDevice(pad); yield return null; yield return null;
+        Check(!LocalCoopSession.Instance.Players[0].UsesGamepad, "Solo falls back to keyboard and mouse after disconnect");
+        InputSystem.AddDevice(_pads[0]); yield return null; yield return null;
+        Check(LocalCoopSession.Instance.Players[0].UsesGamepad && LocalCoopSession.Instance.Players[0].Controller == _pads[0], "Solo hotplug switches back to the connected controller");
         WaveManager.Instance.StopAllCoroutines();
     }
     void OnDestroy()

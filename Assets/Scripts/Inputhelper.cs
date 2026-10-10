@@ -53,7 +53,7 @@ public static class InputHelper
     public static bool GetDashDown(Component owner = null)
     {
         var player = Player(owner);
-        if (player != null && player.UsesGamepad) return player.Connected && player.Controller != null && player.Controller.leftShoulder.wasPressedThisFrame;
+        if (player != null && player.UsesGamepad) return ControllerBindings.Pressed(player.Controller, "Dash");
         if (IsMobile)
             return MobileInputController.Instance.GetDashDown();
         if (InputManager.Instance != null)
@@ -64,7 +64,7 @@ public static class InputHelper
     public static bool GetShootHeld(Component owner = null)
     {
         var player = Player(owner);
-        if (player != null && player.UsesGamepad) return player.Connected && player.Controller != null && player.Controller.rightTrigger.isPressed;
+        if (player != null && player.UsesGamepad) return ControllerBindings.Held(player.Controller, "Shoot");
         if (IsMobile)
             return MobileInputController.Instance.GetShootHeld();
         return InputManager.Instance != null ? InputManager.Instance.IsShootHeld() : Input.GetButton("Fire1");

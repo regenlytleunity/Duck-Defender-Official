@@ -71,10 +71,10 @@ public class EnemyTipUI : MonoBehaviour
         if (!IsShowing) return;
         bool graceOver = Time.unscaledTime - _shownAt >= InputGraceSeconds;
         var pad = UnityEngine.InputSystem.Gamepad.all.Count > 0 ? UnityEngine.InputSystem.Gamepad.all[0] : null;
-        bool held = Input.GetMouseButton(0) || Input.touchCount > 0 || pad != null && pad.buttonEast.isPressed;
+        bool held = Input.GetMouseButton(0) || Input.touchCount > 0 || ControllerBindings.Held(pad, "Confirm");
         if (graceOver && !held) _released = true;
         ContinueText.text = graceOver && _released ? "Click, tap, or press B to continue" : "Take a moment to read...";
-        bool pressed = Input.GetMouseButtonDown(0) || pad != null && pad.buttonEast.wasPressedThisFrame;
+        bool pressed = Input.GetMouseButtonDown(0) || ControllerBindings.Pressed(pad, "Confirm");
         for (int i = 0; i < Input.touchCount; i++) pressed |= Input.GetTouch(i).phase == TouchPhase.Began;
         if (graceOver && _released && pressed) Dismiss();
     }
@@ -145,7 +145,7 @@ public class EnemyTipUI : MonoBehaviour
         rect.anchorMax = new Vector2(1, 1);
         rect.offsetMin = new Vector2(topLeft.x, bottomRight.y);
         rect.offsetMax = new Vector2(bottomRight.x, topLeft.y);
-        text.fontSize = size; text.color = Color.white; text.raycastTarget = false;
+        text.fontSize = size; text.color = Color.white; text.raycastTarget = false; CoopUIElements.WhiteInfill(text);
         text.enableAutoSizing = true; text.fontSizeMin = size * .75f; text.fontSizeMax = size;
         return text;
     }

@@ -8,8 +8,12 @@ public class WorldCamera : MonoBehaviour
     public float Left = -57, Right = 57, Floor = -2.3f, Ceiling = 18;
     public float MinimumZoom = 4, MaximumZoom = 7.5f, MaximumHalfWidth = 20;
     public float SpawnDistance = 23, FollowTime = .15f;
+    [Tooltip("Terrain reserved for enemies beyond the player walls.")]
+    public float SpawnPadding;
+    public Collider2D[] PlayerWalls;
     Camera _camera;
     Vector3 _velocity;
+    readonly RaycastHit2D[] _groundHits = new RaycastHit2D[8];
     void Awake() { Instance = this; _camera = GetComponent<Camera>(); }
     void LateUpdate()
     {
@@ -44,7 +48,7 @@ public class WorldCamera : MonoBehaviour
         float margin = 1.5f;
         var sprite = prefab.GetComponent<SpriteRenderer>();
         if (sprite != null) margin = Mathf.Max(margin, sprite.bounds.extents.x * 1.2f + .5f);
-        float left = Left + margin, right = Right - margin;
+        float left = Left - SpawnPadding + margin, right = Right + SpawnPadding - margin;
         float viewportLeft = _camera.transform.position.x - _camera.orthographicSize * _camera.aspect - margin;
         float viewportRight = _camera.transform.position.x + _camera.orthographicSize * _camera.aspect + margin;
         float distance = Mathf.Max(SpawnDistance, MaximumHalfWidth + margin);
@@ -52,17 +56,27 @@ public class WorldCamera : MonoBehaviour
         for (int attempt = 0; attempt < 80; attempt++)
         {
             float x = attempt < 2 ? Mathf.Clamp(focus.transform.position.x + (attempt == 0 ? firstSide : -firstSide) * distance, left, right) : Random.Range(left, right);
-            if (x >= viewportLeft && x <= viewportRight || Mathf.Abs(x - focus.transform.position.x) < distance) continue;
+            if (x >= viewportLeft && x <= viewportRight || Mathf.Abs(x - focus.transform.position.x) + .001f < distance) continue;
             var nearest = LocalCoopSession.NearestAlive(new Vector2(x, Floor));
             if (nearest != null && Mathf.Abs(nearest.transform.position.x - x) < margin + 2) continue;
             // Raycast the authored terrain so edge spawns cannot land in empty space.
-            var hit = Physics2D.Raycast(new Vector2(x, Floor + 2), Vector2.down, 8, LayerMask.GetMask("Ground"));
-            if (hit.collider == null || hit.normal.y < .5f) continue;
+            var filter = new ContactFilter2D { useLayerMask = true, layerMask = LayerMask.GetMask("Ground"), useTriggers = false };
+            int hits = Physics2D.Raycast(new Vector2(x, Floor + 2), Vector2.down, filter, _groundHits, 8);
+            RaycastHit2D hit = default;
+            for (int i = 0; i < hits; i++)
+                if (_groundHits[i].normal.y >= .5f && (PlayerWalls == null || System.Array.IndexOf(PlayerWalls, _groundHits[i].collider) < 0)) { hit = _groundHits[i]; break; }
+            if (hit.collider == null) continue;
             float halfHeight = sprite != null ? Mathf.Max(.6f, sprite.bounds.extents.y * 1.2f) : .8f;
             position = new Vector3(x, hit.point.y + halfHeight + .15f, 0);
             return true;
         }
         return false;
+    }
+    public void AllowEnemyThroughPlayerWalls(GameObject enemy)
+    {
+        if (PlayerWalls == null) return;
+        foreach (var collider in enemy.GetComponentsInChildren<Collider2D>())
+            foreach (var wall in PlayerWalls) if (wall != null) Physics2D.IgnoreCollision(collider, wall);
     }
     void OnDestroy() { if (Instance == this) Instance = null; }
 }

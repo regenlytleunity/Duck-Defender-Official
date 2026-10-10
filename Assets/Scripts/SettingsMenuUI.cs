@@ -27,6 +27,10 @@ public class SettingsMenuUI : MonoBehaviour
     static readonly KeyCode[] Keys = (KeyCode[])System.Enum.GetValues(typeof(KeyCode));
     int _bindingIndex = -1;
     float _captureAfter;
+    ControllerBindingsUI _controllerBindings;
+    public bool CapturingInput => _bindingIndex >= 0 || _controllerBindings?.SuppressInput == true;
+    public GameObject NavigationScope => ResetConfirmationPanel != null && ResetConfirmationPanel.activeInHierarchy ? ResetConfirmationPanel :
+        KeyCapturePanel != null && KeyCapturePanel.activeInHierarchy ? KeyCapturePanel : KeybindPanel != null && KeybindPanel.activeInHierarchy ? KeybindPanel : gameObject;
     [Header("Reset Confirmation")]
     public GameObject ResetConfirmationPanel;
 
@@ -92,6 +96,8 @@ public class SettingsMenuUI : MonoBehaviour
     {
         if (KeybindPanel == null) return;
         KeybindPanel.SetActive(true);
+        if (_controllerBindings == null) _controllerBindings = new ControllerBindingsUI(this);
+        KeybindPanel.transform.SetAsLastSibling();
         RefreshModalInput();
         FocusFirstButton(KeybindPanel);
         RefreshKeybinds();
@@ -99,6 +105,7 @@ public class SettingsMenuUI : MonoBehaviour
     }
     public void CloseKeybinds()
     {
+        _controllerBindings?.Cancel();
         CancelBinding();
         if (KeybindPanel != null) KeybindPanel.SetActive(false);
         RefreshModalInput();
@@ -116,6 +123,7 @@ public class SettingsMenuUI : MonoBehaviour
     }
     void Update()
     {
+        _controllerBindings?.Update();
         if (_bindingIndex < 0 || Time.unscaledTime < _captureAfter) return;
         if (Input.GetKeyDown(KeyCode.Escape)) { CancelBinding(); return; }
         if (!Input.anyKeyDown) return;
@@ -149,14 +157,27 @@ public class SettingsMenuUI : MonoBehaviour
         RefreshModalInput();
         if (KeybindPanel != null && KeybindPanel.activeInHierarchy) FocusFirstButton(KeybindPanel);
     }
-    void RefreshModalInput()
+    public void RefreshModalInput()
     {
         bool keys = KeybindPanel != null && KeybindPanel.activeSelf;
         bool reset = ResetConfirmationPanel != null && ResetConfirmationPanel.activeSelf;
         var settingsGroup = GetComponent<CanvasGroup>();
         if (settingsGroup != null) settingsGroup.interactable = !keys && !reset;
         var keysGroup = KeybindPanel != null ? KeybindPanel.GetComponent<CanvasGroup>() : null;
-        if (keysGroup != null) keysGroup.interactable = _bindingIndex < 0 && !reset;
+        if (keysGroup != null) keysGroup.interactable = _bindingIndex < 0 && _controllerBindings?.Capturing != true && !reset;
+        bool showZoom = !keys && !reset;
+        if (CameraZoomSlider != null) CameraZoomSlider.gameObject.SetActive(showZoom);
+        if (CameraZoomText != null) CameraZoomText.gameObject.SetActive(showZoom);
+        var backing = transform.Find("Camera Zoom Label Backing");
+        if (backing != null) backing.gameObject.SetActive(showZoom);
+    }
+    public bool HandleBack()
+    {
+        if (_controllerBindings?.Capturing == true) { _controllerBindings.Cancel(); return true; }
+        if (_bindingIndex >= 0) { CancelBinding(); return true; }
+        if (ResetConfirmationPanel != null && ResetConfirmationPanel.activeSelf) { CancelReset(); return true; }
+        if (KeybindPanel != null && KeybindPanel.activeSelf) { CloseKeybinds(); return true; }
+        return false;
     }
     static void FocusFirstButton(GameObject panel)
     {
