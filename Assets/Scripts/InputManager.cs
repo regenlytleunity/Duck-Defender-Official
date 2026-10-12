@@ -130,6 +130,7 @@ public class InputManager : MonoBehaviour
 
     public void SetKeybind(string action, KeyCode newKey)
     {
+        if (ReservedForItems(newKey)) return;
         switch (action.ToLower())
         {
             case "moveleft": MoveLeftKey = newKey; break;
@@ -206,7 +207,21 @@ public class InputManager : MonoBehaviour
             CrouchAlt = (KeyCode)PlayerPrefs.GetInt("Key_CrouchAlt");
         if (PlayerPrefs.HasKey("Key_Pause"))
             PauseKey = (KeyCode)PlayerPrefs.GetInt("Key_Pause");
+        // Old mappings remain saved, but fixed item controls must not trigger two actions.
+        if (ReservedForItems(MoveLeftKey)) MoveLeftKey = KeyCode.A;
+        if (ReservedForItems(MoveRightKey)) MoveRightKey = KeyCode.D;
+        if (ReservedForItems(JumpKey)) JumpKey = KeyCode.Space;
+        if (ReservedForItems(CrouchKey)) CrouchKey = KeyCode.S;
+        if (ReservedForItems(DashKey)) DashKey = KeyCode.LeftShift;
+        if (ReservedForItems(ShootKey)) ShootKey = KeyCode.Mouse0;
+        if (ReservedForItems(MoveLeftAlt)) MoveLeftAlt = KeyCode.LeftArrow;
+        if (ReservedForItems(MoveRightAlt)) MoveRightAlt = KeyCode.RightArrow;
+        if (ReservedForItems(JumpAlt)) JumpAlt = KeyCode.W;
+        if (ReservedForItems(CrouchAlt)) CrouchAlt = KeyCode.DownArrow;
+        if (ReservedForItems(PauseKey)) PauseKey = KeyCode.Escape;
     }
+
+    public static bool ReservedForItems(KeyCode key) => key == KeyCode.Mouse1 || key >= KeyCode.Alpha1 && key <= KeyCode.Alpha4;
 
     public void ResetToDefaults()
     {

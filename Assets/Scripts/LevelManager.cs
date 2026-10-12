@@ -123,6 +123,7 @@ public class LevelManager : MonoBehaviour
 
     public void OnWaveComplete()
     {
+        LocalCoopSession.Instance?.CompleteWave();
         if (LocalCoopSession.Instance != null && LocalCoopSession.Instance.Players.Count > 0)
         {
             int balance = TotalCoins;
@@ -167,7 +168,7 @@ public class LevelManager : MonoBehaviour
     float _fractionalXP;
     public void AddXP(float amount)
     {
-        float totalMultiplier = LocalCoopSession.TeamXPBonus();
+        float totalMultiplier = LocalCoopSession.TeamXPBonus() * PlayerItems.TeamXPFactor;
 
         _fractionalXP += Mathf.Max(0, amount * totalMultiplier);
         int finalXP = Mathf.FloorToInt(_fractionalXP);
@@ -273,6 +274,13 @@ public class LevelManager : MonoBehaviour
         {
             coin.ConfigureAsPassiveCoin();
         }
+    }
+
+    public void GrantItemLevel()
+    {
+        // Bypass XP multipliers and preserve existing progress toward the next level.
+        CurrentXP = (int)System.Math.Min(int.MaxValue, (long)CurrentXP + TargetXP);
+        LevelUp(); UpdateUI();
     }
 
     void LevelUp()

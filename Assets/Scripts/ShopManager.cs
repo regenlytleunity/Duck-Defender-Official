@@ -6,7 +6,7 @@ using System.Linq;
 /// Owns pack purchases, the level-1 through level-6 collection, pack-specific
 /// essence, one-time ascensions and persistent developer resource flags.
 /// </summary>
-public class ShopManager : MonoBehaviour
+public partial class ShopManager : MonoBehaviour
 {
     public static ShopManager Instance;
 
@@ -33,6 +33,7 @@ public class ShopManager : MonoBehaviour
     {
         _playerData = SaveSystem.LoadData();
         CurrentCoins = _playerData.TotalCoins;
+        _playerData.NormalizeShopData();
         UnlockBaseSet();
     }
 
@@ -191,7 +192,7 @@ public class ShopManager : MonoBehaviour
 
     public List<CardDefinition> TryBuyPacks(ShopPackDefinition pack, int count)
     {
-        if (pack == null || (count != 1 && count != 3) || pack.Cost < 0 ||
+        if (pack == null || !CanOpenPackCount(count) || pack.Cost < 0 ||
             (long)pack.Cost * count > int.MaxValue ||
             AllCards == null || !AllCards.Any(c => c != null && !c.IsBasic && c.PackCategory == pack.PackType)) return null;
         int price = pack.Cost * count;

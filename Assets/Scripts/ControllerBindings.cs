@@ -12,8 +12,11 @@ public static class ControllerBindings
     public static string Get(string action)
     {
         int index = System.Array.IndexOf(Actions, action);
-        return PlayerPrefs.GetString(Prefix + action, index >= 0 ? Defaults[index] : "");
+        string control = PlayerPrefs.GetString(Prefix + action, index >= 0 ? Defaults[index] : "");
+        // Preserve saved preferences, but resolve old gameplay mappings that now belong to items.
+        return index >= 0 && index < 3 && ReservedForItems(control) ? Defaults[index] : control;
     }
+    static bool ReservedForItems(string control) => control == "rightShoulder" || control.StartsWith("dpad/");
     public static string Label(string action) => ControlLabel(Get(action));
     public static string ControlLabel(string control)
     {
@@ -40,7 +43,7 @@ public static class ControllerBindings
     public static bool Held(Gamepad pad, string action) => Button(pad, action)?.isPressed == true;
     public static bool RightMoveStick => PlayerPrefs.GetInt(Prefix + "RightMoveStick", 0) != 0;
     public static Vector2 Move(Gamepad pad) => pad == null || !pad.added ? Vector2.zero :
-        pad.dpad.ReadValue().sqrMagnitude > .01f ? pad.dpad.ReadValue() : (RightMoveStick ? pad.rightStick : pad.leftStick).ReadValue();
+        (RightMoveStick ? pad.rightStick : pad.leftStick).ReadValue();
     public static Vector2 Aim(Gamepad pad) => pad == null || !pad.added ? Vector2.zero : (RightMoveStick ? pad.leftStick : pad.rightStick).ReadValue();
     public static Vector2 MenuMove(Gamepad pad) => pad == null || !pad.added ? Vector2.zero : pad.dpad.ReadValue().sqrMagnitude > .1f ? pad.dpad.ReadValue() : pad.leftStick.ReadValue();
     public static void SwapSticks() { PlayerPrefs.SetInt(Prefix + "RightMoveStick", RightMoveStick ? 0 : 1); PlayerPrefs.Save(); }
@@ -49,6 +52,8 @@ public static class ControllerBindings
         int index = System.Array.IndexOf(Actions, action);
         if (index < 0 || System.Array.IndexOf(Controls, control) < 0 && !(action == "Jump" && control == "MoveUp"))
         { error = "Unsupported controller binding."; return false; }
+        if (index < 3 && ReservedForItems(control))
+        { error = "RB and D-pad are reserved for items."; return false; }
         for (int i = 0; i < Actions.Length; i++)
             if (i != index && (i < 3) == (index < 3) && Get(Actions[i]) == control)
             { error = ControlLabel(control) + " is already used by " + Actions[i] + "."; return false; }

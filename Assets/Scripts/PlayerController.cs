@@ -170,7 +170,7 @@ public class PlayerController : MonoBehaviour
 
         if (AuraChild == null) AuraChild = GetComponentInChildren<AuraController>();
 
-        if (OwnerStats != null)
+        if (OwnerStats != null && GetComponent<ItemClone>() == null)
         {
             OwnerStats.AuraRadius = AuraRadius;
             OwnerStats.AuraDamage = AuraDamage;

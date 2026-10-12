@@ -243,6 +243,7 @@ public class PlayerHealth : MonoBehaviour
 
     void UpdateUI()
     {
+        if (GetComponent<ItemClone>() != null) return;
         if (!LocalCoopSession.Multiplayer && GameUI.Instance != null)
         {
             GameUI.Instance.UpdatePlayerHealth(_currentHealth, MaxHealth);
@@ -253,6 +254,7 @@ public class PlayerHealth : MonoBehaviour
     {
         if (_isDead) return;
         _isDead = true;
+        if (GetComponent<ItemClone>() != null) { Destroy(gameObject); return; }
         if (LocalCoopSession.Multiplayer && LocalCoopSession.Instance != null)
         {
             StopAllCoroutines();
@@ -266,6 +268,7 @@ public class PlayerHealth : MonoBehaviour
             return;
         }
 
+        LocalCoopSession.Instance?.CompleteRun();
         if (AudioManager.Instance != null)
         {
             AudioManager.Instance.PlaySFX("Game_Over");

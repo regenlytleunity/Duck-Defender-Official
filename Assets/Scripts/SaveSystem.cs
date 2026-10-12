@@ -124,6 +124,7 @@ public static class SaveSystem
             // Defensive: ensure card list isn't null if save was made by an older version
             if (data.CardCollection == null)
                 data.CardCollection = new System.Collections.Generic.List<CardSaveData>();
+            data.NormalizeShopData();
             
             return data;
         }

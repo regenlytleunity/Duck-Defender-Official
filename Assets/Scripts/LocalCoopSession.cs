@@ -8,6 +8,10 @@ public class LocalCoopSession : MonoBehaviour
     public static LocalCoopSession Instance { get; private set; }
     public static int RequestedPlayers = 1;
     public static bool KeyboardTest, Respawning = true;
+    public static bool AdvancedLoadouts;
+    public int CompletedWaves { get; private set; }
+    public bool ItemDropsEnabled { get; private set; }
+    bool _runStarted, _runCompleted;
     public enum HealthBarStyle { Classic, AbovePlayer }
     public static HealthBarStyle HealthStyle = HealthBarStyle.AbovePlayer;
     public static readonly string[] PlayerNames = { "PLAYER 1", "PLAYER 2", "PLAYER 3", "PLAYER 4" };
@@ -60,6 +64,32 @@ public class LocalCoopSession : MonoBehaviour
         for (int i = 0; i < Players.Count; i++) for (int j = i + 1; j < Players.Count; j++)
             foreach (var a in Players[i].GetComponentsInChildren<Collider2D>())
                 foreach (var b in Players[j].GetComponentsInChildren<Collider2D>()) Physics2D.IgnoreCollision(a, b);
+        StartCoroutine(InitializeLoadouts());
+    }
+
+    System.Collections.IEnumerator InitializeLoadouts()
+    {
+        // PlayerController/Health/Weapon initialize authored defaults in Start.
+        yield return null;
+        var data = SaveSystem.LoadData(); data.NormalizeShopData();
+        ItemDropsEnabled = data.CompletedRuns >= 2;
+        ShopManager.SanitizeItems(data, Multiplayer, Players.Count);
+        _runStarted = true;
+        foreach (var player in Players)
+        {
+            var items = player.gameObject.AddComponent<PlayerItems>();
+            items.Initialize(player, data, !Multiplayer || AdvancedLoadouts);
+        }
+    }
+    public void CompleteWave() { CompletedWaves++; }
+    public void CompleteRun()
+    {
+        if (!_runStarted || _runCompleted) return;
+        _runCompleted = true;
+        LevelManager.Instance?.FlushCoinSave();
+        var data = SaveSystem.LoadData();
+        data.CompletedRuns = (int)System.Math.Min(int.MaxValue, (long)data.CompletedRuns + 1);
+        SaveSystem.SaveData(data);
     }
 
     void Update()
@@ -88,6 +118,7 @@ public class LocalCoopSession : MonoBehaviour
         player.Deaths++;
         foreach (var other in Players) if (other.Alive) return;
         GameOver = true; Time.timeScale = 0; ResultsAt = Time.unscaledTime + 2;
+        CompleteRun();
         LevelManager.Instance?.FlushCoinSave();
         AudioManager.Instance?.PlaySFX("Game_Over"); AudioManager.Instance?.StopMusic();
     }
@@ -101,7 +132,7 @@ public class LocalCoopSession : MonoBehaviour
         foreach (var player in Players) if (!player.Alive) player.Health.Respawn(survivor.transform.position);
     }
 
-    public static PlayerStats NearestAlive(Vector2 position)
+    public static PlayerStats NearestAlive(Vector2 position, bool includeClones = false)
     {
         if (Instance == null || Instance.Players.Count == 0)
         {
@@ -115,7 +146,7 @@ public class LocalCoopSession : MonoBehaviour
             float d = ((Vector2)player.transform.position - position).sqrMagnitude;
             if (d < distance) { distance = d; nearest = player.Stats; }
         }
-        return nearest;
+        return includeClones ? ItemClone.Nearest(position, nearest) : nearest;
     }
 
     public static float TeamXPBonus()
@@ -132,5 +163,5 @@ public class LocalCoopSession : MonoBehaviour
         foreach (var player in Instance.Players) missing += player.Stats.EnemyHealthMissingPercent;
         return Mathf.Clamp(missing, 0, .95f);
     }
-    void OnDestroy() { if (Instance == this) Instance = null; }
+    void OnDestroy() { CompleteRun(); if (Instance == this) Instance = null; }
 }

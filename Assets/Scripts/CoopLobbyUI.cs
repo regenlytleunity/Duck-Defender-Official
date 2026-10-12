@@ -20,6 +20,8 @@ public class CoopLobbyUI : MonoBehaviour
     readonly Image[] _previews = new Image[4];
     readonly Material[] _previewMaterials = new Material[Colors.Length];
     readonly bool[] _ready = new bool[4];
+    readonly LoadoutPanel[] _loadouts = new LoadoutPanel[4];
+    int ReadyIndex(int seat) => _controls[seat].Length - 1;
     readonly int[] _focus = new int[4], _key = new int[4];
     readonly float[] _repeat = new float[4];
     readonly ControllerSelectionFrame[] _frames = new ControllerSelectionFrame[4];
@@ -46,14 +48,23 @@ public class CoopLobbyUI : MonoBehaviour
             _previews[i].sprite = host.DuckPreviewSprite;
             _previews[i].preserveAspect = true;
             _previews[i].raycastTarget = false;
-            _controls[i] = new Button[3];
+            _controls[i] = new Button[LocalCoopSession.AdvancedLoadouts ? 4 : 3];
             _controls[i][0] = Control(panel, seat, "", new Vector2(.15f, .55f), new Vector2(.85f, .66f), () => Activate(seat));
             _colors[i] = _controls[i][0].GetComponentInChildren<TMP_Text>();
             _controls[i][1] = Control(panel, seat, "", new Vector2(.15f, .39f), new Vector2(.85f, .50f), () => Activate(seat));
             _names[i] = _controls[i][1].GetComponentInChildren<TMP_Text>();
-            _controls[i][2] = Control(panel, seat, "Ready", new Vector2(.25f, .23f), new Vector2(.75f, .34f), () => Activate(seat));
-            _status[i] = CoopUIElements.Text(panel, "", new Vector2(.04f, .025f), new Vector2(.96f, .17f), 24);
+            if (LocalCoopSession.AdvancedLoadouts)
+                _controls[i][2] = Control(panel, seat, "Items / starting cards", new Vector2(.15f, .25f), new Vector2(.85f, .35f), () => Activate(seat));
+            _controls[i][ReadyIndex(i)] = Control(panel, seat, "Ready", new Vector2(.25f, .12f), new Vector2(.75f, .22f), () => Activate(seat));
+            _status[i] = CoopUIElements.Text(panel, "", new Vector2(.04f, .005f), new Vector2(.96f, .10f), 21);
             BuildKeyboard(panel, seat);
+            _loadouts[i] = null;
+            if (LocalCoopSession.AdvancedLoadouts)
+            {
+                _loadouts[i] = new LoadoutPanel(panel, seat, true, () => _loadouts[seat].Root.gameObject.SetActive(false));
+                CoopUIElements.Stretch(_loadouts[i].Root, new Vector2(.01f, .015f), new Vector2(.99f, .90f));
+                _loadouts[i].Root.gameObject.SetActive(false);
+            }
             _frames[i]?.Dispose(); _frames[i] = new ControllerSelectionFrame("Player " + (i + 1) + " customization focus");
             Refresh(i);
         }
@@ -103,6 +114,15 @@ public class CoopLobbyUI : MonoBehaviour
             if (Time.unscaledTime >= _inputAfter)
             {
                 Vector2 move = keyboard ? KeyboardMove() : ControllerBindings.MenuMove(pad);
+                if (_loadouts[i] != null && _loadouts[i].Root.gameObject.activeSelf)
+                {
+                    Vector2 step = Vector2.zero;
+                    if (move.sqrMagnitude < .2f) _repeat[i] = 0;
+                    else if (Time.unscaledTime >= _repeat[i]) { _repeat[i] = Time.unscaledTime + .22f; step = move; }
+                    _loadouts[i].ControllerInput(step, keyboard ? Keyboard.current?.enterKey.wasPressedThisFrame == true : ControllerBindings.Pressed(pad, "Confirm"), keyboard ? Keyboard.current?.escapeKey.wasPressedThisFrame == true : ControllerBindings.Pressed(pad, "Back"));
+                    if (_loadouts[i].Focused != null) _frames[i].Show(_loadouts[i].Focused);
+                    allReady = false; continue;
+                }
                 if (move.sqrMagnitude < .2f) _repeat[i] = 0;
                 else if (Time.unscaledTime >= _repeat[i] && !_ready[i])
                 {
@@ -111,7 +131,7 @@ public class CoopLobbyUI : MonoBehaviour
                     if (_keyboards[i].gameObject.activeSelf)
                     { if (Mathf.Abs(move.y) >= Mathf.Abs(move.x)) step *= 8; _key[i] = (_key[i] + step + 40) % 40; }
                     else if (Mathf.Abs(move.x) > Mathf.Abs(move.y) && _focus[i] == 0) CycleColor(i, step);
-                    else _focus[i] = (_focus[i] + step + 3) % 3;
+                    else _focus[i] = (_focus[i] + step + _controls[i].Length) % _controls[i].Length;
                 }
                 bool confirm = keyboard ? Keyboard.current?.enterKey.wasPressedThisFrame == true : ControllerBindings.Pressed(pad, "Confirm");
                 bool back = keyboard ? Keyboard.current?.escapeKey.wasPressedThisFrame == true : ControllerBindings.Pressed(pad, "Back");
@@ -124,7 +144,7 @@ public class CoopLobbyUI : MonoBehaviour
                 }
             }
             Refresh(i); allReady &= _ready[i];
-            _frames[i].Show((RectTransform)(_keyboards[i].gameObject.activeSelf ? _keys[i][_key[i]] : _controls[i][_ready[i] ? 2 : _focus[i]]).transform, _ready[i] ? Color.green : (Color?)null);
+            _frames[i].Show((RectTransform)(_keyboards[i].gameObject.activeSelf ? _keys[i][_key[i]] : _controls[i][_ready[i] ? ReadyIndex(i) : _focus[i]]).transform, _ready[i] ? Color.green : (Color?)null);
         }
         if (!allReady) _launchAt = 0;
         else if (_launchAt == 0) _launchAt = Time.unscaledTime + 1.25f;
@@ -150,6 +170,8 @@ public class CoopLobbyUI : MonoBehaviour
             _keyboards[seat].gameObject.SetActive(true);
             Refresh(seat);
         }
+        else if (_focus[seat] != ReadyIndex(seat) && _loadouts[seat] != null)
+        { _loadouts[seat].Rebuild(); _loadouts[seat].Root.gameObject.SetActive(true); }
         else { FinishName(seat); _ready[seat] = true; }
     }
     void CycleColor(int seat, int step) { LocalCoopSession.PlayerColors[seat] = (LocalCoopSession.PlayerColors[seat] + step + Colors.Length) % Colors.Length; }
@@ -179,7 +201,7 @@ public class CoopLobbyUI : MonoBehaviour
             _previewMaterials[color].SetColor("_PlayerColor", Colors[color]);
         }
         _previews[seat].material = _previewMaterials[color];
-        _controls[seat][2].GetComponentInChildren<TMP_Text>().text = _ready[seat] ? "READY" : "Ready";
+        _controls[seat][ReadyIndex(seat)].GetComponentInChildren<TMP_Text>().text = _ready[seat] ? "READY" : "Ready";
         bool keyboard = LocalCoopSession.PlayerControllers[seat] == null;
         string confirm = keyboard ? "Enter" : ControllerBindings.Label("Confirm");
         _status[seat].text = _ready[seat] ? "Ready - " + confirm + " to undo\nStarts when everyone is ready" : _keyboards[seat].gameObject.activeSelf ? LocalCoopSession.PlayerNames[seat] + "  (" + LocalCoopSession.PlayerNames[seat].Length + "/10)\n" + confirm + " to type" : "Arrows / stick: browse\n" + confirm + ": select";

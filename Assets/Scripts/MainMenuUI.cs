@@ -32,6 +32,7 @@ public class MainMenuUI : MonoBehaviour
     private ShopPackDefinition _selectedPack;
     [Header("Multiple packs")]
     public UnityEngine.UI.Button BuyThreeButton;
+    [System.NonSerialized] public UnityEngine.UI.Button BuySixButton;
     public TextMeshProUGUI BuyThreeText;
     public UnityEngine.UI.Image[] AdditionalPackImages;
     public UnityEngine.UI.GridLayoutGroup RevealGrid;
@@ -80,6 +81,7 @@ public class MainMenuUI : MonoBehaviour
         {
             UpdateCoinDisplay(ShopManager.Instance.CurrentCoins);
             GenerateShopButtons();
+            (GetComponent<ShopUpdateUI>() ?? gameObject.AddComponent<ShopUpdateUI>()).Initialize(this);
             ShopManager.Instance.OnCollectionChanged += RefreshBalances;
         }
     }
@@ -167,6 +169,7 @@ public void ShowPanel(GameObject panel)
     public void BackToMainMenu()
     {
         if (ConfirmPanel.activeInHierarchy) { CancelPurchase(); return; }
+        if (IndexPanel.activeInHierarchy && IndexPanel.GetComponent<IndexLoadoutUI>()?.HandleBack() == true) return;
         if (SettingsPanel.activeInHierarchy && SettingsPanel.GetComponent<SettingsMenuUI>().HandleBack()) return;
         if (GetComponent<HostMenuUI>()?.ReturnFromCards() == true) return;
         ShowPanel(MenuPanel);
@@ -253,9 +256,14 @@ void OnPackClicked(ShopPackDefinition pack)
     {
         BuyThreeButton.onClick.RemoveAllListeners();
         BuyThreeButton.onClick.AddListener(BuyThreePacks);
-        BuyThreeButton.interactable = (long)pack.Cost * 3 <= int.MaxValue && ShopManager.Instance.CanAfford(pack.Cost * 3);
+        BuyThreeButton.interactable = ShopManager.Instance.CanOpenPackCount(3) && (long)pack.Cost * 3 <= int.MaxValue && ShopManager.Instance.CanAfford(pack.Cost * 3);
     }
-    if (BuyThreeText != null) BuyThreeText.text = "Open 3 - " + ((long)pack.Cost * 3) + " Coins";
+    if (BuyThreeText != null) BuyThreeText.text = ShopManager.Instance.CanOpenPackCount(3) ? "Open 3 - " + ((long)pack.Cost * 3) + " Coins" : "Open 3 - Locked";
+    if (BuySixButton != null)
+    {
+        BuySixButton.interactable = ShopManager.Instance.CanOpenPackCount(6) && (long)pack.Cost * 6 <= int.MaxValue && ShopManager.Instance.CanAfford(pack.Cost * 6);
+        BuySixButton.GetComponentInChildren<TMP_Text>().text = ShopManager.Instance.CanOpenPackCount(6) ? "Open 6 - " + ((long)pack.Cost * 6) + " Coins" : "Open 6 - Locked";
+    }
     RefreshShopModal();
     FocusFirstControl(ConfirmPanel);
 }
@@ -288,7 +296,7 @@ public GameObject NavigationScope
         if (SettingsPanel.activeInHierarchy) return SettingsPanel.GetComponent<SettingsMenuUI>().NavigationScope;
         var host = GetComponent<HostMenuUI>();
         if (host != null && host.Panel != null && host.Panel.activeInHierarchy) return host.Panel;
-        if (IndexPanel.activeInHierarchy) return IndexPanel;
+        if (IndexPanel.activeInHierarchy) return IndexPanel.GetComponent<IndexLoadoutUI>()?.NavigationScope ?? IndexPanel;
         if (ShopPanel.activeInHierarchy) return ShopPanel;
         return MenuPanel;
     }
@@ -304,6 +312,7 @@ public static void FocusFirstControl(GameObject panel)
 
 public void BuyPack() { Purchase(1); }
 public void BuyThreePacks() { Purchase(3); }
+public void BuySixPacks() { Purchase(6); }
 void Purchase(int count)
 {
     if (_purchaseInProgress || _selectedPack == null) return;
@@ -320,6 +329,13 @@ void Purchase(int count)
     // --- MINIGAME LOGIC ---
     void StartPackOpening(ShopPackDefinition pack)
     {
+        if (AdditionalPackImages == null) AdditionalPackImages = new UnityEngine.UI.Image[0];
+        if (_packCount == 6 && AdditionalPackImages.Length < 5)
+        {
+            int previous = AdditionalPackImages.Length;
+            System.Array.Resize(ref AdditionalPackImages, 5);
+            for (int i = previous; i < 5; i++) AdditionalPackImages[i] = Instantiate(PackImage, PackImage.transform.parent);
+        }
         OpeningOverlay.SetActive(true);
         ShopPanel.SetActive(false);
 
@@ -338,8 +354,14 @@ void Purchase(int count)
         if (RevealGrid != null)
         {
             RevealGrid.constraint = UnityEngine.UI.GridLayoutGroup.Constraint.FixedColumnCount;
-            RevealGrid.constraintCount = 3;
-            RevealGrid.cellSize = _packCount == 3 ? TripleCardSize : SingleCardSize;
+            RevealGrid.constraintCount = _packCount == 6 ? 6 : 3;
+            RevealGrid.spacing = new Vector2(20, 20);
+            CoopUIElements.Stretch((RectTransform)CardRevealCenter, new Vector2(.06f, .16f), new Vector2(.94f, .84f));
+            Canvas.ForceUpdateCanvases();
+            var size = ((RectTransform)CardRevealCenter).rect.size;
+            int columns = RevealGrid.constraintCount, rows = _packCount == 1 ? 1 : 3;
+            RevealGrid.cellSize = new Vector2((size.x - RevealGrid.spacing.x * (columns - 1)) / columns, (size.y - RevealGrid.spacing.y * (rows - 1)) / rows);
+            RevealGrid.childAlignment = TextAnchor.MiddleCenter;
         }
         SliceZone.SetActive(true);
         SliceHelpText.SetActive(true);
@@ -352,18 +374,35 @@ void Purchase(int count)
         _lastMousePos = Input.mousePosition;
     }
 
+    Vector2 _normalPackSize;
+    Vector3 _normalPackScale;
     void CenterPackRow()
     {
         var row = PackImage.transform.parent as RectTransform;
         var layout = row != null ? row.GetComponent<HorizontalLayoutGroup>() : null;
         if (layout == null) return;
+        if (_normalPackSize == Vector2.zero) { _normalPackSize = PackImage.rectTransform.sizeDelta; _normalPackScale = PackImage.transform.localScale; }
+        layout.enabled = _packCount != 6;
+        // Unity allows only one LayoutGroup per object. Position the six-pack grid
+        // directly while the authored horizontal layout is disabled.
+        for (int i = 0; i < _packCount; i++)
+        {
+            var rect = i == 0 ? PackImage.rectTransform : AdditionalPackImages[i - 1].rectTransform;
+            rect.sizeDelta = _packCount == 6 ? new Vector2(180, 263) : _normalPackSize;
+            rect.localScale = _packCount == 6 ? Vector3.one : _normalPackScale;
+            if (_packCount == 6)
+            {
+                rect.anchorMin = rect.anchorMax = rect.pivot = Vector2.one * .5f;
+                rect.anchoredPosition = new Vector2((i % 3 - 1) * 200, i < 3 ? 139.5f : -139.5f);
+            }
+        }
         // Center the active children as a group; the old authored row was offset
         // to the left to accommodate three packs, including when only one was active.
-        row.anchorMin = new Vector2(0, row.anchorMin.y);
-        row.anchorMax = new Vector2(1, row.anchorMax.y);
-        row.pivot = new Vector2(.5f, row.pivot.y);
+        row.anchorMin = new Vector2(0, .5f);
+        row.anchorMax = new Vector2(1, .5f);
+        row.pivot = Vector2.one * .5f;
         row.sizeDelta = new Vector2(0, row.sizeDelta.y);
-        row.anchoredPosition = new Vector2(0, row.anchoredPosition.y);
+        row.anchoredPosition = Vector2.zero;
         layout.childAlignment = TextAnchor.MiddleCenter;
         layout.childForceExpandWidth = false;
         layout.childScaleWidth = true;
@@ -431,7 +470,7 @@ void Purchase(int count)
     /// </summary>
     IEnumerator RevealCardsRoutine()
     {
-        float timingScale = _purchasedCards != null && _purchasedCards.Count == 9 ? .5f : 1f;
+        float timingScale = _packCount == 6 ? .25f : _packCount == 3 ? .5f : 1f;
         yield return new WaitForSeconds(0.5f * timingScale);
         PackImage.gameObject.SetActive(false);
         if (AdditionalPackImages != null) foreach (var image in AdditionalPackImages) if (image != null) image.gameObject.SetActive(false);
@@ -479,7 +518,7 @@ void Purchase(int count)
                     var rect = cardObj.GetComponent<RectTransform>();
                     rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(.5f, .5f);
                     // Offset the card inside its slot so the grid cannot overwrite the shift.
-                    rect.anchoredPosition = new Vector2(_packCount == 3 ? TripleRevealXShift : 0f, 0f);
+                    rect.anchoredPosition = Vector2.zero;
                     rect.sizeDelta = CardReferenceSize;
                 }
                 CardDisplay disp = cardObj.GetComponent<CardDisplay>();
@@ -547,8 +586,11 @@ void Purchase(int count)
         if (ShopManager.Instance == null) return;
         var shop = ShopManager.Instance;
         if (PackEssenceTexts != null) for (int i = 0; i < Mathf.Min(4, PackEssenceTexts.Length); i++)
-            if (PackEssenceTexts[i] != null) PackEssenceTexts[i].text = ((CardPackType)i) + " Essence\n" +
-                (shop.InfiniteResources ? "Infinite" : shop.GetEssence((CardPackType)i).ToString("N0"));
+            if (PackEssenceTexts[i] != null)
+            {
+                PackEssenceTexts[i].text = shop.InfiniteResources ? "Infinite" : shop.GetEssence((CardPackType)i).ToString("N0");
+                PackEssenceTexts[i].gameObject.SetActive(shop.Progress.EssenceDiscovered[i] || shop.AllCards.Exists(c => c != null && (int)c.PackCategory == i && shop.GetCardData(c.ID)?.Level >= c.MaxLevel));
+            }
         if (EssenceBalancesText == null) return;
         EssenceBalancesText.text = "Munitions " + (shop.InfiniteResources ? "Infinite" : shop.GetEssence(CardPackType.Munitions).ToString()) +
             "  Mobility " + (shop.InfiniteResources ? "Infinite" : shop.GetEssence(CardPackType.Mobility).ToString()) +

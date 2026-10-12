@@ -34,6 +34,7 @@ public class CardDisplay : MonoBehaviour, IPointerEnterHandler
     public AnimationCurve FlipCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
 
     private CardDefinition _assignedCard;
+    public CardDefinition AssignedCard => _assignedCard;
     private bool _isLocked = false;
     private bool _hideShopControls;
     bool _indexContext, _hostFilter;
@@ -57,6 +58,8 @@ public class CardDisplay : MonoBehaviour, IPointerEnterHandler
                 var action = UpgradeButton != null && UpgradeButton.gameObject.activeInHierarchy && UpgradeButton.IsInteractable() ? UpgradeButton : AscendButton;
                 if (action != null && action.gameObject.activeInHierarchy && action.IsInteractable()) EventSystem.current?.SetSelectedGameObject(action.gameObject);
             });
+            var loadoutUI = GetComponentInParent<IndexLoadoutUI>();
+            if (loadoutUI != null) loadoutUI.BindCards();
         }
         foreach (var control in new Selectable[] { ClickButton, UpgradeButton, AscendButton })
             if (control != null) { var nav = control.navigation; nav.mode = Navigation.Mode.Automatic; control.navigation = nav; }

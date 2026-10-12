@@ -11,6 +11,7 @@ public class HostMenuUI : MonoBehaviour
     public bool CardFilterOpen { get; private set; }
     MainMenuUI _menu;
     TMP_Text _players, _difficulty, _respawn, _colors, _status, _controls;
+    TMP_Text _loadoutMode;
     UnityEngine.UI.Button _start;
     int _count = 2, _difficultyIndex;
     void Start()
@@ -53,7 +54,8 @@ public class HostMenuUI : MonoBehaviour
         _difficulty = Row(panel, .50f, () => { _difficultyIndex = (_difficultyIndex + 1) % 3; Refresh(); });
         _respawn = Row(panel, .39f, () => { LocalCoopSession.Respawning = !LocalCoopSession.Respawning; Refresh(); });
         _colors = Row(panel, .28f, () => { LocalCoopSession.HealthStyle = LocalCoopSession.HealthStyle == LocalCoopSession.HealthBarStyle.Classic ? LocalCoopSession.HealthBarStyle.AbovePlayer : LocalCoopSession.HealthBarStyle.Classic; Refresh(); });
-        CoopUIElements.Button(panel, "Enabled cards", new Vector2(.35f, .17f), new Vector2(.65f, .25f), OpenCards);
+        CoopUIElements.Button(panel, "Enabled cards", new Vector2(.52f, .17f), new Vector2(.83f, .25f), OpenCards);
+        _loadoutMode = CoopUIElements.Button(panel, "", new Vector2(.17f, .17f), new Vector2(.49f, .25f), () => { LocalCoopSession.AdvancedLoadouts = !LocalCoopSession.AdvancedLoadouts; Refresh(); }).GetComponentInChildren<TMP_Text>();
         _status = CoopUIElements.Text(panel, "", new Vector2(.05f, .09f), new Vector2(.95f, .16f), 24);
         CoopUIElements.Button(panel, "Back", new Vector2(.05f, .015f), new Vector2(.25f, .085f), () => { Hide(); _menu.ShowPanel(_menu.MenuPanel); });
         _start = CoopUIElements.Button(panel, "Start co-op", new Vector2(.7f, .015f), new Vector2(.95f, .085f), StartGame);
@@ -73,6 +75,7 @@ public class HostMenuUI : MonoBehaviour
         _difficulty.text = "Difficulty: " + ((RunDifficulty)_difficultyIndex) + "   >";
         _respawn.text = "Respawn next wave: " + (LocalCoopSession.Respawning ? "ON" : "OFF");
         _colors.text = "Health bar style: " + (LocalCoopSession.HealthStyle == LocalCoopSession.HealthBarStyle.Classic ? "Classic" : "Above player");
+        _loadoutMode.text = LocalCoopSession.AdvancedLoadouts ? "Advanced: loadouts ON" : "Simple: loadouts OFF";
         _start.interactable = Gamepad.all.Count >= required;
         _status.text = (test ? "Dev mode: P1 keyboard/mouse + P2 controller. " : "") + Gamepad.all.Count + "/" + required + " controllers connected. Press a controller button if it is not detected.";
     }

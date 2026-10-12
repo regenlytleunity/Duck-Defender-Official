@@ -24,7 +24,9 @@ public class EnemyProjectile : MonoBehaviour
 
     void Update()
     {
+        Vector2 previous = transform.position;
         transform.Translate(Vector2.right * Speed * PlayerStats.ProjectileSpeedFactor(transform.position) * Time.deltaTime);
+        if (ItemArea.BlocksSegment(previous, transform.position)) { gameObject.SetActive(false); return; }
 
         _timer -= Time.deltaTime;
         if (_timer <= 0) gameObject.SetActive(false);

@@ -68,6 +68,8 @@ public class TurretManager : MonoBehaviour
 
     void OnDestroy()
     {
+        foreach (var turret in _activeTurrets.Values) if (turret != null) Destroy(turret.gameObject);
+        if (_activeAngel != null) Destroy(_activeAngel.gameObject);
         if (OwnerStats != null)
         {
             OwnerStats.OnTurretsChanged -= RefreshTurrets;

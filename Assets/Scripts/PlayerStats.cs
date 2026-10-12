@@ -22,6 +22,10 @@ public class PlayerStats : MonoBehaviour
 {
     public static PlayerStats Instance;
     public int CoinsPerWave;
+    [NonSerialized] public PlayerItems Items;
+    [NonSerialized] public float PermanentDamage, PermanentSpeed, PermanentFireRate, PermanentLuck;
+    [NonSerialized] public float CloneFireRateFactor = 1;
+    public float ItemFireRateMultiplier => (1 + PermanentFireRate + (Items != null ? Items.FireRateBonus : 0) + ItemArea.BannerBonus(transform.position)) * CloneFireRateFactor;
     public const float RebirthBonus = 1.5f;
 
     [Header("Card Rework")]
@@ -41,7 +45,7 @@ public class PlayerStats : MonoBehaviour
     public bool HasAscension(CardAscension kind) => _ascensions.Contains(kind);
     // Rebirth is applied explicitly to core stats, never as a generic upgrade scaler.
     public float RebirthStatMultiplier => 1f + Mathf.Max(0, RebirthStatBonus);
-    public float SpeedMultiplier => Mathf.Max(.05f, 1f + RunSpeedBonus + (HasAscension(CardAscension.Untouchable) ? 4f : 0f)) * RebirthStatMultiplier;
+    public float SpeedMultiplier => Items != null && Items.SpeedLocked ? 0 : Mathf.Max(.05f, 1f + PermanentSpeed + RunSpeedBonus + (Items != null ? Items.SpeedBonus : 0) + (HasAscension(CardAscension.Untouchable) ? 4f : 0f)) * RebirthStatMultiplier;
     public static float ProjectileSpeedFactor(Vector2 position)
     {
         if (LocalCoopSession.Instance != null && LocalCoopSession.Instance.Players.Count > 0)
@@ -87,8 +91,9 @@ public class PlayerStats : MonoBehaviour
     // Rebirth then multiplies current feather damage only; standalone upgrade damage is unchanged.
     public float CalculateDamage(float flat, bool feather, float ratio = 1f, float localBonus = 0f)
     {
-        float baseDamage = flat + (feather ? 0 : NonFeatherFlatDamage);
-        float percent = GlobalDamageBonus + RunDamageBonus +
+        if (Items != null && Items.DamageLocked) return 1;
+        float baseDamage = flat + (feather ? 0 : NonFeatherFlatDamage) + (Items != null ? Items.FlatDamage : 0);
+        float percent = PermanentDamage + ItemArea.BannerBonus(transform.position) + GlobalDamageBonus + RunDamageBonus +
             GetCurrentMoneyHighMultiplier() - 1f + localBonus;
         return Mathf.Max(0f, baseDamage * Mathf.Max(0f, 1f + percent) * ratio * (feather ? RebirthStatMultiplier : 1f));
     }
@@ -350,6 +355,15 @@ public class PlayerStats : MonoBehaviour
     {
         if (Instance == null) Instance = this;
         if (GetComponent<AscensionEffects>() == null) gameObject.AddComponent<AscensionEffects>();
+    }
+
+    public void CopyCloneRuntime(PlayerStats source)
+    {
+        _ascensions.Clear(); foreach (var ascension in source._ascensions) _ascensions.Add(ascension);
+        PermanentDamage = source.PermanentDamage; PermanentSpeed = source.PermanentSpeed;
+        PermanentFireRate = source.PermanentFireRate; PermanentLuck = source.PermanentLuck;
+        CloneFireRateFactor = .5f; Items = null;
+        ResetSpecialFeatherCounters();
     }
 
     void Update()

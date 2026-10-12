@@ -91,7 +91,7 @@ public class WeaponPlayer : MonoBehaviour
     float _fireReduction;
     public Vector2 AimDirection => ComputeAimDir();
     float RebirthMultiplier => OwnerStats != null ? OwnerStats.RebirthStatMultiplier : 1f;
-    public float EffectiveFireInterval => Mathf.Max(.005f, FireRate / RebirthMultiplier);
+    public float EffectiveFireInterval => Mathf.Max(.005f, FireRate / RebirthMultiplier / (OwnerStats != null ? Mathf.Max(.01f, OwnerStats.ItemFireRateMultiplier) : 1));
     public int EffectiveParallelProjectiles => Mathf.Max(0, Mathf.RoundToInt(ParallelProjectiles * RebirthMultiplier));
     // Temporary Triple or Nothing projectiles are an upgrade effect, not a core-stat increase.
     public int EffectiveSpreadProjectiles => Mathf.Max(0, Mathf.RoundToInt(SpreadProjectiles * RebirthMultiplier) + BonusSpreadProjectiles);

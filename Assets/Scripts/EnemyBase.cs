@@ -52,6 +52,16 @@ public abstract class EnemyBase : MonoBehaviour
         TakeDamage(whole, owner);
     }
 
+    // Consumable world effects explicitly reach off-screen spawns; normal attacks keep protection.
+    bool _itemDamage;
+    public void TakeItemDamage(float damage, PlayerStats owner, bool instantDefeat = false)
+    {
+        bool previous = _itemDamage;
+        _itemDamage = true;
+        try { if (instantDefeat) Defeat(owner); else TakeFractionalDamage(damage, owner); }
+        finally { _itemDamage = previous; }
+    }
+
     public void ApplyZoneSlow(float fraction, float seconds = .3f)
     {
         if (Time.time >= _zoneSlowUntil) _zoneSlow = 0;
@@ -67,7 +77,7 @@ public abstract class EnemyBase : MonoBehaviour
     [Tooltip("Off-screen spawns are protected until their sprite first enters the gameplay camera. No-camera fallback in seconds.")]
     [Min(0)] public float SpawnProtectionSeconds = 3f;
     public bool IsSpawnProtected { get; private set; }
-    public bool CanTakeDamage => IsAlive && !IsSpawnProtected;
+    public bool CanTakeDamage => IsAlive && (!IsSpawnProtected || _itemDamage);
     public TankEnemy Protector { get; internal set; }
     public Collider2D BodyCollider { get; private set; }
     protected PlayerHealth TargetHealth;
@@ -172,7 +182,7 @@ public abstract class EnemyBase : MonoBehaviour
         IsSpawnProtected = SpawnProtectionSeconds > 0 && !IsInView(false);
         _spawnProtectionUntil = Time.time + SpawnProtectionSeconds;
 
-        var nearestPlayer = LocalCoopSession.NearestAlive(transform.position);
+        var nearestPlayer = LocalCoopSession.NearestAlive(transform.position, true);
         GameObject playerObj = nearestPlayer != null ? nearestPlayer.gameObject : null;
         if (playerObj != null)
         {
@@ -199,7 +209,7 @@ public abstract class EnemyBase : MonoBehaviour
         if (Time.time >= _nextRetarget || TargetHealth == null || TargetHealth.IsDead)
         {
             _nextRetarget = Time.time + .2f;
-            var target = LocalCoopSession.NearestAlive(transform.position);
+            var target = LocalCoopSession.NearestAlive(transform.position, true);
             PlayerTarget = target != null ? target.transform : null;
             TargetHealth = target != null ? target.GetComponent<PlayerHealth>() : null;
             TargetCollider = target != null ? target.GetComponent<Collider2D>() : null;
@@ -521,6 +531,7 @@ public abstract class EnemyBase : MonoBehaviour
 
     protected void CompleteDeath()
     {
+        ItemPickup.TryDrop(transform.position);
 
         if (DamageOwner != null && DamageOwner.HasAscension(CardAscension.Vampire))
             DamageOwner.GetComponent<AscensionEffects>()?.DropHealingOrb(transform.position);
@@ -531,7 +542,7 @@ public abstract class EnemyBase : MonoBehaviour
         if (DamageOwner != null)
             DamageOwner.RegisterEnemyKill();
 
-        if (CoinPrefab != null)
+        if (CoinPrefab != null && !PlayerItems.SuppressEnemyCoins)
         {
             int baseAmount = Random.Range(CoinDropRange.x, CoinDropRange.y + 1);
 

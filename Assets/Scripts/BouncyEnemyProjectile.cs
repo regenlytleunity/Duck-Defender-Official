@@ -75,6 +75,7 @@ public class BouncyEnemyProjectile : MonoBehaviour
     void FixedUpdate()
     {
         if (!_isActive || _cloud) return;
+        if (ItemArea.BlocksSegment(_rb.position, _rb.position + _rb.linearVelocity * Time.fixedDeltaTime)) { Deactivate(); return; }
         float factor = Mathf.Max(.01f, PlayerStats.ProjectileSpeedFactor(transform.position));
         _rb.linearVelocity *= factor / _slowFactor;
         _rb.gravityScale = factor * factor;

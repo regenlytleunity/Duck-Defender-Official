@@ -93,6 +93,7 @@ public class CardIndexUI : MonoBehaviour
         }
         RefreshBalances();
         ConfigureNavigation();
+        GetComponent<IndexLoadoutUI>()?.BindCards();
         if (restoreCardFocus && _displays.Count > 0) events.SetSelectedGameObject(_displays[0].GetComponent<CardDisplay>().ClickButton.gameObject);
     }
     public void ConfigureNavigation()

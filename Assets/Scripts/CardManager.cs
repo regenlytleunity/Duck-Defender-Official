@@ -109,7 +109,7 @@ public class CardManager : MonoBehaviour
     /// </summary>
     CardRarity RollRarity()
     {
-        float luck = TargetStats != null ? Mathf.Clamp01(TargetStats.LuckPercent) : 0;
+        float luck = TargetStats != null ? Mathf.Clamp01(TargetStats.LuckPercent + TargetStats.PermanentLuck) : 0;
         float rare = RareRollWeight * (1f + luck);
         float legendary = LegendaryRollWeight * (1f + luck);
         float common = Mathf.Max(0, CommonRollWeight - (rare - RareRollWeight) - (legendary - LegendaryRollWeight));

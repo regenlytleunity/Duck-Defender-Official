@@ -139,6 +139,8 @@ public class SettingsMenuUI : MonoBehaviour
     {
         var input = InputManager.Instance;
         if (input == null || index < 0 || index >= BindingActions.Length || key == KeyCode.None || key == KeyCode.Escape) return false;
+        if (InputManager.ReservedForItems(key))
+        { if (KeybindStatus != null) KeybindStatus.text = "1 / 2 / 3 / 4 and right-click are reserved for items."; return false; }
         for (int i = 0; i < BindingActions.Length; i++)
             if (i != index && input.GetKeybind(BindingActions[i]) == key)
             {

@@ -941,14 +941,54 @@ shop list. ShopManager owns four essence balances, six-level upgrade prices/copy
 1,000-essence ascensions and persistent developer resource flags. At maximum level,
 new duplicates and leftover copies convert to essence (Common 1, Rare 2, Legendary 4).
 
-TryBuyPacks accepts one or three packs, grants/saves three or nine cards before the
-visual reveal, and publishes OnCollectionChanged for collection/resource UI. Pack odds
+TryBuyPacks accepts one, three or six packs, gated by the permanent bulk-opening
+unlock. It grants/saves three, nine or eighteen cards before the visual reveal,
+and publishes OnCollectionChanged for collection/resource UI. Pack odds
 are 60% Common, 35% Rare and 5% Legendary. No Corrupted cards are rolled.
 
-MainMenuUI contains the one-/three-pack controls and a three-column reveal grid, while
+MainMenuUI contains the one-/three-/six-pack controls and an adaptive reveal grid, while
 CardDisplay contains the ascension button/balance bindings. DeveloperConsoleUI accepts
 the five four-digit codes. The new scene/prefab UI references still require the editor
 setup documented in the implementation guide.
+
+### Items, loadouts and permanent upgrades
+
+`ShopManager.Upgrades.cs` extends the existing ShopManager. `ShopUpdateUI` adds
+three shop tabs at runtime, retaining authored pack art and the original bitmap font.
+Six item offers persist with sold flags and a UTC ten-minute rotation timestamp.
+Five starting-card slots, three-/six-pack unlocks and five 50-level permanent
+stats share the existing coin balance and save file. Essence labels appear after
+a pack's essence is discovered or a card in that pack reaches its maximum level.
+
+`IndexLoadoutUI`, `LoadoutPanel` and `LoadoutInteraction` supply the Items tab,
+starting-card column, contextual equip/sell menus, drag/drop and per-seat lobby
+equipment. Each item slot reserves one owned copy. Co-op shares the host inventory
+across participating seats; solo and co-op store separate selections. Starting
+cards use unlocked non-Basic collection cards, with no duplicates within one
+player's loadout. Host-disabled cards are excluded. Simple co-op disables both
+loadouts for the run while retaining saved selections; permanent upgrades remain.
+
+`LocalCoopSession` initializes `PlayerItems` after player Start methods. Starting
+cards go through CardManager's existing per-player application/history, so they
+use the saved level/ascension and are excluded from subsequent run offers. Items
+are deducted and saved only on use. Unused copies survive death and quitting.
+Completed runs enable drops after the first two games; eligible kills roll 0.5%,
+with the first successful drop always a Bomb. `ItemPickup` requires nearby contact
+and is independent of coin magnetism.
+
+`ItemArea` owns fixed shield/banner zones, lobbed bombs and map-wide flames.
+Consumable damage explicitly bypasses off-screen spawn protection through
+EnemyBase's existing damage/death path. Banners do not stack. Shield/flames last
+30 game seconds; banners expire after ten completed waves. Casino effects and
+`ItemClone` AI expire after two completed waves. Clones copy the player's current
+card build, max health and permanent stats, fire at half rate, stay within six
+units, and do not count as real players for camera framing, pickups or game over.
+Item icons and world effects currently use procedural placeholder art.
+
+`ItemWheelUI` provides the temporary four-way selection HUD, casino display and
+mobile slot/Use buttons. Keyboard 1–4/right-click and controller D-pad/RB are
+reserved for items; ordinary gamepad movement uses the configured analog stick.
+Saved gameplay mappings that conflict with these controls resolve to defaults.
 
 ---
 
@@ -977,6 +1017,10 @@ Saved information includes:
 * four pack-specific essence balances
 * developer resource flags
 * progression schema version
+* owned consumables, solo/per-seat item and starting-card loadouts
+* permanent stat levels, starting slots and bulk-pack unlock tier
+* item shop stock, sold flags and UTC refresh time
+* completed runs, first item-drop flag and discovered essence types
 
 Missing/corrupt data falls back to fresh player data.
 
@@ -1001,6 +1045,8 @@ IsUnlocked = true
 Version 2 is the card-rework schema. Loading an older save intentionally replaces it
 with the eight-starter profile once. Current-version saves preserve progression. An
 editor-only VerificationSavePath allows the isolated checks to avoid real player data.
+The shop expansion keeps version 2. Missing new fields normalize to empty/default
+values without resetting current-version coins or cards.
 
 ## SaveOnQuit
 
@@ -1584,5 +1630,6 @@ SampleScene's Tilemap_Ground now merges into its existing polygon CompositeColli
 The old (0, -.3) collider offset is on the composite; surface height remains -2.3.
 Savior areas continue to disable all authored physics colliders and bodies.
 
-MainMenuUI centers the active pack images inside the existing horizontal PackRow
-for both single- and three-pack purchases.
+MainMenuUI centers single-/three-pack images in the authored horizontal PackRow.
+Six packs use a centered 3×2 arrangement with that layout temporarily disabled.
+The card reveal uses positive spacing and fits each card inside its grid cell.
