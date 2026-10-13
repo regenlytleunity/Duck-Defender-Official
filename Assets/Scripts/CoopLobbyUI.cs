@@ -171,7 +171,7 @@ public class CoopLobbyUI : MonoBehaviour
             Refresh(seat);
         }
         else if (_focus[seat] != ReadyIndex(seat) && _loadouts[seat] != null)
-        { _loadouts[seat].Rebuild(); _loadouts[seat].Root.gameObject.SetActive(true); }
+        { _loadouts[seat].Root.gameObject.SetActive(true); _loadouts[seat].Rebuild(); }
         else { FinishName(seat); _ready[seat] = true; }
     }
     void CycleColor(int seat, int step) { LocalCoopSession.PlayerColors[seat] = (LocalCoopSession.PlayerColors[seat] + step + Colors.Length) % Colors.Length; }

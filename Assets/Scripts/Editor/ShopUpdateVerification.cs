@@ -76,8 +76,12 @@ public static class ShopUpdateVerification
     }
     public static string CheckVisibleUI()
     {
+        return CheckScopeUI(MainMenuUI.Instance.NavigationScope);
+    }
+    public static string CheckScopeUI(GameObject scope)
+    {
         RequireIsolation(); Canvas.ForceUpdateCanvases(); _checks = 0;
-        var menu = MainMenuUI.Instance; var scope = menu.NavigationScope;
+        var menu = MainMenuUI.Instance;
         var labels = scope.GetComponentsInChildren<TMPro.TMP_Text>();
         foreach (var label in labels)
         {
@@ -95,7 +99,29 @@ public static class ShopUpdateVerification
             UnityEngine.EventSystems.EventSystem.current.RaycastAll(pointer, hits);
             Check(hits.Count > 0 && hits[0].gameObject.GetComponentInParent<UnityEngine.UI.Selectable>() == control, "unblocked pointer target: " + control.name);
         }
+        if (scope != menu.OpeningOverlay) CheckNavigation(scope);
         return "PASS: " + _checks + " visible UI checks";
+    }
+    public static void CheckNavigation(GameObject scope)
+    {
+        var buttons = scope.GetComponentsInChildren<UnityEngine.UI.Button>().Where(b => b.IsActive() && b.IsInteractable()).ToArray();
+        if (buttons.Length == 0) return;
+        var reached = new System.Collections.Generic.HashSet<UnityEngine.UI.Selectable>();
+        var pending = new System.Collections.Generic.Queue<UnityEngine.UI.Selectable>();
+        pending.Enqueue(buttons[0]);
+        while (pending.Count > 0)
+        {
+            var button = pending.Dequeue(); if (!reached.Add(button)) continue;
+            var nav = button.navigation;
+            Check(nav.mode == UnityEngine.UI.Navigation.Mode.Explicit, "explicit controller links: " + button.name);
+            foreach (var target in new[] { nav.selectOnLeft, nav.selectOnRight, nav.selectOnUp, nav.selectOnDown })
+            {
+                if (target == null) continue;
+                Check(target.IsActive() && target.IsInteractable() && target.transform.IsChildOf(scope.transform), "navigation stays on active page: " + button.name + " -> " + target.name);
+                pending.Enqueue(target);
+            }
+        }
+        Check(buttons.All(b => reached.Contains(b)), "every control reachable: " + string.Join(", ", buttons.Where(b => !reached.Contains(b)).Select(b => b.name)));
     }
     public static void StartGameplay()
     {
@@ -107,6 +133,6 @@ public static class ShopUpdateVerification
     {
         RequireIsolation();
         var probe = new GameObject("Shop update UI checks").AddComponent<ShopUpdatePlayProbe>();
-        probe.UIOnly = true; probe.SeedUI = Seed; probe.CheckUI = CheckVisibleUI;
+        probe.UIOnly = true; probe.SeedUI = Seed; probe.CheckUI = CheckVisibleUI; probe.CheckScope = CheckScopeUI;
     }
 }

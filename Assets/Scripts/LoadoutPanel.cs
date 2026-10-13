@@ -20,6 +20,15 @@ public sealed class LoadoutPanel
     RectTransform _body, _modal;
     TMP_Text _message;
     int _page, _focus;
+    int _layoutIndex = 1;
+    int Columns => _layoutIndex == 0 ? 3 : _layoutIndex == 1 ? (CardsMode ? 3 : 4) : Mathf.Max(1, Mathf.CeilToInt(Mathf.Sqrt(EntryCount * 1.6f)));
+    int Rows => _layoutIndex == 0 ? 1 : _layoutIndex == 1 ? 2 : Mathf.Max(1, Mathf.CeilToInt(EntryCount / (float)Columns));
+    int EntryCount => CardsMode ? _cards.Count : ItemCatalog.Count;
+    int PerPage => Columns * Rows;
+    public string LayoutLabel => _layoutIndex == 2 ? "LAYOUT: ALL" : "LAYOUT: " + Columns + " x " + Rows;
+    UnityEngine.UI.Button _returnFocus;
+    string _returnFocusName;
+    CanvasGroup _indexGroup;
     bool _modalOnly;
     UnityEngine.UI.Button[] _controls = new UnityEngine.UI.Button[0];
     readonly List<CardDefinition> _cards = new List<CardDefinition>();
@@ -30,56 +39,74 @@ public sealed class LoadoutPanel
         Rebuild();
     }
     public void ShowCards(bool cards) { CardsMode = cards; _page = 0; Rebuild(); }
+    public void CycleLayout()
+    {
+        int first = _page * PerPage;
+        _layoutIndex = (_layoutIndex + 1) % 3;
+        _page = first / PerPage;
+        Rebuild();
+    }
     public void Rebuild()
     {
+        string focusedName = Focused != null ? Focused.name : null;
+        var selected = UnityEngine.EventSystems.EventSystem.current?.currentSelectedGameObject;
+        bool restoreFocus = !_lobby && selected != null && selected.transform.IsChildOf(Root);
+        if (restoreFocus) focusedName = selected.name;
+        if (_modal != null) focusedName = _returnFocusName;
         CloseModal();
         if (_body != null) { _body.gameObject.SetActive(false); UnityEngine.Object.Destroy(_body.gameObject); }
         _body = CoopUIElements.Panel(Root, "Equipment content", Vector2.zero, Vector2.one, Color.clear);
+        _body.GetComponent<UnityEngine.UI.Image>().raycastTarget = false;
         if (_lobby)
         {
-            CoopUIElements.Button(_body, "Items", new Vector2(.02f, .92f), new Vector2(.26f, .99f), () => ShowCards(false));
-            CoopUIElements.Button(_body, "Starting cards", new Vector2(.28f, .92f), new Vector2(.73f, .99f), () => ShowCards(true));
-            CoopUIElements.Button(_body, "Done", new Vector2(.76f, .92f), new Vector2(.98f, .99f), () => _close?.Invoke());
+            CoopUIElements.Button(_body, "Back", new Vector2(.012f, .856f), new Vector2(.282f, .976f), () => _close?.Invoke());
+            var cardsTab = CoopUIElements.Button(_body, "Cards", new Vector2(.012f, .51f), new Vector2(.282f, .62f), () => ShowCards(true));
+            var itemsTab = CoopUIElements.Button(_body, "Items", new Vector2(.012f, .37f), new Vector2(.282f, .48f), () => ShowCards(false));
+            (CardsMode ? cardsTab : itemsTab).image.color = new Color(.35f, .4f, .25f);
+            var layout = CoopUIElements.Button(_body, LayoutLabel, new Vector2(.012f, .035f), new Vector2(.282f, .145f), CycleLayout);
+            layout.name = "Layout";
         }
         int slots = CardsMode ? _shop.Progress.StartingCardSlots : 4;
-        if (CardsMode && slots == 0) CoopUIElements.Text(_body, "Unlock starting card slots in the shop.", new Vector2(.02f, .79f), new Vector2(.98f, .9f), 24);
         for (int i = 0; i < slots; i++)
         {
-            int slot = i; float width = CardsMode ? .19f : .24f;
-            var min = new Vector2(.015f + i * width, .72f); var max = new Vector2(.005f + (i + 1) * width, .90f);
-            if (CardsMode) MiniCard(_body, _shop.Loadout(Seat).Cards[i], min, max, slot, true);
-            else ItemButton(_body, _shop.Loadout(Seat).Items[i], min, max, slot);
+            if (CardsMode) MiniCard(_body, _shop.Loadout(Seat).Cards[i], new Vector2(.91f, .81f - i * .197f), new Vector2(.987f, 1 - i * .197f), i, true);
+            else
+            {
+                float left = _lobby ? .385f : .115f, width = _lobby ? .127f : .197f;
+                ItemButton(_body, _shop.Loadout(Seat).Items[i], new Vector2(left + i * width, .765f), new Vector2(left + (i + 1) * width - .009f, .976f), i);
+            }
         }
-        _message = CoopUIElements.Text(_body, CardsMode ? "Choose a card, then a starting slot." : "Choose an item to equip or sell.  1 / 2 / 3 / 4", new Vector2(.02f, .63f), new Vector2(.98f, .70f), 24);
+        float gridLeft = _lobby ? .31f : .005f, gridRight = CardsMode && slots > 0 ? .895f : .985f;
+        _message = CoopUIElements.Text(_body, CardsMode && slots == 0 ? "Unlock starting card slots in the shop." : "", new Vector2(gridLeft, .145f), new Vector2(gridRight, .18f), _lobby ? 18 : 24);
         if (CardsMode)
         {
             _cards.Clear();
             _cards.AddRange(_shop.AllCards.Where(c => c != null && !c.IsBasic && _shop.GetCardData(c.ID)?.IsUnlocked == true && (Seat < 0 || !LocalCoopSession.DisabledCards.Contains(c.ID))).OrderBy(c => c.PackCategory).ThenBy(c => c.CardName));
-            _page = Mathf.Clamp(_page, 0, Mathf.Max(0, (_cards.Count - 1) / 8));
-            for (int i = 0; i < 8 && _page * 8 + i < _cards.Count; i++)
-            {
-                float x = i % 4 * .25f, y = .34f - i / 4 * .25f;
-                MiniCard(_body, _cards[_page * 8 + i].ID, new Vector2(x + .01f, y), new Vector2(x + .24f, y + .24f), -1, false);
-            }
-            CoopUIElements.Button(_body, "<", new Vector2(.25f, .005f), new Vector2(.37f, .075f), () => { _page--; Rebuild(); }).interactable = _page > 0;
-            CoopUIElements.Text(_body, (_page + 1) + " / " + Mathf.Max(1, Mathf.CeilToInt(_cards.Count / 8f)), new Vector2(.39f, .005f), new Vector2(.61f, .075f), 24);
-            CoopUIElements.Button(_body, ">", new Vector2(.63f, .005f), new Vector2(.75f, .075f), () => { _page++; Rebuild(); }).interactable = (_page + 1) * 8 < _cards.Count;
         }
-        else
+        _page = Mathf.Clamp(_page, 0, Mathf.Max(0, (EntryCount - 1) / PerPage));
+        float top = CardsMode ? .96f : .735f, height = top - .18f;
+        for (int i = 0; i < PerPage && _page * PerPage + i < EntryCount; i++)
         {
-            for (int id = 1; id <= ItemCatalog.Count; id++)
-            {
-                int index = id - 1; float x = index % 4 * .25f, y = .34f - index / 4 * .28f;
-                ItemButton(_body, id, new Vector2(x + .01f, y), new Vector2(x + .24f, y + .26f), -1);
-            }
+            float width = (gridRight - gridLeft) / Columns;
+            var min = new Vector2(gridLeft + i % Columns * width + .005f, top - (i / Columns + 1) * height / Rows + .005f);
+            var max = new Vector2(gridLeft + (i % Columns + 1) * width - .005f, top - i / Columns * height / Rows - .005f);
+            if (CardsMode) MiniCard(_body, _cards[_page * PerPage + i].ID, min, max, -1, false);
+            else ItemButton(_body, _page * PerPage + i + 1, min, max, -1);
         }
+        float middle = (gridLeft + gridRight) * .5f;
+        CoopUIElements.Button(_body, "<", new Vector2(middle - .14f, .02f), new Vector2(middle - .055f, .13f), () => { _page--; Rebuild(); }).interactable = _page > 0;
+        CoopUIElements.Text(_body, (_page + 1) + " / " + Mathf.Max(1, Mathf.CeilToInt(EntryCount / (float)PerPage)), new Vector2(middle - .055f, .02f), new Vector2(middle + .055f, .13f), _lobby ? 20 : 28);
+        CoopUIElements.Button(_body, ">", new Vector2(middle + .055f, .02f), new Vector2(middle + .14f, .13f), () => { _page++; Rebuild(); }).interactable = (_page + 1) * PerPage < EntryCount;
         RefreshControls();
+        RestoreFocus(focusedName, restoreFocus);
+        (_context as IndexLoadoutUI)?.EquipmentRebuilt();
     }
     void ItemButton(Transform parent, int id, Vector2 min, Vector2 max, int slot)
     {
         var button = CoopUIElements.Button(parent, "", min, max, () => OpenItem(id, slot));
+        button.name = slot >= 0 ? "Item slot " + (slot + 1) : "Item " + id;
         var text = button.GetComponentInChildren<TMP_Text>(); text.fontSizeMax = 21; text.fontSizeMin = 12;
-        text.text = slot >= 0 ? "Slot " + (slot + 1) + (id == 0 ? "\nEmpty" : "\n" + ItemCatalog.Names[id]) : ItemCatalog.Names[id] + "\nOwned: " + _shop.Progress.ItemInventory[id] + "  Free: " + Mathf.Max(0, _shop.Progress.ItemInventory[id] - _shop.ReservedItems(id, Seat));
+        text.text = slot >= 0 ? "Slot " + (slot + 1) + (id == 0 ? "\nEmpty" : "\n" + ItemCatalog.Names[id]) : ItemCatalog.Names[id] + "\nOwned: " + _shop.Progress.ItemInventory[id] + "\nAvailable: " + Mathf.Max(0, _shop.Progress.ItemInventory[id] - _shop.ReservedItems(id, Seat));
         CoopUIElements.Stretch(text.rectTransform, new Vector2(.02f, 0), new Vector2(.98f, .38f));
         var icon = CoopUIElements.Panel(button.transform, "Icon", new Vector2(.24f, .39f), new Vector2(.76f, .96f), Color.white).GetComponent<UnityEngine.UI.Image>();
         icon.sprite = ItemCatalog.Icon(id); icon.enabled = icon.sprite != null; icon.preserveAspect = true; icon.raycastTarget = false;
@@ -90,6 +117,7 @@ public sealed class LoadoutPanel
         var definition = _shop.AllCards.Find(c => c != null && c.ID == id);
         var saved = definition != null ? _shop.GetCardData(id) : null;
         var button = CoopUIElements.Button(parent, "", min, max, () => OpenCard(id, slot));
+        button.name = equipped ? "Starting slot " + (slot + 1) : "Card " + id;
         // The fitting child retains the authored 5:7 card ratio at every pane size.
         button.image.color = Color.clear;
         var face = CoopUIElements.Panel(button.transform, "Card", Vector2.zero, Vector2.one, new Color(.16f, .23f, .32f));
@@ -140,31 +168,49 @@ public sealed class LoadoutPanel
     {
         if (string.IsNullOrEmpty(id)) return;
         var card = _shop.AllCards.Find(c => c != null && c.ID == id); if (card == null) return;
-        OpenModal(card.CardName + "\nChoose a starting slot");
+        OpenModal(card.CardName + (slot >= 0 ? "\nStarting card" : "\nChoose an action"));
+        if (!_lobby && slot < 0)
+        {
+            var saved = _shop.GetCardData(id);
+            if (saved != null && saved.Level < card.MaxLevel)
+                ModalButton("Upgrade - " + card.GetUpgradeCost(saved.Level) + " Coins", () => Change(() => _shop.TryUpgradeCard(id))).interactable =
+                    saved.IsUnlocked && (_shop.InfiniteCopies || saved.Duplicates >= card.GetCardsRequired(saved.Level)) && _shop.CanAfford(card.GetUpgradeCost(saved.Level));
+            else if (saved != null && !saved.IsAscended && card.Ascension != CardAscension.None)
+                ModalButton("Ascend - " + card.AscensionCost + " Essence", () => Change(() => _shop.TryAscendCard(id))).interactable =
+                    _shop.InfiniteResources || _shop.GetEssence(card.PackCategory) >= card.AscensionCost;
+        }
         if (slot >= 0) ModalButton("Unequip", () => Change(() => _shop.EquipStartingCard(null, slot, Seat)));
         else for (int i = 0; i < _shop.Progress.StartingCardSlots; i++) { int target = i; ModalButton("Equip to slot " + (i + 1), () => Change(() => _shop.EquipStartingCard(id, target, Seat))); }
-        if (_shop.Progress.StartingCardSlots == 0) _modal.GetChild(0).GetComponent<TMP_Text>().text = "Unlock starting card slots in the shop.";
+        if (_shop.Progress.StartingCardSlots == 0) _modal.GetChild(0).GetComponent<TMP_Text>().text = card.CardName + "\nStarting slots unlock in the shop.";
         FinishModal();
     }
     int _modalButtons;
     void OpenModal(string title)
     {
         CloseModal(); _modalButtons = 0;
+        _returnFocus = _lobby ? Focused != null ? Focused.GetComponent<UnityEngine.UI.Button>() : null : UnityEngine.EventSystems.EventSystem.current?.currentSelectedGameObject?.GetComponent<UnityEngine.UI.Button>();
+        _returnFocusName = _returnFocus != null ? _returnFocus.name : null;
         _modalOnly = !Root.gameObject.activeSelf;
         if (_modalOnly) { Root.gameObject.SetActive(true); _body.gameObject.SetActive(false); }
         _modal = CoopUIElements.Panel(Root, "Equip menu", new Vector2(.04f, .04f), new Vector2(.96f, .96f), new Color(.03f, .045f, .07f));
         _modal.gameObject.AddComponent<CanvasGroup>().ignoreParentGroups = true;
+        if (_context is IndexLoadoutUI index)
+        {
+            _indexGroup = index.GetComponent<CanvasGroup>();
+            if (_indexGroup == null) _indexGroup = index.gameObject.AddComponent<CanvasGroup>();
+            _indexGroup.interactable = false; _indexGroup.blocksRaycasts = false;
+        }
         var group = _body.GetComponent<CanvasGroup>();
         if (group == null) group = _body.gameObject.AddComponent<CanvasGroup>();
         group.interactable = false; group.blocksRaycasts = false;
         CoopUIElements.Text(_modal, title, new Vector2(.05f, .74f), new Vector2(.95f, .97f), 26);
     }
-    void ModalButton(string name, Action action)
+    UnityEngine.UI.Button ModalButton(string name, Action action)
     {
-        float top = .72f - _modalButtons++ * .105f;
-        CoopUIElements.Button(_modal, name, new Vector2(.1f, top - .09f), new Vector2(.9f, top), () => action());
+        float top = .72f - _modalButtons++ * .09f;
+        return CoopUIElements.Button(_modal, name, new Vector2(.1f, top - .077f), new Vector2(.9f, top), () => action());
     }
-    void FinishModal() { ModalButton("Cancel", CloseModal); RefreshControls(); MainMenuUI.FocusFirstControl(_modal.gameObject); }
+    void FinishModal() { ModalButton("Cancel", CloseModal); _focus = 0; RefreshControls(); if (!_lobby) MainMenuUI.FocusFirstControl(_modal.gameObject); }
     void Change(Func<bool> action)
     {
         bool result = action(); Rebuild();
@@ -177,16 +223,33 @@ public sealed class LoadoutPanel
     }
     public void CloseModal()
     {
+        bool hadModal = _modal != null;
         if (_modal != null) { _modal.gameObject.SetActive(false); UnityEngine.Object.Destroy(_modal.gameObject); _modal = null; }
+        if (_indexGroup != null) { _indexGroup.interactable = true; _indexGroup.blocksRaycasts = true; _indexGroup = null; }
         if (_body != null && _body.TryGetComponent<CanvasGroup>(out var group)) { group.interactable = true; group.blocksRaycasts = true; }
         if (_modalOnly) { Root.gameObject.SetActive(false); _body.gameObject.SetActive(true); _modalOnly = false; }
         RefreshControls();
+        if (hadModal)
+        {
+            RestoreFocus(_returnFocusName, !_lobby);
+            if (!_lobby && _returnFocus != null && _returnFocus.IsActive() && _returnFocus.IsInteractable())
+                UnityEngine.EventSystems.EventSystem.current?.SetSelectedGameObject(_returnFocus.gameObject);
+            (_context as IndexLoadoutUI)?.EquipmentRebuilt();
+        }
+    }
+    void RestoreFocus(string name, bool select)
+    {
+        int found = Array.FindIndex(_controls, b => b.name == name);
+        if (found >= 0) _focus = found;
+        _focus = Mathf.Clamp(_focus, 0, Mathf.Max(0, _controls.Length - 1));
+        Focused = _controls.Length > 0 ? (RectTransform)_controls[_focus].transform : null;
+        if (select && Focused != null) UnityEngine.EventSystems.EventSystem.current?.SetSelectedGameObject(Focused.gameObject);
     }
     void RefreshControls()
     {
         if (Root == null) return;
         _controls = NavigationScope.GetComponentsInChildren<UnityEngine.UI.Button>().Where(b => b.IsInteractable()).ToArray();
-        if (_lobby) foreach (var control in _controls) control.navigation = new UnityEngine.UI.Navigation { mode = UnityEngine.UI.Navigation.Mode.None };
+        ControllerMenuNavigation.ConfigureNavigation(NavigationScope);
         _focus = Mathf.Clamp(_focus, 0, Mathf.Max(0, _controls.Length - 1));
         Focused = _controls.Length > 0 ? (RectTransform)_controls[_focus].transform : null;
     }
@@ -197,15 +260,8 @@ public sealed class LoadoutPanel
         if (move.sqrMagnitude > .2f)
         {
             Vector2 direction = Mathf.Abs(move.x) > Mathf.Abs(move.y) ? new Vector2(Mathf.Sign(move.x), 0) : new Vector2(0, Mathf.Sign(move.y));
-            Vector2 origin = _controls[_focus].transform.position; float best = float.PositiveInfinity; int next = _focus;
-            for (int i = 0; i < _controls.Length; i++)
-            {
-                Vector2 delta = (Vector2)_controls[i].transform.position - origin; float along = Vector2.Dot(delta, direction);
-                if (along <= 1) continue;
-                float score = delta.sqrMagnitude + Mathf.Abs(delta.x * direction.y - delta.y * direction.x) * 1000;
-                if (score < best) { best = score; next = i; }
-            }
-            _focus = next;
+            var next = ControllerMenuNavigation.FindInDirection(_controls[_focus], _controls, direction);
+            if (next != null) _focus = Array.IndexOf(_controls, next);
         }
         if (confirm) _controls[_focus].onClick.Invoke();
         if (_controls.Length > 0) Focused = (RectTransform)_controls[Mathf.Clamp(_focus, 0, _controls.Length - 1)].transform;

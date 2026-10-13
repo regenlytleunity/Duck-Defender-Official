@@ -82,7 +82,8 @@ public class CardDisplay : MonoBehaviour, IPointerEnterHandler
         if (AudioManager.Instance != null)
             AudioManager.Instance.PlaySFX("Card_Hover");
         
-        StartCoroutine(FlipAnimation());
+        // Collection cards contain buttons: keep their hit targets steady.
+        if (!_indexContext) StartCoroutine(FlipAnimation());
     }
     
     /// <summary>

@@ -8,14 +8,15 @@ public class IndexLoadoutUI : MonoBehaviour
     RectTransform _slots;
     UnityEngine.UI.Button _itemsTab;
     bool _itemsMode;
+    public bool ItemsMode => _itemsMode;
     public GameObject NavigationScope => _equipment != null && _equipment.HasModal ? _equipment.NavigationScope : gameObject;
     public void Initialize(MainMenuUI menu)
     {
         _index = GetComponent<CardIndexUI>(); _shop = ShopManager.Instance;
         _equipment = new LoadoutPanel(transform, -1, false, null, this);
-        CoopUIElements.Stretch(_equipment.Root, new Vector2(.30f, .10f), new Vector2(.99f, .98f));
+        CoopUIElements.Stretch(_equipment.Root, new Vector2(.305f, .015f), new Vector2(.975f, .98f));
         _equipment.Root.gameObject.SetActive(false);
-        _slots = CoopUIElements.Panel(transform, "Starting cards", new Vector2(.005f, .03f), new Vector2(.087f, .96f), Color.clear);
+        _slots = CoopUIElements.Panel(transform, "Starting cards", new Vector2(.91f, .015f), new Vector2(.987f, .985f), Color.clear);
         _slots.GetComponent<UnityEngine.UI.Image>().raycastTarget = false;
         _itemsTab = Instantiate(_index.PackButtons[(int)CardPackType.Gadget], transform);
         _itemsTab.name = "ItemsTab"; _itemsTab.onClick.RemoveAllListeners(); _itemsTab.onClick.AddListener(ShowItems);
@@ -26,8 +27,14 @@ public class IndexLoadoutUI : MonoBehaviour
     }
     void OnEnable() { if (_equipment != null) { ShowCards(); Refresh(); } }
     public bool HandleBack() => _equipment != null && _equipment.HandleBack();
-    public void ShowItems() { _itemsMode = true; ApplyVisibility(); _equipment.Rebuild(); MainMenuUI.FocusFirstControl(_equipment.Root.gameObject); }
-    public void ShowCards() { _itemsMode = false; ApplyVisibility(); BindCards(); }
+    public void ShowItems() { _equipment.CloseModal(); _itemsMode = true; ApplyVisibility(); _equipment.Rebuild(); }
+    public void ShowCards() { _equipment.CloseModal(); _itemsMode = false; ApplyVisibility(); BindCards(); }
+    public void CycleItemsLayout() { _equipment.CycleLayout(); }
+    public void EquipmentRebuilt()
+    {
+        if (_itemsMode && _index.LayoutText != null) _index.LayoutText.text = _equipment.LayoutLabel;
+        _index.ConfigureNavigation();
+    }
     public void Refresh()
     {
         if (_equipment == null) return;
@@ -45,35 +52,48 @@ public class IndexLoadoutUI : MonoBehaviour
         if (_equipment == null) return;
         bool host = _index.HostFilterMode, starters = !host && _shop.Progress.StartingCardSlots > 0;
         if (host) _itemsMode = false;
-        _slots.gameObject.SetActive(starters);
+        _slots.gameObject.SetActive(starters && !_itemsMode);
         _itemsTab.gameObject.SetActive(!host);
-        _equipment.Root.gameObject.SetActive(_itemsMode);
+        _equipment.Root.gameObject.SetActive(_itemsMode || _equipment.HasModal);
         _index.ContentArea.gameObject.SetActive(!_itemsMode);
         _index.PreviousButton.gameObject.SetActive(!_itemsMode); _index.NextButton.gameObject.SetActive(!_itemsMode);
-        _index.PageText.gameObject.SetActive(!_itemsMode); _index.LayoutButton.gameObject.SetActive(!_itemsMode);
+        _index.PageText.gameObject.SetActive(!_itemsMode); _index.LayoutButton.gameObject.SetActive(true);
         _index.CoinsText.gameObject.SetActive(!_itemsMode && !host); _index.EssenceText.gameObject.SetActive(!_itemsMode && !host);
-        float center = starters ? .225f : .15f;
-        CoopUIElements.Stretch(_index.CoinsText.rectTransform, new Vector2(starters ? .36f : .29f, .90f), new Vector2(.64f, .99f));
-        CoopUIElements.Stretch(_index.EssenceText.rectTransform, new Vector2(.65f, .90f), new Vector2(.99f, .99f));
+        CoopUIElements.Stretch(_index.CoinsText.rectTransform, new Vector2(.305f, .866f), new Vector2(.78f, .976f));
+        CoopUIElements.Stretch(_index.EssenceText.rectTransform, new Vector2(.305f, .79f), new Vector2(.89f, .866f));
+        _index.CoinsText.alignment = _index.EssenceText.alignment = TMPro.TextAlignmentOptions.Left;
         _index.CoinsText.enableAutoSizing = _index.EssenceText.enableAutoSizing = true;
         _index.CoinsText.fontSizeMin = _index.EssenceText.fontSizeMin = 14;
         var backRect = _index.transform.Find("BackButton") as RectTransform;
-        if (backRect != null) { backRect.anchorMin = backRect.anchorMax = new Vector2(center, backRect.anchorMax.y); backRect.anchoredPosition = new Vector2(0, backRect.anchoredPosition.y); }
+        if (backRect != null) CoopUIElements.Stretch(backRect, new Vector2(.012f, .856f), new Vector2(.282f, .976f));
         int[] order = { 1, 0, 2, 3 };
         for (int i = 0; i < 4; i++)
         {
             var rect = (RectTransform)_index.PackButtons[order[i]].transform;
-            rect.anchorMin = rect.anchorMax = new Vector2(center, .73f - i * .13f); rect.anchoredPosition = Vector2.zero;
+            CoopUIElements.Stretch(rect, new Vector2(.012f, .717f - i * .137f), new Vector2(.282f, .827f - i * .137f));
         }
-        var tabRect = (RectTransform)_itemsTab.transform; tabRect.anchorMin = tabRect.anchorMax = new Vector2(center, .20f); tabRect.anchoredPosition = Vector2.zero;
-        var layoutRect = (RectTransform)_index.LayoutButton.transform; layoutRect.anchorMin = layoutRect.anchorMax = new Vector2(center, .07f); layoutRect.anchoredPosition = Vector2.zero;
-        CoopUIElements.Stretch((RectTransform)_index.ContentArea, new Vector2(starters ? .36f : .29f, .12f), new Vector2(.99f, .88f));
-        CoopUIElements.Stretch(_equipment.Root, new Vector2(starters ? .36f : .29f, .10f), new Vector2(.99f, .98f));
+        CoopUIElements.Stretch((RectTransform)_itemsTab.transform, new Vector2(.012f, .169f), new Vector2(.282f, .279f));
+        CoopUIElements.Stretch((RectTransform)_index.LayoutButton.transform, new Vector2(.012f, .033f), new Vector2(.282f, .143f));
+        float right = starters ? .895f : .978f;
+        CoopUIElements.Stretch((RectTransform)_index.ContentArea, new Vector2(.296f, .175f), new Vector2(right, .756f));
+        float middle = (.296f + right) * .5f;
+        CoopUIElements.Stretch((RectTransform)_index.PreviousButton.transform, new Vector2(middle - .105f, .035f), new Vector2(middle - .04f, .143f));
+        CoopUIElements.Stretch((RectTransform)_index.NextButton.transform, new Vector2(middle + .04f, .035f), new Vector2(middle + .105f, .143f));
+        CoopUIElements.Stretch(_index.PageText.rectTransform, new Vector2(middle - .04f, .035f), new Vector2(middle + .04f, .143f));
+        CoopUIElements.Stretch(_equipment.Root, new Vector2(.305f, .015f), new Vector2(.975f, .98f));
         _equipment.Root.SetAsLastSibling();
+        _index.RefreshLayout();
         _index.ConfigureNavigation();
-        var gadget = _index.PackButtons[(int)CardPackType.Gadget]; var nav = gadget.navigation;
-        if (!host) { nav.selectOnDown = _itemsTab; gadget.navigation = nav; }
-        nav = _itemsTab.navigation; nav.mode = UnityEngine.UI.Navigation.Mode.Explicit; nav.selectOnUp = gadget; nav.selectOnDown = _index.LayoutButton; nav.selectOnRight = _equipment.Root.GetComponentInChildren<UnityEngine.UI.Button>(); _itemsTab.navigation = nav;
+        foreach (var button in _index.PackButtons)
+        {
+            bool selected = !_itemsMode && button == _index.PackButtons[(int)_index.SelectedPack];
+            var colors = button.colors; colors.normalColor = colors.selectedColor = selected ? new Color(1, .82f, .28f) : Color.white; button.colors = colors;
+            var outline = button.GetComponent<UnityEngine.UI.Outline>();
+            if (outline != null) outline.enabled = selected;
+        }
+        var itemColors = _itemsTab.colors; itemColors.normalColor = itemColors.selectedColor = _itemsMode ? new Color(1, .82f, .28f) : Color.white; _itemsTab.colors = itemColors;
+        var itemsOutline = _itemsTab.GetComponent<UnityEngine.UI.Outline>(); if (itemsOutline != null) itemsOutline.enabled = _itemsMode;
+        if (_itemsMode && _index.LayoutText != null) _index.LayoutText.text = _equipment.LayoutLabel;
     }
     public void BindCards()
     {

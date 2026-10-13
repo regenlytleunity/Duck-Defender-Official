@@ -3,7 +3,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 
 // Pointer behavior shared by collection cards, inventory entries and equipped slots.
-public class LoadoutInteraction : MonoBehaviour, IPointerClickHandler, IBeginDragHandler, IDragHandler, IEndDragHandler, IDropHandler
+public class LoadoutInteraction : MonoBehaviour, IPointerClickHandler, IInitializePotentialDragHandler, IBeginDragHandler, IDragHandler, IEndDragHandler, IDropHandler
 {
     public object Context;
     public bool IsCard;
@@ -16,6 +16,14 @@ public class LoadoutInteraction : MonoBehaviour, IPointerClickHandler, IBeginDra
     bool _dropped, _dragged;
     public void OnPointerClick(PointerEventData e)
     { if (e.button == PointerEventData.InputButton.Right && !_dragged) ContextMenu?.Invoke(); }
+    public void OnInitializePotentialDrag(PointerEventData e)
+    {
+        // A nested Upgrade/Ascend button owns its entire pointer gesture. Otherwise
+        // the input module starts dragging this parent and cancels the button click.
+        var hit = e.pointerPressRaycast.gameObject;
+        var control = hit != null ? hit.GetComponentInParent<UnityEngine.UI.Selectable>() : null;
+        if (control != null && control.gameObject != gameObject) e.pointerDrag = null;
+    }
     public void OnBeginDrag(PointerEventData e)
     {
         if (e.button != PointerEventData.InputButton.Left || Equip == null) return;

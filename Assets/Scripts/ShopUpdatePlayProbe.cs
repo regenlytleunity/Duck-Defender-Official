@@ -14,6 +14,7 @@ public class ShopUpdatePlayProbe : MonoBehaviour
     public bool UIOnly;
     public Action SeedUI;
     public Func<string> CheckUI;
+    public Func<GameObject, string> CheckScope;
     public static string ReportPath => Path.Combine(Path.GetTempPath(), "duck-shop-update-verification.txt");
     readonly List<string> _checks = new List<string>();
     readonly List<Gamepad> _pads = new List<Gamepad>(), _realPads = new List<Gamepad>();
@@ -185,12 +186,51 @@ public class ShopUpdatePlayProbe : MonoBehaviour
     IEnumerator RunUI()
     {
         SeedUI(); var menu = MainMenuUI.Instance; var shop = ShopManager.Instance;
+        var profile = shop.Progress;
+        profile.StartingCardSlots = 3; profile.PackOpeningTier = 0;
+        profile.PermanentUpgrades = new[] { 1, 2, 3, 4, 5 };
+        foreach (var card in profile.CardCollection) card.Duplicates = 100;
+        foreach (CardPackType pack in new[] { CardPackType.Mobility, CardPackType.Munitions, CardPackType.Survival, CardPackType.Gadget }) profile.AddEssence(pack, 2000);
+        SaveSystem.SaveData(profile); shop.LoadEconomy();
         for (int page = 0; page < 3; page++)
         {
             menu.OpenShop(); menu.GetComponent<ShopUpdateUI>().ShowPage(page); yield return null; Visible("shop page " + page);
+            ScreenCapture.CaptureScreenshot(Path.Combine(Path.GetTempPath(), "duck-polish-shop-" + page + ".png")); yield return null;
         }
+        shop.Progress.StartingCardSlots = 0; menu.OpenIndex(); yield return null;
+        menu.IndexPanel.GetComponent<IndexLoadoutUI>().Refresh(); yield return null;
+        Visible("collection without starting slots");
+        ScreenCapture.CaptureScreenshot(Path.Combine(Path.GetTempPath(), "duck-polish-index-no-slots.png")); yield return null;
+        shop.Progress.StartingCardSlots = 5; shop.Progress.PackOpeningTier = 2;
+        menu.IndexPanel.GetComponent<IndexLoadoutUI>().Refresh(); yield return null;
         menu.OpenIndex(); yield return null; Visible("collection with starting slots");
+        ScreenCapture.CaptureScreenshot(Path.Combine(Path.GetTempPath(), "duck-polish-index-cards.png")); yield return null;
+        var collection = menu.IndexPanel.GetComponent<CardIndexUI>();
+        var upgradeCard = collection.ContentArea.GetComponentsInChildren<CardDisplay>().First(c => c.UpgradeButton.IsInteractable());
+        var upgradeRect = (RectTransform)upgradeCard.UpgradeButton.transform;
+        var upgradePointer = new UnityEngine.EventSystems.PointerEventData(UnityEngine.EventSystems.EventSystem.current) {
+            button = UnityEngine.EventSystems.PointerEventData.InputButton.Left,
+            pointerPressRaycast = new UnityEngine.EventSystems.RaycastResult { gameObject = upgradeCard.UpgradeCostText.gameObject },
+            pointerDrag = upgradeCard.gameObject
+        };
+        upgradeCard.GetComponent<LoadoutInteraction>().OnInitializePotentialDrag(upgradePointer);
+        Check(upgradePointer.pointerDrag == null, "upgrade pointer gesture cannot start a parent card drag");
+        int oldLevel = shop.GetCardData(upgradeCard.AssignedCard.ID).Level, oldCoins = shop.CurrentCoins;
+        upgradeCard.UpgradeButton.OnPointerClick(upgradePointer); yield return null;
+        Check(shop.GetCardData(upgradeCard.AssignedCard.ID).Level == oldLevel + 1 && shop.CurrentCoins == oldCoins - upgradeCard.AssignedCard.GetUpgradeCost(oldLevel), "pointer upgrade still advances card and charges exactly once");
+        Check(menu.NavigationScope == menu.IndexPanel, "upgrading does not open an equip modal");
+        var events = UnityEngine.EventSystems.EventSystem.current;
+        events.SetSelectedGameObject(collection.LayoutButton.gameObject);
+        UnityEngine.EventSystems.ExecuteEvents.Execute(collection.LayoutButton.gameObject, new UnityEngine.EventSystems.AxisEventData(events) { moveDir = UnityEngine.EventSystems.MoveDirection.Right, moveVector = Vector2.right }, UnityEngine.EventSystems.ExecuteEvents.moveHandler);
+        Check(events.currentSelectedGameObject == collection.NextButton.gameObject, "controller can reach next-page arrow from Layout on first page");
+        collection.NextButton.OnSubmit(new UnityEngine.EventSystems.BaseEventData(events)); yield return null;
+        Check(collection.CurrentPage == 1, "controller submit turns index page"); Visible("index middle page");
+        while (collection.NextButton.IsInteractable()) { collection.NextPage(); yield return null; }
+        Visible("index last page");
+        while (collection.PreviousButton.IsInteractable()) { collection.PreviousPage(); yield return null; }
+        for (int layout = 0; layout < 3; layout++) { collection.CycleLayout(); yield return null; Visible("index layout " + layout); }
         var index = menu.IndexPanel.GetComponent<IndexLoadoutUI>(); index.ShowItems(); yield return null; Visible("item inventory");
+        ScreenCapture.CaptureScreenshot(Path.Combine(Path.GetTempPath(), "duck-polish-index-items.png")); yield return null;
         menu.IndexPanel.GetComponentsInChildren<LoadoutInteraction>().First(h => !h.IsCard && h.Slot == -1).ContextMenu();
         yield return null; Visible("item context menu"); Click("Equip to slot 2"); yield return null;
         Check(shop.Loadout().Items[1] == 1, "context menu equips one bomb into slot 2");
@@ -213,6 +253,7 @@ public class ShopUpdatePlayProbe : MonoBehaviour
         {
             menu.OpenShop(); menu.GetComponent<ShopUpdateUI>().ShowPage(0); yield return null;
             menu.PackContainer.GetComponentInChildren<UnityEngine.UI.Button>().onClick.Invoke(); yield return null; Visible("pack purchase confirmation");
+            if (count == 1) { ScreenCapture.CaptureScreenshot(Path.Combine(Path.GetTempPath(), "duck-polish-open-pack.png")); yield return null; }
             int before = shop.CurrentCoins;
             if (count == 1) menu.YesButton.onClick.Invoke(); else if (count == 3) menu.BuyThreeButton.onClick.Invoke(); else menu.BuySixButton.onClick.Invoke();
             yield return null;
@@ -254,10 +295,25 @@ public class ShopUpdatePlayProbe : MonoBehaviour
         var panels = (LoadoutPanel[])typeof(CoopLobbyUI).GetField("_loadouts", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(lobby);
         Check(panels[1].Root.gameObject.activeSelf && !panels[0].Root.gameObject.activeSelf, "P2 controller opens only its own lobby equipment");
         panels[1].ShowCards(true); yield return null;
-        Check(panels[1].Root.GetComponentsInChildren<LoadoutInteraction>().Count(h => h.Slot == -1 && h.IsCard) == 8, "lobby card page contains eight choices");
+        Check(panels[1].Root.GetComponentsInChildren<LoadoutInteraction>().Count(h => h.Slot == -1 && h.IsCard) == 6, "lobby card page contains six choices in three columns");
+        Check(CheckScope(panels[1].Root.gameObject).StartsWith("PASS"), "four-player card pane text, pointer targets and controller graph");
+        var p1Focus = panels[0].Focused;
+        InputSystem.QueueStateEvent(_pads[1], new GamepadState().WithButton(GamepadButton.DpadDown)); yield return null; yield return null;
+        InputSystem.QueueStateEvent(_pads[1], new GamepadState()); yield return null;
+        Check(panels[0].Focused == p1Focus, "P2 navigation does not move P1 focus");
+        panels[1].ShowCards(false); yield return null;
+        Check(CheckScope(panels[1].Root.gameObject).StartsWith("PASS"), "four-player item pane text, pointer targets and controller graph");
+        for (int i = 0; i < 4; i++) { panels[i].Root.gameObject.SetActive(true); panels[i].ShowCards(i % 2 == 0); }
+        yield return null;
         ScreenCapture.CaptureScreenshot(Path.Combine(Path.GetTempPath(), "duck-shop-four-player-lobby.png")); yield return null;
         panels[1].ControllerInput(Vector2.zero, false, true); yield return null;
         Check(!panels[1].Root.gameObject.activeSelf, "controller Back closes equipment");
+        lobby.Close(); LocalCoopSession.RequestedPlayers = 2; lobby.Open(host);
+        panels = (LoadoutPanel[])typeof(CoopLobbyUI).GetField("_loadouts", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(lobby);
+        for (int i = 0; i < 2; i++) { panels[i].Root.gameObject.SetActive(true); panels[i].ShowCards(i == 0); }
+        yield return null;
+        for (int i = 0; i < 2; i++) Check(CheckScope(panels[i].Root.gameObject).StartsWith("PASS"), "two-player pane " + i + " text, pointer targets and controller graph");
+        ScreenCapture.CaptureScreenshot(Path.Combine(Path.GetTempPath(), "duck-polish-two-player-lobby.png")); yield return null;
         lobby.Close(); host.Open(); LocalCoopSession.RequestedPlayers = 1;
     }
 }

@@ -141,6 +141,10 @@ public void ShowPanel(GameObject panel)
 
     panel.SetActive(true);
     RefreshShopModal();
+    // OnEnable runs before all child Selectables are enabled; connect the index
+    // once the full hierarchy is active, including the runtime Items tab.
+    panel.GetComponent<CardIndexUI>()?.ConfigureNavigation();
+    if (panel == ShopPanel) GetComponent<ShopUpdateUI>()?.Refresh();
     
     // Switch music to match the panel being shown.
     // AudioManager.PlayMusic() crossfades smoothly and ignores duplicate calls 
@@ -247,7 +251,8 @@ void OnPackClicked(ShopPackDefinition pack)
     
     _selectedPack = pack;
     ConfirmPanel.SetActive(true);
-    ConfirmText.text = $"Buy {pack.PackName} for {pack.Cost} Coins?";
+    ConfirmText.text = $"Open {pack.PackName}?";
+    YesButton.GetComponentInChildren<TMP_Text>().text = "Open 1 - " + pack.Cost + " Coins";
     
     YesButton.onClick.RemoveAllListeners();
     YesButton.onClick.AddListener(BuyPack);
@@ -265,12 +270,18 @@ void OnPackClicked(ShopPackDefinition pack)
         BuySixButton.GetComponentInChildren<TMP_Text>().text = ShopManager.Instance.CanOpenPackCount(6) ? "Open 6 - " + ((long)pack.Cost * 6) + " Coins" : "Open 6 - Locked";
     }
     RefreshShopModal();
+    ControllerMenuNavigation.ConfigureNavigation(ConfirmPanel);
     FocusFirstControl(ConfirmPanel);
 }
 
 public void CancelPurchase()
 {
-    ConfirmPanel.SetActive(false); RefreshShopModal(); FocusFirstControl(ShopPanel);
+    ConfirmPanel.SetActive(false); RefreshShopModal();
+    GetComponent<ShopUpdateUI>()?.Refresh();
+    int index = ShopManager.Instance.AvailablePacks.IndexOf(_selectedPack);
+    if (index >= 0 && index < PackContainer.childCount && UnityEngine.EventSystems.EventSystem.current != null)
+        UnityEngine.EventSystems.EventSystem.current.SetSelectedGameObject(PackContainer.GetChild(index).gameObject);
+    else FocusFirstControl(ShopPanel);
 }
 void RefreshShopModal()
 {
@@ -286,6 +297,7 @@ void RefreshShopModal()
         if (modal == null) modal = panel.AddComponent<CanvasGroup>();
         modal.ignoreParentGroups = true; modal.interactable = true; modal.blocksRaycasts = true;
     }
+    if (!blocked) GetComponent<ShopUpdateUI>()?.Refresh();
 }
 public GameObject NavigationScope
 {

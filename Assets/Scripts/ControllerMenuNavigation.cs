@@ -5,6 +5,53 @@ using UnityEngine.InputSystem;
 // Pointer/keyboard navigation stays in the EventSystem; the first pad owns shared menus.
 public class ControllerMenuNavigation : MonoBehaviour
 {
+    // Build links only within the visible page/modal. Disabled purchases and
+    // hidden pages never become dead ends or steal focus from another pane.
+    public static void ConfigureNavigation(GameObject scope)
+    {
+        if (scope == null) return;
+        Canvas.ForceUpdateCanvases();
+        var controls = System.Array.FindAll(scope.GetComponentsInChildren<UnityEngine.UI.Button>(), b => b.IsActive() && b.IsInteractable());
+        foreach (var control in controls)
+            control.navigation = new UnityEngine.UI.Navigation {
+                mode = UnityEngine.UI.Navigation.Mode.Explicit,
+                selectOnLeft = FindInDirection(control, controls, Vector2.left),
+                selectOnRight = FindInDirection(control, controls, Vector2.right),
+                selectOnUp = FindInDirection(control, controls, Vector2.up),
+                selectOnDown = FindInDirection(control, controls, Vector2.down)
+            };
+        var events = EventSystem.current;
+        var selected = events != null && events.currentSelectedGameObject != null ? events.currentSelectedGameObject.GetComponent<UnityEngine.UI.Button>() : null;
+        if (selected != null && selected.transform.IsChildOf(scope.transform) && (!selected.IsActive() || !selected.IsInteractable()) && controls.Length > 0)
+        {
+            UnityEngine.UI.Button nearest = controls[0]; float distance = float.PositiveInfinity;
+            foreach (var control in controls)
+            {
+                float candidate = (control.transform.position - selected.transform.position).sqrMagnitude;
+                if (candidate < distance) { distance = candidate; nearest = control; }
+            }
+            events.SetSelectedGameObject(nearest.gameObject);
+        }
+    }
+    public static UnityEngine.UI.Button FindInDirection(UnityEngine.UI.Button current, UnityEngine.UI.Button[] controls, Vector2 direction)
+    {
+        var rect = (RectTransform)current.transform;
+        Vector2 origin = rect.TransformPoint(rect.rect.center);
+        float best = float.PositiveInfinity;
+        UnityEngine.UI.Button next = null;
+        foreach (var control in controls)
+        {
+            if (control == current || !control.IsActive() || !control.IsInteractable()) continue;
+            var target = (RectTransform)control.transform;
+            Vector2 delta = (Vector2)target.TransformPoint(target.rect.center) - origin;
+            float along = Vector2.Dot(delta, direction);
+            if (along <= .01f) continue;
+            float across = Mathf.Abs(delta.x * direction.y - delta.y * direction.x);
+            float score = along + across * 2.5f + across * across / along;
+            if (score < best) { best = score; next = control; }
+        }
+        return next;
+    }
     float _nextMove;
     UnityEngine.InputSystem.UI.InputSystemUIInputModule _module;
     InputActionReference _originalMove, _originalSubmit, _originalCancel;

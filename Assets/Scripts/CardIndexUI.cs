@@ -43,6 +43,8 @@ public class CardIndexUI : MonoBehaviour
     }
     public void CycleLayout()
     {
+        var equipment = GetComponent<IndexLoadoutUI>();
+        if (equipment != null && equipment.ItemsMode) { equipment.CycleItemsLayout(); return; }
         int firstCard = CurrentPage * CardsPerPage;
         _layoutIndex = (_layoutIndex + 1) % 3;
         CurrentPage = Mathf.Clamp(firstCard / CardsPerPage, 0, PageCount - 1);
@@ -98,6 +100,9 @@ public class CardIndexUI : MonoBehaviour
     }
     public void ConfigureNavigation()
     {
+        var equipment = GetComponent<IndexLoadoutUI>();
+        ControllerMenuNavigation.ConfigureNavigation(equipment != null ? equipment.NavigationScope : gameObject);
+        if (equipment != null && (equipment.ItemsMode || equipment.NavigationScope != gameObject)) return;
         for (int i = 0; i < _displays.Count; i++)
         {
             var card = _displays[i].GetComponent<CardDisplay>();
@@ -106,38 +111,32 @@ public class CardIndexUI : MonoBehaviour
             if (action != null && (!action.gameObject.activeInHierarchy || !action.IsInteractable())) action = null;
             var nav = root.navigation; nav.mode = UnityEngine.UI.Navigation.Mode.Explicit;
             nav.selectOnLeft = i % LayoutColumns > 0 ? _displays[i - 1].GetComponent<CardDisplay>().ClickButton : PackButtons[(int)SelectedPack];
-            nav.selectOnRight = i % LayoutColumns < LayoutColumns - 1 && i + 1 < _displays.Count ? _displays[i + 1].GetComponent<CardDisplay>().ClickButton : null;
-            nav.selectOnUp = i >= LayoutColumns ? _displays[i - LayoutColumns].GetComponent<CardDisplay>().ClickButton : PackButtons[(int)SelectedPack];
-            nav.selectOnDown = action != null ? action : i + LayoutColumns < _displays.Count ? _displays[i + LayoutColumns].GetComponent<CardDisplay>().ClickButton : LayoutButton;
+            if (i % LayoutColumns < LayoutColumns - 1 && i + 1 < _displays.Count) nav.selectOnRight = _displays[i + 1].GetComponent<CardDisplay>().ClickButton;
+            if (i >= LayoutColumns) nav.selectOnUp = _displays[i - LayoutColumns].GetComponent<CardDisplay>().ClickButton;
+            var below = i + LayoutColumns < _displays.Count ? _displays[i + LayoutColumns].GetComponent<CardDisplay>().ClickButton :
+                i % LayoutColumns < LayoutColumns / 2f && PreviousButton.IsInteractable() ? PreviousButton : NextButton.IsInteractable() ? NextButton : PreviousButton.IsInteractable() ? PreviousButton : LayoutButton;
+            nav.selectOnDown = action != null ? action : below;
             root.navigation = nav;
             if (action != null)
             {
                 var actionNav = nav; actionNav.selectOnUp = root;
-                actionNav.selectOnDown = i + LayoutColumns < _displays.Count ? _displays[i + LayoutColumns].GetComponent<CardDisplay>().ClickButton : LayoutButton;
+                actionNav.selectOnDown = below;
                 action.navigation = actionNav;
             }
         }
-        // PackButtons follows enum IDs for category selection, not screen order.
-        var sidebar = new[] {
-            transform.Find("BackButton")?.GetComponent<UnityEngine.UI.Button>(),
-            PackButtons[(int)CardPackType.Mobility], PackButtons[(int)CardPackType.Munitions],
-            PackButtons[(int)CardPackType.Survival], PackButtons[(int)CardPackType.Gadget], LayoutButton
-        };
-        for (int i = 0; i < sidebar.Length; i++)
-        {
-            var button = sidebar[i];
-            if (button == null) continue;
-            var nav = button.navigation; nav.mode = UnityEngine.UI.Navigation.Mode.Explicit;
-            nav.selectOnUp = i > 0 ? sidebar[i - 1] : null;
-            nav.selectOnDown = i + 1 < sidebar.Length ? sidebar[i + 1] : null;
-            nav.selectOnLeft = null;
-            // Retain geometric rightward entry from Back/Layout to cards or paging.
-            nav.selectOnRight = i == 0 || i == sidebar.Length - 1 ? button.FindSelectable(Vector3.right) :
-                _displays.Count > 0 ? _displays[0].GetComponent<CardDisplay>().ClickButton : LayoutButton;
-            button.navigation = nav;
-        }
+        // Paging stays reachable from both the grid and the sidebar, including
+        // first/last pages where one of the arrows is disabled.
+        var layoutNav = LayoutButton.navigation;
+        layoutNav.selectOnRight = PreviousButton.IsInteractable() ? PreviousButton : NextButton.IsInteractable() ? NextButton : _displays.Count > 0 ? _displays[_displays.Count - 1].GetComponent<CardDisplay>().ClickButton : null;
+        LayoutButton.navigation = layoutNav;
     }
     void OnRectTransformDimensionsChange() { LayoutCards(); }
+    public void RefreshLayout()
+    {
+        LayoutCards();
+        if (LayoutText != null && GetComponent<IndexLoadoutUI>()?.ItemsMode != true)
+            LayoutText.text = _layoutIndex == 2 ? "LAYOUT: ALL" : "LAYOUT: " + LayoutColumns + " x " + LayoutRows;
+    }
     void LayoutCards()
     {
         if (ContentArea == null) return;
