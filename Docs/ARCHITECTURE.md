@@ -537,7 +537,8 @@ weighted random pools, exclusions, or mixed ordered/random spawning. Unspecified
 waves use the existing count/cap controls and a configurable introduction schedule:
 normal ground/flying/tank/lobber at 1/3/6/9, elite variants at 12/16/20/25.
 Each automatic introduction wave contains exactly one of its new variant, including
-co-op; random filler and multiplayer duplication exclude that introduction.
+co-op; random filler and multiplayer duplication exclude that introduction. Wave 1
+is the exception: four normal ground enemies, with ordinary co-op count scaling.
 Explicit WaveDefinition pools/groups retain their authored behavior.
 Tanks follow at least one non-tank spawn; tank-only scripted waves are rejected.
 Protected allies receive a blue tint, while status-effect colors keep priority.
@@ -956,8 +957,9 @@ are 60% Common, 35% Rare and 5% Legendary. No Corrupted cards are rolled.
 
 MainMenuUI contains the one-/three-/six-pack controls and an adaptive reveal grid, while
 CardDisplay contains the ascension button/balance bindings. DeveloperConsoleUI accepts
-the five four-digit codes. The new scene/prefab UI references still require the editor
-setup documented in the implementation guide.
+eight four-digit codes, including repeatable item grants and level-two collection
+unlocks plus one million gold. Existing higher card levels and ascensions are preserved.
+See `Docs/CODES.md` for the complete list and entry instructions.
 
 ### Items, loadouts and permanent upgrades
 

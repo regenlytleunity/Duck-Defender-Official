@@ -168,6 +168,11 @@ public class ItemUpdatePlayProbe : MonoBehaviour
             for (int roll = 0; roll < 6; roll++)
             {
                 Check(wave.TryBuildWave(number, null, plan, out _), "build introduction wave " + number);
+                if (number == 1 && kind == 0 && !elite)
+                {
+                    Check(plan.Count == 4 && plan.All(p => !p.Introduction && !p.Elite && p.Prefab.GetComponent<EnemyBase>().EnemyKind == "ground"), "wave one has four ordinary ground enemies");
+                    continue;
+                }
                 var intro = plan.Single(p => p.Introduction);
                 Check(plan.Count(p => p.Prefab == intro.Prefab && p.Elite == intro.Elite) == 1, "exactly one introduced variant on wave " + number);
             }

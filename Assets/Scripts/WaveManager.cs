@@ -282,7 +282,8 @@ public class WaveManager : MonoBehaviour
                 string kind = prefab.GetComponent<EnemyBase>().EnemyKind;
                 int kindIndex = kind == "ground" ? 0 : kind == "flying" ? 1 : kind == "tank" ? 2 : 3;
                 if (UseIntroductoryWaves && wave < NormalUnlockWaves[kindIndex]) continue;
-                bool normalIntro = definition == null && UseIntroductoryWaves && wave == NormalUnlockWaves[kindIndex];
+                // Wave one keeps its four normal ground enemies and ordinary co-op scaling.
+                bool normalIntro = definition == null && UseIntroductoryWaves && wave == NormalUnlockWaves[kindIndex] && !(wave == 1 && kind == "ground");
                 bool eliteIntro = definition == null && UseIntroductoryWaves && wave == EliteUnlockWaves[kindIndex];
                 bool eliteUnlocked = !UseIntroductoryWaves || wave >= EliteUnlockWaves[kindIndex];
                 if (!normalIntro) options.Add(new WaveEnemyOption { Prefab = prefab, Weight = 1, EliteChance = eliteUnlocked && !eliteIntro ? EliteChance : 0 });
@@ -295,7 +296,7 @@ public class WaveManager : MonoBehaviour
         foreach (var option in options) weight += option.Weight;
         if (weight <= 0)
         {
-            // The first ground-enemy wave has no previously introduced filler type.
+            // Custom introduction schedules may have no previously introduced filler type.
             if (plan.Count > 0) return EnsureTankPredecessor(plan, definition, out error);
             error = "Wave " + wave + " has no eligible random enemies after exclusions."; return false;
         }

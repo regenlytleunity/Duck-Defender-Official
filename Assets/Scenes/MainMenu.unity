@@ -8588,6 +8588,11 @@ MonoBehaviour:
   CrouchAlt: 274
   DashKey: 304
   ShootKey: 323
+  UseItemKey: 324
+  Item1Key: 49
+  Item2Key: 50
+  Item3Key: 51
+  Item4Key: 52
   PauseKey: 27
 --- !u!4 &695426801
 Transform:
@@ -21267,7 +21272,8 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 'Version 1.3
+  m_text: 'Version 1.4
+
 
 
 '

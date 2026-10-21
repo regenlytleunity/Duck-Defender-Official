@@ -161,7 +161,12 @@ public class ControllerMenuNavigation : MonoBehaviour
         if (Gamepad.all.Count == 0 || separateCards || CoopLobbyUI.Instance != null && CoopLobbyUI.Instance.IsOpen || selected == null || !selected.IsActive() || !selected.IsInteractable())
         { _selectionFrame?.Hide(); return; }
         if (_selectionFrame == null) _selectionFrame = new ControllerSelectionFrame("Controller menu selection");
-        _selectionFrame.Show((RectTransform)selected.transform, _editingSlider != null ? new Color(.35f, 1, .55f) : (Color?)null);
+        var target = (RectTransform)selected.transform;
+        var card = selected.GetComponentInParent<CardDisplay>();
+        // Whole-card buttons can sit above the visible card in the authored layout.
+        if (card != null && card.ClickButton == selected && card.BackgroundImage != null)
+            target = card.BackgroundImage.rectTransform;
+        _selectionFrame.Show(target, _editingSlider != null ? new Color(.35f, 1, .55f) : (Color?)null);
     }
     void OnDisable() { _selectionFrame?.Hide(); _editingSlider = null; }
     void OnDestroy()

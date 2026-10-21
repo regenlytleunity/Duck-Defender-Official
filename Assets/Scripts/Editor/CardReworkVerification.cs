@@ -27,6 +27,59 @@ public static class CardReworkVerification
     static object Call(object target, string name, params object[] args) => target.GetType().GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic).Invoke(target, args);
     static T Field<T>(object target, string name) => (T)target.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic).GetValue(target);
 
+    [MenuItem("Duck Defender/Card Rework/Verify Item And Level Two Codes")]
+    public static string RunGrantCodes()
+    {
+        if (EditorApplication.isPlaying) throw new InvalidOperationException("Run verification outside Play Mode.");
+        var oldShop = ShopManager.Instance; var oldMenu = MainMenuUI.Instance;
+        string oldPath = SaveSystem.VerificationSavePath;
+        string path = Path.Combine(Path.GetTempPath(), "duck-code-check-" + Guid.NewGuid().ToString("N") + ".json");
+        _checks = 0;
+        try
+        {
+            SaveSystem.VerificationSavePath = path; MainMenuUI.Instance = null;
+            var cards = AssetDatabase.FindAssets("t:CardDefinition", new[] { "Assets/Cards/Upgrades" })
+                .Select(g => AssetDatabase.LoadAssetAtPath<CardDefinition>(AssetDatabase.GUIDToAssetPath(g))).Where(c => !c.IsBasic).ToList();
+            var data = PlayerData.CreateNew(); data.NormalizeShopData(); data.TotalCoins = 1234;
+            data.CardCollection[0].Level = 5; data.CardCollection[0].Duplicates = 7;
+            string upgradedID = data.CardCollection[0].CardID;
+            data.CardCollection[1].IsUnlocked = false;
+            var ascended = cards.First(c => c.ID != upgradedID && c.Ascension != CardAscension.None && !data.CardCollection.Any(s => s.CardID == c.ID));
+            data.CardCollection.Add(new CardSaveData(ascended.ID) { Level = 6, IsAscended = true });
+            for (int id = 1; id <= ItemCatalog.Count; id++) data.ItemInventory[id] = id;
+            data.SoloLoadout.Items[0] = (int)ItemKind.Bomb;
+            SaveSystem.SaveData(data);
+            var shop = Component<ShopManager>(); ShopManager.Instance = shop; shop.AllCards = cards; shop.LoadEconomy();
+            int updates = 0; shop.OnCollectionChanged += () => updates++;
+            Check(!shop.ExecuteDeveloperCode("0000") && SaveSystem.LoadData().TotalCoins == 1234 && updates == 0, "invalid codes leave economy unchanged");
+            Check(shop.ExecuteDeveloperCode("1111"), "accept item code");
+            data = SaveSystem.LoadData();
+            Check(Enumerable.Range(1, ItemCatalog.Count).All(id => data.ItemInventory[id] == id + 1) && data.ItemInventory[0] == 0, "one of every item saved without overwriting owned copies");
+            Check(shop.ExecuteDeveloperCode("1111") && Enumerable.Range(1, ItemCatalog.Count).All(id => SaveSystem.LoadData().ItemInventory[id] == id + 2), "item code is repeatable");
+            Check(shop.CurrentCoins == 1234 && updates == 2, "item grants refresh collection without changing gold");
+            Check(shop.ExecuteDeveloperCode("2002"), "accept level-two/gold code");
+            data = SaveSystem.LoadData();
+            Check(data.TotalCoins == 1001234 && shop.CurrentCoins == data.TotalCoins, "one million added to saved and displayed gold");
+            Check(cards.All(c => data.CardCollection.Any(s => s.CardID == c.ID && s.IsUnlocked && s.Level >= 2)), "all collection cards unlocked at least at level two");
+            Check(shop.GetCardData(upgradedID).Level == 5 && shop.GetCardData(upgradedID).Duplicates == 7 && shop.GetCardData(ascended.ID).IsAscended && shop.GetCardData(ascended.ID).Level == 6, "higher levels, copies and ascensions preserved");
+            Check(!shop.InfiniteResources && !shop.InfiniteCopies && data.SoloLoadout.Items[0] == (int)ItemKind.Bomb && data.ItemInventory[1] == 3, "finite rewards preserve loadout and items");
+            Check(shop.ExecuteDeveloperCode("2002") && SaveSystem.LoadData().TotalCoins == 2001234 && SaveSystem.LoadData().CardCollection.Count == cards.Count, "repeated gold grant adds without duplicate collection records");
+            shop.LoadEconomy();
+            Check(shop.CurrentCoins == 2001234 && shop.GetCardData(upgradedID).Level == 5, "grants survive economy reload");
+            data = SaveSystem.LoadData(); data.TotalCoins = int.MaxValue - 10; data.ItemInventory[1] = int.MaxValue;
+            SaveSystem.SaveData(data); shop.LoadEconomy();
+            Check(shop.ExecuteDeveloperCode("1111") && shop.ExecuteDeveloperCode("2002") && SaveSystem.LoadData().ItemInventory[1] == int.MaxValue && shop.CurrentCoins == int.MaxValue, "grants saturate without integer overflow");
+            return "PASS: " + _checks + " item and level-two code checks";
+        }
+        finally
+        {
+            foreach (var go in _objects) if (go != null) UnityEngine.Object.DestroyImmediate(go);
+            _objects.Clear();
+            if (File.Exists(path)) File.Delete(path);
+            SaveSystem.VerificationSavePath = oldPath; ShopManager.Instance = oldShop; MainMenuUI.Instance = oldMenu;
+        }
+    }
+
     [MenuItem("Duck Defender/Card Rework/Run Isolated Verification")]
     public static string Run()
     {

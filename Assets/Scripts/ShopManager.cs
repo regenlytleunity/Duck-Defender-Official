@@ -211,10 +211,22 @@ public partial class ShopManager : MonoBehaviour
     {
         bool max = code == "3619" || code == "5942";
         bool unlock = code == "8672";
-        if (code != "9845" && code != "0381" && !max && !unlock) return false;
+        bool items = code == "1111";
+        bool levelTwoAndGold = code == "2002";
+        if (code != "9845" && code != "0381" && !max && !unlock && !items && !levelTwoAndGold) return false;
         if (code == "9845" || code == "5942") _playerData.InfiniteGoldAndEssence = true;
         if (code == "0381") _playerData.InfiniteCopies = true;
-        if (max || unlock || code == "0381")
+        if (items)
+        {
+            for (int id = 1; id <= ItemCatalog.Count; id++)
+                _playerData.ItemInventory[id] = (int)System.Math.Min(int.MaxValue, (long)_playerData.ItemInventory[id] + 1);
+        }
+        if (levelTwoAndGold)
+        {
+            CurrentCoins = (int)System.Math.Min(int.MaxValue, (long)CurrentCoins + 1000000);
+            _playerData.TotalCoins = CurrentCoins;
+        }
+        if (max || unlock || code == "0381" || levelTwoAndGold)
         {
             foreach (var card in AllCards)
             {
@@ -223,6 +235,7 @@ public partial class ShopManager : MonoBehaviour
                 if (saved == null) { saved = new CardSaveData(card.ID); _playerData.CardCollection.Add(saved); }
                 saved.IsUnlocked = true;
                 if (max) { saved.Level = card.MaxLevel; saved.IsAscended = card.Ascension != CardAscension.None; saved.Duplicates = 0; }
+                else if (levelTwoAndGold) saved.Level = Mathf.Max(saved.Level, Mathf.Min(2, card.MaxLevel));
                 // Unlock-all intentionally never downgrades already upgraded cards.
             }
         }
