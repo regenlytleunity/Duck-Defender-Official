@@ -38,6 +38,9 @@ public class IndexLoadoutUI : MonoBehaviour
     public void Refresh()
     {
         if (_equipment == null) return;
+        var events = UnityEngine.EventSystems.EventSystem.current;
+        var selected = events != null ? events.currentSelectedGameObject : null;
+        string selectedSlot = selected != null && selected.transform.IsChildOf(_slots) ? selected.name : null;
         foreach (Transform child in _slots) { child.gameObject.SetActive(false); Destroy(child.gameObject); }
         for (int i = 0; i < _shop.Progress.StartingCardSlots; i++)
         {
@@ -46,6 +49,9 @@ public class IndexLoadoutUI : MonoBehaviour
         }
         if (_itemsMode) _equipment.Rebuild();
         ApplyVisibility(); BindCards();
+        if (selectedSlot != null)
+            foreach (var slot in _slots.GetComponentsInChildren<UnityEngine.UI.Button>())
+                if (slot.name == selectedSlot && slot.IsActive() && slot.IsInteractable()) { events.SetSelectedGameObject(slot.gameObject); break; }
     }
     void ApplyVisibility()
     {

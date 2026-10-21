@@ -11,7 +11,7 @@ public class BuzzerEnemy : EnemyBase
     public float BaseShootRate = 1;
     [HideInInspector] public float MinShootRate = .5f;
     [HideInInspector] public float ShootRateScaling = .05f;
-    public float ShootRange = 8;
+    public float ShootRange = 7;
     public float ShotWindup = .35f;
     [HideInInspector] public float InaccuracyAngle;
     [Header("Legacy Retreat Settings (unused)")]

@@ -23,9 +23,13 @@ public class PlayerStats : MonoBehaviour
     public static PlayerStats Instance;
     public int CoinsPerWave;
     [NonSerialized] public PlayerItems Items;
+    [NonSerialized] public bool CardsSuppressed;
     [NonSerialized] public float PermanentDamage, PermanentSpeed, PermanentFireRate, PermanentLuck;
     [NonSerialized] public float CloneFireRateFactor = 1;
-    public float ItemFireRateMultiplier => (1 + PermanentFireRate + (Items != null ? Items.FireRateBonus : 0) + ItemArea.BannerBonus(transform.position)) * CloneFireRateFactor;
+    bool _cloneSnapshot, _cloneDamageLocked;
+    float _cloneItemDamage, _cloneBannerBonus, _cloneMoneyHighBonus, _cloneFireMultiplier;
+    public float ItemFireRateMultiplier => _cloneSnapshot ? _cloneFireMultiplier :
+        (1 + PermanentFireRate + (Items != null ? Items.FireRateBonus : 0) + ItemArea.BannerBonus(transform.position)) * CloneFireRateFactor;
     public const float RebirthBonus = 1.5f;
 
     [Header("Card Rework")]
@@ -42,7 +46,7 @@ public class PlayerStats : MonoBehaviour
     public float RebirthStatBonus;
     public bool RebirthUsed;
     readonly HashSet<CardAscension> _ascensions = new HashSet<CardAscension>();
-    public bool HasAscension(CardAscension kind) => _ascensions.Contains(kind);
+    public bool HasAscension(CardAscension kind) => !CardsSuppressed && _ascensions.Contains(kind);
     // Rebirth is applied explicitly to core stats, never as a generic upgrade scaler.
     public float RebirthStatMultiplier => 1f + Mathf.Max(0, RebirthStatBonus);
     public float SpeedMultiplier => Items != null && Items.SpeedLocked ? 0 : Mathf.Max(.05f, 1f + PermanentSpeed + RunSpeedBonus + (Items != null ? Items.SpeedBonus : 0) + (HasAscension(CardAscension.Untouchable) ? 4f : 0f)) * RebirthStatMultiplier;
@@ -91,9 +95,10 @@ public class PlayerStats : MonoBehaviour
     // Rebirth then multiplies current feather damage only; standalone upgrade damage is unchanged.
     public float CalculateDamage(float flat, bool feather, float ratio = 1f, float localBonus = 0f)
     {
-        if (Items != null && Items.DamageLocked) return 1;
-        float baseDamage = flat + (feather ? 0 : NonFeatherFlatDamage) + (Items != null ? Items.FlatDamage : 0);
-        float percent = PermanentDamage + ItemArea.BannerBonus(transform.position) + GlobalDamageBonus + RunDamageBonus +
+        if (CardsSuppressed) return 0;
+        if (_cloneSnapshot ? _cloneDamageLocked : Items != null && Items.DamageLocked) return 1;
+        float baseDamage = flat + (feather ? 0 : NonFeatherFlatDamage) + (_cloneSnapshot ? _cloneItemDamage : Items != null ? Items.FlatDamage : 0);
+        float percent = PermanentDamage + (_cloneSnapshot ? _cloneBannerBonus : ItemArea.BannerBonus(transform.position)) + GlobalDamageBonus + RunDamageBonus +
             GetCurrentMoneyHighMultiplier() - 1f + localBonus;
         return Mathf.Max(0f, baseDamage * Mathf.Max(0f, 1f + percent) * ratio * (feather ? RebirthStatMultiplier : 1f));
     }
@@ -359,10 +364,15 @@ public class PlayerStats : MonoBehaviour
 
     public void CopyCloneRuntime(PlayerStats source)
     {
-        _ascensions.Clear(); foreach (var ascension in source._ascensions) _ascensions.Add(ascension);
+        _ascensions.Clear(); if (!source.CardsSuppressed) foreach (var ascension in source._ascensions) _ascensions.Add(ascension);
         PermanentDamage = source.PermanentDamage; PermanentSpeed = source.PermanentSpeed;
         PermanentFireRate = source.PermanentFireRate; PermanentLuck = source.PermanentLuck;
-        CloneFireRateFactor = .5f; Items = null;
+        CloneFireRateFactor = 1; Items = null;
+        _cloneSnapshot = true; _cloneFireMultiplier = source.ItemFireRateMultiplier;
+        _cloneItemDamage = source.Items != null ? source.Items.FlatDamage : 0;
+        _cloneDamageLocked = source.Items != null && source.Items.DamageLocked;
+        _cloneBannerBonus = ItemArea.BannerBonus(source.transform.position);
+        _cloneMoneyHighBonus = source.GetCurrentMoneyHighMultiplier() - 1;
         ResetSpecialFeatherCounters();
     }
 
@@ -446,6 +456,8 @@ public class PlayerStats : MonoBehaviour
     /// </summary>
     public float GetCurrentMoneyHighMultiplier()
     {
+        if (CardsSuppressed) return 1;
+        if (_cloneSnapshot) return 1 + _cloneMoneyHighBonus;
         // Prune-on-read guarantees correctness even if Update was skipped this frame.
         PruneExpiredMoneyHighStacks();
 

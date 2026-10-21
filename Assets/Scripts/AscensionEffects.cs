@@ -67,9 +67,14 @@ public class AscensionEffects : MonoBehaviour
     }
     void OnDisable() { if (DeathRayVisual != null) DeathRayVisual.enabled = false; }
 
+    public void SuspendWalls(bool suspended)
+    {
+        foreach (var wall in _walls) if (wall != null) wall.gameObject.SetActive(!suspended);
+    }
+
     public void DropHealingOrb(Vector3 position)
     {
-        if (HealingOrbPrefab != null) Instantiate(HealingOrbPrefab, position, Quaternion.identity);
+        if (HealingOrbPrefab != null) Instantiate(HealingOrbPrefab, position, Quaternion.identity).Source = GetComponent<PlayerStats>();
         else Debug.LogWarning("[Ascension] Assign HealingOrbPrefab on the player's AscensionEffects.");
     }
     public void SpawnWormhole(Vector3 position)
@@ -95,6 +100,7 @@ public class AscensionEffects : MonoBehaviour
     IEnumerator Eruption(Vector3 position, float radius, GameObject explosionVisual)
     {
         yield return new WaitForSeconds(VolcanoEruptionDelay);
+        if (_stats != null && _stats.CardsSuppressed) yield break;
         ObjectPooler.SpawnEffect(explosionVisual, position, Quaternion.identity, radius);
         EnemyBase.CopyActiveEnemies(_damageTargets);
         foreach (var enemy in _damageTargets)

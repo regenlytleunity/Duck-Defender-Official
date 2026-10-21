@@ -40,14 +40,18 @@ public class WorldCamera : MonoBehaviour
         transform.position = position;
     }
 
-    public bool TrySpawnPosition(GameObject prefab, out Vector3 position)
+    public bool TrySpawnPosition(GameObject prefab, out Vector3 position, bool elite = false)
     {
         position = Vector3.zero;
         var focus = LocalCoopSession.NearestAlive(transform.position);
         if (focus == null || _camera == null) return false;
         float margin = 1.5f;
         var sprite = prefab.GetComponent<SpriteRenderer>();
-        if (sprite != null) margin = Mathf.Max(margin, sprite.bounds.extents.x * 1.2f + .5f);
+        var enemy = prefab.GetComponent<EnemyBase>();
+        float scale = elite && enemy != null ? enemy.EliteSizeMultiplier : 1;
+        Vector3 size = sprite != null && sprite.sprite != null ? Vector3.Scale(sprite.sprite.bounds.size, prefab.transform.localScale) * scale : Vector3.one;
+        size = new Vector3(Mathf.Abs(size.x), Mathf.Abs(size.y), 1);
+        margin = Mathf.Max(margin, size.x * .5f + .5f);
         float left = Left - SpawnPadding + margin, right = Right + SpawnPadding - margin;
         float viewportLeft = _camera.transform.position.x - _camera.orthographicSize * _camera.aspect - margin;
         float viewportRight = _camera.transform.position.x + _camera.orthographicSize * _camera.aspect + margin;
@@ -64,14 +68,23 @@ public class WorldCamera : MonoBehaviour
             int hits = Physics2D.Raycast(new Vector2(x, Floor + 2), Vector2.down, filter, _groundHits, 8);
             RaycastHit2D hit = default;
             for (int i = 0; i < hits; i++)
-                if (_groundHits[i].normal.y >= .5f && (PlayerWalls == null || System.Array.IndexOf(PlayerWalls, _groundHits[i].collider) < 0)) { hit = _groundHits[i]; break; }
+                if (_groundHits[i].normal.y >= .5f && !IsPlayerWall(_groundHits[i].collider)) { hit = _groundHits[i]; break; }
             if (hit.collider == null) continue;
-            float halfHeight = sprite != null ? Mathf.Max(.6f, sprite.bounds.extents.y * 1.2f) : .8f;
+            float halfHeight = Mathf.Max(.6f, size.y * .5f);
             position = new Vector3(x, hit.point.y + halfHeight + .15f, 0);
+            // A fixed edge location can otherwise stack bodies and launch them
+            // upward when the physics solver separates the overlap.
+            var bounds = new Bounds(position, new Vector3(Mathf.Max(1, size.x) + .3f, halfHeight * 2, 2));
+            bool occupied = false;
+            foreach (var other in EnemyBase.ActiveEnemies)
+                if (other != null && other.IsAlive && other.BodyCollider != null && bounds.Intersects(other.BodyCollider.bounds))
+                { occupied = true; break; }
+            if (occupied) continue;
             return true;
         }
         return false;
     }
+    public bool IsPlayerWall(Collider2D collider) => PlayerWalls != null && System.Array.IndexOf(PlayerWalls, collider) >= 0;
     public void AllowEnemyThroughPlayerWalls(GameObject enemy)
     {
         if (PlayerWalls == null) return;

@@ -53,6 +53,11 @@ public class ControllerMenuNavigation : MonoBehaviour
         return next;
     }
     float _nextMove;
+    UnityEngine.UI.Slider _editingSlider;
+    bool _waitForNeutral;
+    Transform _lastFocusScope;
+    Vector3 _lastFocusPosition;
+    bool _hasLastFocus;
     UnityEngine.InputSystem.UI.InputSystemUIInputModule _module;
     InputActionReference _originalMove, _originalSubmit, _originalCancel;
     InputActionReference _moveReference, _submitReference, _cancelReference;
@@ -75,33 +80,76 @@ public class ControllerMenuNavigation : MonoBehaviour
     }
     void Update()
     {
-        if (Gamepad.all.Count == 0 || EventSystem.current == null) return;
+        if (Gamepad.all.Count == 0 || EventSystem.current == null) { _editingSlider = null; return; }
         if (CoopLobbyUI.Instance != null && CoopLobbyUI.Instance.IsOpen) return;
         var menu = MainMenuUI.Instance;
         if (menu != null && menu.SettingsPanel.activeInHierarchy && menu.SettingsPanel.GetComponent<SettingsMenuUI>().CapturingInput) return;
         if (LocalCoopSession.Multiplayer && LevelUpUI.Instance != null && LevelUpUI.Instance.IsOffering) return;
-        var pad = Gamepad.all[0]; var events = EventSystem.current;
+        Gamepad pad = null;
+        foreach (var device in Gamepad.all) if (device.enabled) { pad = device; break; }
+        if (pad == null) return;
+        if (menu != null && menu.HandlePackControllerInput(pad)) return;
+        var events = EventSystem.current;
         var scope = menu != null ? menu.NavigationScope.transform : null;
         var selected = events.currentSelectedGameObject != null ? events.currentSelectedGameObject.GetComponent<UnityEngine.UI.Selectable>() : null;
         if (selected == null || !selected.IsActive() || !selected.IsInteractable() || scope != null && !selected.transform.IsChildOf(scope))
         {
             selected = null;
+            float nearest = float.PositiveInfinity;
             foreach (var item in UnityEngine.UI.Selectable.allSelectablesArray)
-                if (item.IsActive() && item.IsInteractable() && item.navigation.mode != UnityEngine.UI.Navigation.Mode.None && (scope == null || item.transform.IsChildOf(scope))) { selected = item; break; }
+                if (item.IsActive() && item.IsInteractable() && item.navigation.mode != UnityEngine.UI.Navigation.Mode.None && (scope == null || item.transform.IsChildOf(scope)))
+                {
+                    if (!_hasLastFocus || _lastFocusScope != scope) { selected = item; break; }
+                    float distance = (item.transform.position - _lastFocusPosition).sqrMagnitude;
+                    if (distance < nearest) { nearest = distance; selected = item; }
+                }
             if (selected != null) events.SetSelectedGameObject(selected.gameObject);
         }
         Vector2 direction = ControllerBindings.MenuMove(pad);
+        if (_editingSlider != null && (_editingSlider != selected || !_editingSlider.IsInteractable())) _editingSlider = null;
+        if (_editingSlider != null)
+        {
+            if (ControllerBindings.Pressed(pad, "Confirm") || ControllerBindings.Pressed(pad, "Back"))
+            { _editingSlider = null; _waitForNeutral = true; return; }
+            float axis = pad.leftStick.ReadValue().x;
+            if (Mathf.Abs(axis) > .2f)
+                _editingSlider.value += Mathf.Sign(axis) * ((Mathf.Abs(axis) - .2f) / .8f) *
+                    (_editingSlider.maxValue - _editingSlider.minValue) * .6f * Time.unscaledDeltaTime;
+            return;
+        }
+        if (_waitForNeutral)
+        {
+            if (direction.sqrMagnitude < .2f) _waitForNeutral = false;
+            else direction = Vector2.zero;
+        }
         if (direction.sqrMagnitude < .2f) _nextMove = 0;
         else if (Time.unscaledTime >= _nextMove && selected != null)
         {
             _nextMove = Time.unscaledTime + .22f;
             var data = new AxisEventData(events) { moveVector = direction,
                 moveDir = Mathf.Abs(direction.x) > Mathf.Abs(direction.y) ? direction.x > 0 ? MoveDirection.Right : MoveDirection.Left : direction.y > 0 ? MoveDirection.Up : MoveDirection.Down };
-            ExecuteEvents.Execute(selected.gameObject, data, ExecuteEvents.moveHandler);
+            if (selected is UnityEngine.UI.Slider)
+            {
+                var next = data.moveDir == MoveDirection.Left ? selected.FindSelectableOnLeft() :
+                    data.moveDir == MoveDirection.Right ? selected.FindSelectableOnRight() :
+                    data.moveDir == MoveDirection.Up ? selected.FindSelectableOnUp() : selected.FindSelectableOnDown();
+                if (next != null) events.SetSelectedGameObject(next.gameObject);
+            }
+            else ExecuteEvents.Execute(selected.gameObject, data, ExecuteEvents.moveHandler);
             selected = events.currentSelectedGameObject != null ? events.currentSelectedGameObject.GetComponent<UnityEngine.UI.Selectable>() : null;
             if (scope != null && selected != null && !selected.transform.IsChildOf(scope)) { MainMenuUI.FocusFirstControl(scope.gameObject); selected = events.currentSelectedGameObject?.GetComponent<UnityEngine.UI.Selectable>(); }
         }
-        if (selected != null && ControllerBindings.Pressed(pad, "Confirm")) ExecuteEvents.Execute(selected.gameObject, new BaseEventData(events), ExecuteEvents.submitHandler);
+        if (selected != null)
+        {
+            // Capture before submission: a purchase can disable or replace its
+            // button synchronously, clearing EventSystem selection.
+            _lastFocusScope = scope; _lastFocusPosition = selected.transform.position; _hasLastFocus = true;
+            if (ControllerBindings.Pressed(pad, "Confirm"))
+            {
+                if (selected is UnityEngine.UI.Slider slider) { _editingSlider = slider; return; }
+                ExecuteEvents.Execute(selected.gameObject, new BaseEventData(events), ExecuteEvents.submitHandler);
+            }
+        }
         if (ControllerBindings.Pressed(pad, "Back") && menu != null) menu.BackToMainMenu();
     }
     void LateUpdate()
@@ -113,9 +161,9 @@ public class ControllerMenuNavigation : MonoBehaviour
         if (Gamepad.all.Count == 0 || separateCards || CoopLobbyUI.Instance != null && CoopLobbyUI.Instance.IsOpen || selected == null || !selected.IsActive() || !selected.IsInteractable())
         { _selectionFrame?.Hide(); return; }
         if (_selectionFrame == null) _selectionFrame = new ControllerSelectionFrame("Controller menu selection");
-        _selectionFrame.Show((RectTransform)selected.transform);
+        _selectionFrame.Show((RectTransform)selected.transform, _editingSlider != null ? new Color(.35f, 1, .55f) : (Color?)null);
     }
-    void OnDisable() { _selectionFrame?.Hide(); }
+    void OnDisable() { _selectionFrame?.Hide(); _editingSlider = null; }
     void OnDestroy()
     {
         _selectionFrame?.Dispose();

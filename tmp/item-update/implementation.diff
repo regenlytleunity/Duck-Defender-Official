@@ -1,0 +1,2063 @@
+--- before/Assets\Scripts\AscendedCardTint.cs
++++ after/Assets\Scripts\AscendedCardTint.cs
+@@ -0,0 +1,23 @@
++using UnityEngine;
++
++// A slow chromatic sheen on card backgrounds. Glyph faces retain their authored white.
++public class AscendedCardTint : MonoBehaviour
++{
++    UnityEngine.UI.Image _image;
++    Color _baseColor;
++    public static void Apply(UnityEngine.UI.Image image, bool ascended)
++    {
++        if (image == null) return;
++        var tint = image.GetComponent<AscendedCardTint>();
++        if (tint == null && ascended) tint = image.gameObject.AddComponent<AscendedCardTint>();
++        if (tint == null) return;
++        tint._image = image; tint._baseColor = image.color; tint.enabled = ascended;
++    }
++    void Update()
++    {
++        if (_image == null) return;
++        Color sheen = Color.HSVToRGB(Mathf.Repeat(Time.unscaledTime / 12, 1), .38f, .92f);
++        Color color = Color.Lerp(_baseColor, sheen, .55f); color.a = _baseColor.a;
++        _image.color = color;
++    }
++}
+--- before/Assets\Scripts\AscensionArea.cs
++++ after/Assets\Scripts\AscensionArea.cs
+@@ -73,6 +73,12 @@
+         if (dt <= 0) return;
+         if (_rotatingVisual != null) _rotatingVisual.Rotate(0, 0, 20 * dt);
+         _remaining -= dt;
++        if (_owner != null && _owner.CardsSuppressed)
++        {
++            _tick = 0;
++            if (_remaining <= 0) Destroy(gameObject);
++            return;
++        }
+         _tick += dt;
+         if (_tick >= .1f || _remaining <= 0)
+         {
+--- before/Assets\Scripts\AscensionEffects.cs
++++ after/Assets\Scripts\AscensionEffects.cs
+@@ -67,9 +67,14 @@
+     }
+     void OnDisable() { if (DeathRayVisual != null) DeathRayVisual.enabled = false; }
+ 
++    public void SuspendWalls(bool suspended)
++    {
++        foreach (var wall in _walls) if (wall != null) wall.gameObject.SetActive(!suspended);
++    }
++
+     public void DropHealingOrb(Vector3 position)
+     {
+-        if (HealingOrbPrefab != null) Instantiate(HealingOrbPrefab, position, Quaternion.identity);
++        if (HealingOrbPrefab != null) Instantiate(HealingOrbPrefab, position, Quaternion.identity).Source = GetComponent<PlayerStats>();
+         else Debug.LogWarning("[Ascension] Assign HealingOrbPrefab on the player's AscensionEffects.");
+     }
+     public void SpawnWormhole(Vector3 position)
+@@ -95,6 +100,7 @@
+     IEnumerator Eruption(Vector3 position, float radius, GameObject explosionVisual)
+     {
+         yield return new WaitForSeconds(VolcanoEruptionDelay);
++        if (_stats != null && _stats.CardsSuppressed) yield break;
+         ObjectPooler.SpawnEffect(explosionVisual, position, Quaternion.identity, radius);
+         EnemyBase.CopyActiveEnemies(_damageTargets);
+         foreach (var enemy in _damageTargets)
+--- before/Assets\Scripts\CardDisplay.cs
++++ after/Assets\Scripts\CardDisplay.cs
+@@ -212,6 +212,7 @@
+ 
+         bool locked = !card.IsBasic && ShopManager.Instance != null && ShopManager.Instance.GetCardData(card.ID)?.IsUnlocked != true;
+         SetLockedState(locked);
++        AscendedCardTint.Apply(BackgroundImage, ascended && !locked && !(_hostFilter && LocalCoopSession.DisabledCards.Contains(card.ID)));
+         if (_indexContext) ConfigureIndexNavigation();
+         if (_hideShopControls) HideShopControls();
+         if (restoreFocus)
+--- before/Assets\Scripts\CardManager.cs
++++ after/Assets\Scripts\CardManager.cs
+@@ -229,6 +229,17 @@
+         var localPlayer = TargetStats != null ? TargetStats.GetComponent<LocalPlayer>() : null;
+         if (localPlayer != null) localPlayer.CardsPicked++;
+         bool ascended = IsAscended(card.ID) && card.Ascension != CardAscension.None;
++        var target = TargetStats;
++        if (target != null && target.Items != null && target.Items.DivineActive)
++        {
++            target.Items.DeferCard(() => ForPlayer(target, () => { ApplyCardModifiers(card, shopLevel, ascended); return true; }));
++            return;
++        }
++        ApplyCardModifiers(card, shopLevel, ascended);
++    }
++
++    void ApplyCardModifiers(CardDefinition card, int shopLevel, bool ascended)
++    {
+         if (ascended && TargetStats != null)
+             TargetStats.ActivateAscension(card.Ascension);
+         if (ascended && !card.AscensionRetainsBase) return;
+--- before/Assets\Scripts\ControllerBindings.cs
++++ after/Assets\Scripts\ControllerBindings.cs
+@@ -5,16 +5,23 @@
+ // Saved controller mappings used by the existing input and menu owners.
+ public static class ControllerBindings
+ {
+-    public static readonly string[] Actions = { "Jump", "Dash", "Shoot", "Confirm", "Back" };
+-    public static readonly string[] Defaults = { "MoveUp", "leftShoulder", "rightTrigger", "buttonEast", "buttonSouth" };
++    public static readonly string[] Actions = { "Jump", "Dash", "Shoot", "Confirm", "Back", "UseItem", "Item1", "Item2", "Item3", "Item4" };
++    public static readonly string[] ActionNames = { "Jump / fly up", "Dash / blink", "Shoot", "Interact", "Back", "Use item", "Item slot 1", "Item slot 2", "Item slot 3", "Item slot 4" };
++    public static readonly string[] Defaults = { "MoveUp", "leftShoulder", "rightTrigger", "buttonEast", "buttonSouth", "rightShoulder", "dpad/up", "dpad/right", "dpad/down", "dpad/left" };
+     public static readonly string[] Controls = { "buttonSouth", "buttonEast", "buttonWest", "buttonNorth", "leftShoulder", "rightShoulder", "leftTrigger", "rightTrigger", "leftStickPress", "rightStickPress", "start", "select", "dpad/up", "dpad/down", "dpad/left", "dpad/right" };
+     public const string Prefix = "DuckDefender_Controller_";
+     public static string Get(string action)
+     {
++        if (!PlayerPrefs.HasKey(Prefix + "ItemBindingsVersion"))
++        {
++            // Migrate the former reserved controls once; subsequent choices are freely remappable.
++            for (int i = 0; i < 3; i++)
++                if (ReservedForItems(PlayerPrefs.GetString(Prefix + Actions[i], Defaults[i]))) PlayerPrefs.DeleteKey(Prefix + Actions[i]);
++            PlayerPrefs.SetInt(Prefix + "ItemBindingsVersion", 1); PlayerPrefs.Save();
++        }
+         int index = System.Array.IndexOf(Actions, action);
+         string control = PlayerPrefs.GetString(Prefix + action, index >= 0 ? Defaults[index] : "");
+-        // Preserve saved preferences, but resolve old gameplay mappings that now belong to items.
+-        return index >= 0 && index < 3 && ReservedForItems(control) ? Defaults[index] : control;
++        return index >= 0 && System.Array.IndexOf(Controls, control) < 0 && !(action == "Jump" && control == "MoveUp") ? Defaults[index] : control;
+     }
+     static bool ReservedForItems(string control) => control == "rightShoulder" || control.StartsWith("dpad/");
+     public static string Label(string action) => ControlLabel(Get(action));
+@@ -52,13 +59,12 @@
+         int index = System.Array.IndexOf(Actions, action);
+         if (index < 0 || System.Array.IndexOf(Controls, control) < 0 && !(action == "Jump" && control == "MoveUp"))
+         { error = "Unsupported controller binding."; return false; }
+-        if (index < 3 && ReservedForItems(control))
+-        { error = "RB and D-pad are reserved for items."; return false; }
+         for (int i = 0; i < Actions.Length; i++)
+-            if (i != index && (i < 3) == (index < 3) && Get(Actions[i]) == control)
++            if (i != index && IsMenuAction(Actions[i]) == IsMenuAction(action) && Get(Actions[i]) == control)
+             { error = ControlLabel(control) + " is already used by " + Actions[i] + "."; return false; }
+         PlayerPrefs.SetString(Prefix + action, control); PlayerPrefs.Save(); error = ""; return true;
+     }
++    static bool IsMenuAction(string action) => action == "Confirm" || action == "Back";
+     public static void Reset()
+     {
+         foreach (var action in Actions) PlayerPrefs.DeleteKey(Prefix + action);
+--- before/Assets\Scripts\ControllerBindingsUI.cs
++++ after/Assets\Scripts\ControllerBindingsUI.cs
+@@ -26,15 +26,35 @@
+         _keyboard = CoopUIElements.Panel(panel, "Keyboard bindings", Vector2.zero, Vector2.one, Color.clear).gameObject;
+         _keyboard.GetComponent<UnityEngine.UI.Image>().raycastTarget = false;
+         foreach (var child in children) child.SetParent(_keyboard.transform, true);
++        // Retain the authored controls; add the five item actions and fit both columns.
++        System.Array.Resize(ref settings.KeybindLabels, SettingsMenuUI.BindingActions.Length);
++        for (int i = 0; i < SettingsMenuUI.BindingActions.Length; i++)
++        {
++            int action = i, column = i / 8, row = i % 8;
++            float left = .04f + column * .48f, bottom = .735f - row * .078f;
++            var label = _keyboard.transform.Find("Action" + i) as RectTransform;
++            if (label == null) label = CoopUIElements.Text(_keyboard.transform, SettingsMenuUI.BindingNames[i], Vector2.zero, Vector2.one, 25).rectTransform;
++            label.name = "Action" + i;
++            CoopUIElements.Stretch(label, new Vector2(left, bottom), new Vector2(left + .27f, bottom + .065f));
++            var binding = _keyboard.transform.Find("Bind" + i) as RectTransform;
++            if (binding == null)
++                binding = (RectTransform)CoopUIElements.Button(_keyboard.transform, "", Vector2.zero, Vector2.one, () => settings.BeginBinding(action)).transform;
++            binding.name = "Bind" + i;
++            CoopUIElements.Stretch(binding, new Vector2(left + .275f, bottom), new Vector2(left + .445f, bottom + .065f));
++            settings.KeybindLabels[i] = binding.GetComponentInChildren<TextMeshProUGUI>();
++            settings.KeybindLabels[i].fontSizeMin = 16; settings.KeybindLabels[i].fontSizeMax = 26;
++        }
++        var restore = _keyboard.transform.Find("RestoreDefaults") as RectTransform;
++        if (restore != null) CoopUIElements.Stretch(restore, new Vector2(.60f, .16f), new Vector2(.94f, .22f));
+         _controller = CoopUIElements.Panel(panel, "Controller bindings", new Vector2(.04f, .17f), new Vector2(.96f, .81f), new Color(.1f, .15f, .22f)).gameObject;
+         var sticks = CoopUIElements.Button(_controller.transform, "", new Vector2(.04f, .83f), new Vector2(.96f, .98f), () => { ControllerBindings.SwapSticks(); Refresh(); });
+         _sticks = sticks.GetComponentInChildren<TMP_Text>();
+         for (int i = 0; i < _labels.Length; i++)
+         {
+             int action = i;
+-            float y = .67f - i * .125f;
+-            CoopUIElements.Text(_controller.transform, ControllerBindings.Actions[i], new Vector2(.03f, y), new Vector2(.36f, y + .105f), 30);
+-            _labels[i] = CoopUIElements.Button(_controller.transform, "", new Vector2(.39f, y), new Vector2(.96f, y + .105f), () => Begin(action)).GetComponentInChildren<TMP_Text>();
++            float y = .67f - i % 5 * .125f, x = i / 5 * .5f;
++            CoopUIElements.Text(_controller.transform, ControllerBindings.ActionNames[i], new Vector2(x + .015f, y), new Vector2(x + .225f, y + .105f), 26);
++            _labels[i] = CoopUIElements.Button(_controller.transform, "", new Vector2(x + .23f, y), new Vector2(x + .485f, y + .105f), () => Begin(action)).GetComponentInChildren<TMP_Text>();
+         }
+         CoopUIElements.Button(_controller.transform, "Restore controller defaults", new Vector2(.16f, .015f), new Vector2(.84f, .12f), () => { ControllerBindings.Reset(); Refresh(); });
+         CoopUIElements.Button(panel, "Keyboard", new Vector2(.30f, .82f), new Vector2(.49f, .875f), () => Show(false));
+@@ -54,7 +74,8 @@
+         if (Gamepad.all.Count == 0) { _settings.KeybindStatus.text = "Connect a controller first."; return; }
+         _capture = index; _captureAfter = Time.unscaledTime + .35f; _captureExpires = Time.unscaledTime + 15;
+         _settings.KeyCapturePanel.SetActive(true); _settings.KeyCapturePanel.transform.SetAsLastSibling();
+-        _settings.KeyCaptureText.text = "Bind " + ControllerBindings.Actions[index] + "\nPress a controller button\nStart or Escape cancels";
++        _settings.KeyCaptureText.text = "Bind " + ControllerBindings.ActionNames[index] + "\nPress a controller button" +
++            (ControllerBindings.Actions[index] == "Jump" ? " or push the move stick up" : "") + "\nEscape cancels (15 second timeout)";
+         CoopUIElements.WhiteInfill(_settings.KeyCaptureText);
+         UnityEngine.EventSystems.EventSystem.current?.SetSelectedGameObject(null);
+         _settings.RefreshModalInput();
+@@ -63,16 +84,22 @@
+     {
+         if (!Capturing || Time.unscaledTime < _captureAfter) return;
+         var pad = Gamepad.all.Count > 0 ? Gamepad.all[0] : null;
+-        if (pad == null || Input.GetKeyDown(KeyCode.Escape) || pad.startButton.wasPressedThisFrame || Time.unscaledTime > _captureExpires) { Cancel(); return; }
++        if (pad == null || Input.GetKeyDown(KeyCode.Escape) || Time.unscaledTime > _captureExpires) { Cancel(); return; }
++        if (ControllerBindings.Actions[_capture] == "Jump" && ControllerBindings.Move(pad).y > .7f)
++        { Assign("MoveUp"); return; }
+         foreach (string control in ControllerBindings.Controls)
+         {
+             if (pad.TryGetChildControl<ButtonControl>(control)?.wasPressedThisFrame != true) continue;
+-            string action = ControllerBindings.Actions[_capture];
+-            bool saved = ControllerBindings.TrySet(action, control, out string error);
+-            Cancel(); Refresh();
+-            _settings.KeybindStatus.text = saved ? action + " saved." : error;
++            Assign(control);
+             break;
+         }
++    }
++    void Assign(string control)
++    {
++        string action = ControllerBindings.Actions[_capture];
++        bool saved = ControllerBindings.TrySet(action, control, out string error);
++        Cancel(); Refresh();
++        _settings.KeybindStatus.text = saved ? action + " saved." : error;
+     }
+     public void Cancel()
+     {
+--- before/Assets\Scripts\ControllerMenuNavigation.cs
++++ after/Assets\Scripts\ControllerMenuNavigation.cs
+@@ -53,6 +53,8 @@
+         return next;
+     }
+     float _nextMove;
++    UnityEngine.UI.Slider _editingSlider;
++    bool _waitForNeutral;
+     Transform _lastFocusScope;
+     Vector3 _lastFocusPosition;
+     bool _hasLastFocus;
+@@ -78,7 +80,7 @@
+     }
+     void Update()
+     {
+-        if (Gamepad.all.Count == 0 || EventSystem.current == null) return;
++        if (Gamepad.all.Count == 0 || EventSystem.current == null) { _editingSlider = null; return; }
+         if (CoopLobbyUI.Instance != null && CoopLobbyUI.Instance.IsOpen) return;
+         var menu = MainMenuUI.Instance;
+         if (menu != null && menu.SettingsPanel.activeInHierarchy && menu.SettingsPanel.GetComponent<SettingsMenuUI>().CapturingInput) return;
+@@ -104,13 +106,36 @@
+             if (selected != null) events.SetSelectedGameObject(selected.gameObject);
+         }
+         Vector2 direction = ControllerBindings.MenuMove(pad);
++        if (_editingSlider != null && (_editingSlider != selected || !_editingSlider.IsInteractable())) _editingSlider = null;
++        if (_editingSlider != null)
++        {
++            if (ControllerBindings.Pressed(pad, "Confirm") || ControllerBindings.Pressed(pad, "Back"))
++            { _editingSlider = null; _waitForNeutral = true; return; }
++            float axis = pad.leftStick.ReadValue().x;
++            if (Mathf.Abs(axis) > .2f)
++                _editingSlider.value += Mathf.Sign(axis) * ((Mathf.Abs(axis) - .2f) / .8f) *
++                    (_editingSlider.maxValue - _editingSlider.minValue) * .6f * Time.unscaledDeltaTime;
++            return;
++        }
++        if (_waitForNeutral)
++        {
++            if (direction.sqrMagnitude < .2f) _waitForNeutral = false;
++            else direction = Vector2.zero;
++        }
+         if (direction.sqrMagnitude < .2f) _nextMove = 0;
+         else if (Time.unscaledTime >= _nextMove && selected != null)
+         {
+             _nextMove = Time.unscaledTime + .22f;
+             var data = new AxisEventData(events) { moveVector = direction,
+                 moveDir = Mathf.Abs(direction.x) > Mathf.Abs(direction.y) ? direction.x > 0 ? MoveDirection.Right : MoveDirection.Left : direction.y > 0 ? MoveDirection.Up : MoveDirection.Down };
+-            ExecuteEvents.Execute(selected.gameObject, data, ExecuteEvents.moveHandler);
++            if (selected is UnityEngine.UI.Slider)
++            {
++                var next = data.moveDir == MoveDirection.Left ? selected.FindSelectableOnLeft() :
++                    data.moveDir == MoveDirection.Right ? selected.FindSelectableOnRight() :
++                    data.moveDir == MoveDirection.Up ? selected.FindSelectableOnUp() : selected.FindSelectableOnDown();
++                if (next != null) events.SetSelectedGameObject(next.gameObject);
++            }
++            else ExecuteEvents.Execute(selected.gameObject, data, ExecuteEvents.moveHandler);
+             selected = events.currentSelectedGameObject != null ? events.currentSelectedGameObject.GetComponent<UnityEngine.UI.Selectable>() : null;
+             if (scope != null && selected != null && !selected.transform.IsChildOf(scope)) { MainMenuUI.FocusFirstControl(scope.gameObject); selected = events.currentSelectedGameObject?.GetComponent<UnityEngine.UI.Selectable>(); }
+         }
+@@ -119,7 +144,11 @@
+             // Capture before submission: a purchase can disable or replace its
+             // button synchronously, clearing EventSystem selection.
+             _lastFocusScope = scope; _lastFocusPosition = selected.transform.position; _hasLastFocus = true;
+-            if (ControllerBindings.Pressed(pad, "Confirm")) ExecuteEvents.Execute(selected.gameObject, new BaseEventData(events), ExecuteEvents.submitHandler);
++            if (ControllerBindings.Pressed(pad, "Confirm"))
++            {
++                if (selected is UnityEngine.UI.Slider slider) { _editingSlider = slider; return; }
++                ExecuteEvents.Execute(selected.gameObject, new BaseEventData(events), ExecuteEvents.submitHandler);
++            }
+         }
+         if (ControllerBindings.Pressed(pad, "Back") && menu != null) menu.BackToMainMenu();
+     }
+@@ -132,9 +161,9 @@
+         if (Gamepad.all.Count == 0 || separateCards || CoopLobbyUI.Instance != null && CoopLobbyUI.Instance.IsOpen || selected == null || !selected.IsActive() || !selected.IsInteractable())
+         { _selectionFrame?.Hide(); return; }
+         if (_selectionFrame == null) _selectionFrame = new ControllerSelectionFrame("Controller menu selection");
+-        _selectionFrame.Show((RectTransform)selected.transform);
+-    }
+-    void OnDisable() { _selectionFrame?.Hide(); }
++        _selectionFrame.Show((RectTransform)selected.transform, _editingSlider != null ? new Color(.35f, 1, .55f) : (Color?)null);
++    }
++    void OnDisable() { _selectionFrame?.Hide(); _editingSlider = null; }
+     void OnDestroy()
+     {
+         _selectionFrame?.Dispose();
+--- before/Assets\Scripts\CoopLobbyUI.cs
++++ after/Assets\Scripts\CoopLobbyUI.cs
+@@ -27,10 +27,17 @@
+     readonly ControllerSelectionFrame[] _frames = new ControllerSelectionFrame[4];
+     float _inputAfter, _launchAt;
+     bool _navigationEvents;
++    ShopManager _subscribedShop;
+ 
+     public void Open(HostMenuUI host)
+     {
+         Instance = this; _host = host; _launchAt = 0; _inputAfter = Time.unscaledTime + .35f;
++        if (_subscribedShop != ShopManager.Instance)
++        {
++            if (_subscribedShop != null) _subscribedShop.OnCollectionChanged -= RefreshItemAvailability;
++            _subscribedShop = ShopManager.Instance;
++            if (_subscribedShop != null) _subscribedShop.OnCollectionChanged += RefreshItemAvailability;
++        }
+         if (_root != null) Destroy(_root.gameObject);
+         _root = CoopUIElements.Panel(transform, "Player customization", Vector2.zero, Vector2.one, new Color(.025f, .04f, .07f));
+         if (EventSystem.current != null) { _navigationEvents = EventSystem.current.sendNavigationEvents; EventSystem.current.sendNavigationEvents = false; EventSystem.current.SetSelectedGameObject(null); }
+@@ -212,8 +219,14 @@
+         foreach (var frame in _frames) frame?.Hide();
+         if (EventSystem.current != null) EventSystem.current.sendNavigationEvents = _navigationEvents;
+     }
++    void RefreshItemAvailability()
++    {
++        // Update labels in place so another player's open menu and focus survive.
++        foreach (var panel in _loadouts) panel?.RefreshItemAvailability();
++    }
+     void OnDestroy()
+     {
++        if (_subscribedShop != null) _subscribedShop.OnCollectionChanged -= RefreshItemAvailability;
+         if (IsOpen) Close();
+         foreach (var frame in _frames) frame?.Dispose();
+         foreach (var material in _previewMaterials) if (material != null) Destroy(material);
+--- before/Assets\Scripts\Editor\ShopUpdateVerification.cs
++++ after/Assets\Scripts\Editor\ShopUpdateVerification.cs
+@@ -69,7 +69,7 @@
+         data.StartingCardSlots = 5; data.PackOpeningTier = 2; data.CompletedRuns = 2;
+         data.PermanentUpgrades = new[] { 50, 50, 50, 50, 50 };
+         data.CardCollection = shop.AllCards.Where(c => c != null && !c.IsBasic).Select(c => new CardSaveData(c.ID) { Level = 1 }).ToList();
+-        for (int i = 1; i <= 8; i++) data.ItemInventory[i] = 10;
++        for (int i = 1; i <= ItemCatalog.Count; i++) data.ItemInventory[i] = 10;
+         data.SoloLoadout.Items = new[] { 1, 2, 3, 4 }; data.SoloLoadout.Cards[0] = "mun_faster_firing";
+         SaveSystem.SaveData(data, true); shop.LoadEconomy(); shop.RefreshItemShop(); MainMenuUI.Instance.GetComponent<ShopUpdateUI>().Refresh();
+         MainMenuUI.Instance.IndexPanel.GetComponent<IndexLoadoutUI>().Refresh();
+--- before/Assets\Scripts\Editor\UIUpdateSetup.cs
++++ after/Assets\Scripts\Editor\UIUpdateSetup.cs
+@@ -394,14 +394,15 @@
+         Label(panel.transform,"Title","KEYBINDS",48,.3f,.88f,.7f,.98f);
+         Button(panel.transform,"BackButton","BACK",.035f,.87f,.20f,.95f,settings.CloseKeybinds);
+         settings.KeybindLabels=new TextMeshProUGUI[SettingsMenuUI.BindingActions.Length];
++        int rows=Mathf.CeilToInt(SettingsMenuUI.BindingActions.Length/2f);
+         for(int i=0;i<SettingsMenuUI.BindingActions.Length;i++)
+         {
+-            int col=i<6?0:1;int row=i<6?i:i-6;float x=.065f+col*.49f;float y=.74f-row*.095f;
+-            Label(panel.transform,"Action"+i,SettingsMenuUI.BindingNames[i],30,x,y,x+.27f,y+.075f);
+-            var button=Button(panel.transform,"Bind"+i,"KEY",x+.28f,y,x+.43f,y+.075f);
++            int col=i/rows;int row=i%rows;float x=.065f+col*.49f;float y=.77f-row*.075f;
++            Label(panel.transform,"Action"+i,SettingsMenuUI.BindingNames[i],30,x,y,x+.27f,y+.06f);
++            var button=Button(panel.transform,"Bind"+i,"KEY",x+.28f,y,x+.43f,y+.06f);
+             IntAction(button,settings.BeginBinding,i);settings.KeybindLabels[i]=button.GetComponentInChildren<TextMeshProUGUI>();
+         }
+-        Button(panel.transform,"RestoreDefaults","RESTORE DEFAULTS",.60f,.23f,.91f,.32f,settings.RestoreKeybinds);
++        Button(panel.transform,"RestoreDefaults","RESTORE DEFAULTS",.60f,.16f,.91f,.22f,settings.RestoreKeybinds);
+         settings.KeybindStatus=Label(panel.transform,"Status","Select a control to change it. Escape cancels binding.",26,.05f,.06f,.95f,.14f);
+         var capture=Panel(panel.transform,"KeyCapture",new Color(.06f,.10f,.16f,.98f));settings.KeyCapturePanel=capture.gameObject;ModalGroup(capture.gameObject);
+         settings.KeyCaptureText=Label(capture.transform,"Prompt","Press a key or mouse button\nEscape to cancel",46,.1f,.3f,.9f,.7f);settings.KeyCaptureText.color=Color.white;
+--- before/Assets\Scripts\Editor\UIUpdateVerification.cs
++++ after/Assets\Scripts\Editor\UIUpdateVerification.cs
+@@ -43,6 +43,7 @@
+         if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().isDirty) throw new InvalidOperationException("Save scene changes first.");
+         string[] floats={"DuckDefender_MasterVolume","DuckDefender_SFXVolume","DuckDefender_MusicVolume",WorldCamera.ZoomPreference};
+         string[] ints={GameDifficulty.PreferenceKey,ParticleVisibility.PreferenceKey,"Key_MoveLeft","Key_MoveRight","Key_Jump","Key_Crouch","Key_Dash","Key_Shoot","Key_Pause","Key_MoveLeftAlt","Key_MoveRightAlt","Key_JumpAlt","Key_CrouchAlt"};
++        ints = ints.Concat(new[] { "Key_UseItem", "Key_Item1", "Key_Item2", "Key_Item3", "Key_Item4", "Key_ItemBindingsVersion", ControllerBindings.Prefix + "ItemBindingsVersion" }).ToArray();
+         var strings=ControllerBindings.Actions.Select(a=>ControllerBindings.Prefix+a).ToArray();
+         var entries=floats.Concat(ints).Concat(new[]{ControllerBindings.Prefix+"RightMoveStick"}).Concat(strings).Select(k=>new Entry{key=k,exists=PlayerPrefs.HasKey(k),floating=floats.Contains(k),isString=strings.Contains(k),text=PlayerPrefs.GetString(k),integer=PlayerPrefs.GetInt(k),number=PlayerPrefs.GetFloat(k)}).ToArray();
+         SessionState.SetString(SnapshotKey,JsonUtility.ToJson(new PreferenceSnapshot{entries=entries}));
+--- before/Assets\Scripts\EnemyBase.cs
++++ after/Assets\Scripts\EnemyBase.cs
+@@ -58,7 +58,15 @@
+     {
+         bool previous = _itemDamage;
+         _itemDamage = true;
+-        try { if (instantDefeat) Defeat(owner); else TakeFractionalDamage(damage, owner); }
++        try { if (instantDefeat) Defeat(owner); else { DamageOwner = owner; ReceiveDamage(Mathf.Max(0, damage)); } }
++        finally { _itemDamage = previous; }
++    }
++
++    public void ApplyItemStun(float seconds)
++    {
++        bool previous = _itemDamage;
++        _itemDamage = true;
++        try { ApplyFreeze(seconds); }
+         finally { _itemDamage = previous; }
+     }
+ 
+@@ -289,6 +297,7 @@
+     public virtual void TakeDamage(int damage) { TakeDamage(damage, PlayerStats.Instance); }
+     public void TakeDamage(int damage, PlayerStats owner)
+     {
++        if (!_itemDamage && owner != null && owner.CardsSuppressed) return;
+         if (!CanTakeDamage || damage <= 0) return;
+         DamageOwner = owner;
+         ReceiveDamage(damage);
+--- before/Assets\Scripts\FireTrailPatch.cs
++++ after/Assets\Scripts\FireTrailPatch.cs
+@@ -194,6 +194,7 @@
+     /// </summary>
+     void TickDamage(float seconds)
+     {
++        if (OwnerStats != null && OwnerStats.CardsSuppressed) return;
+         EnemyBase.CopyActiveEnemies(_damageTargets);
+         foreach (var enemy in _damageTargets)
+         {
+--- before/Assets\Scripts\HealingOrb.cs
++++ after/Assets\Scripts\HealingOrb.cs
+@@ -3,6 +3,7 @@
+ [RequireComponent(typeof(CircleCollider2D), typeof(Rigidbody2D))]
+ public class HealingOrb : MonoBehaviour
+ {
++    [System.NonSerialized] public PlayerStats Source;
+     public float Lifetime = 20;
+     public float PickupRadius = .6f;
+     public float AttractionRadius = 4;
+@@ -53,7 +54,7 @@
+     }
+     void Collect()
+     {
+-        if (_health == null || _collected) return;
++        if (_health == null || _collected || Source != null && Source.CardsSuppressed) return;
+         _collected = true;
+         _health.Heal(Mathf.Max(1, Mathf.CeilToInt(_health.MaxHealth * .1f)));
+         Destroy(gameObject);
+--- before/Assets\Scripts\Inputhelper.cs
++++ after/Assets\Scripts\Inputhelper.cs
+@@ -92,22 +92,24 @@
+         if (player != null && player.UsesGamepad)
+         {
+             var pad = player.Controller; if (pad == null || !pad.added) return -1;
+-            return pad.dpad.up.wasPressedThisFrame ? 0 : pad.dpad.right.wasPressedThisFrame ? 1 : pad.dpad.down.wasPressedThisFrame ? 2 : pad.dpad.left.wasPressedThisFrame ? 3 : -1;
++            for (int i = 0; i < 4; i++) if (ControllerBindings.Pressed(pad, ItemActions[i])) return i;
++            return -1;
+         }
+         if (IsMobile) return -1;
+-        for (int i = 0; i < 4; i++) if (Input.GetKeyDown((KeyCode)((int)KeyCode.Alpha1 + i))) return i;
++        for (int i = 0; i < 4; i++) if (Input.GetKeyDown(InputManager.Instance != null ? InputManager.Instance.GetKeybind(ItemActions[i]) : (KeyCode)((int)KeyCode.Alpha1 + i))) return i;
+         return -1;
+     }
+     public static bool GetUseItemDown(Component owner)
+     {
+         var player = Player(owner);
+-        if (player != null && player.UsesGamepad) return player.Connected && player.Controller.rightShoulder.wasPressedThisFrame;
+-        return !IsMobile && Input.GetMouseButtonDown(1);
++        if (player != null && player.UsesGamepad) return player.Connected && ControllerBindings.Pressed(player.Controller, "UseItem");
++        return !IsMobile && Input.GetKeyDown(InputManager.Instance != null ? InputManager.Instance.UseItemKey : KeyCode.Mouse1);
+     }
+     public static bool GetUseItemHeld(Component owner)
+     {
+         var player = Player(owner);
+-        if (player != null && player.UsesGamepad) return player.Connected && player.Controller.rightShoulder.isPressed;
+-        return !IsMobile && Input.GetMouseButton(1);
++        if (player != null && player.UsesGamepad) return player.Connected && ControllerBindings.Held(player.Controller, "UseItem");
++        return !IsMobile && Input.GetKey(InputManager.Instance != null ? InputManager.Instance.UseItemKey : KeyCode.Mouse1);
+     }
++    public static readonly string[] ItemActions = { "Item1", "Item2", "Item3", "Item4" };
+ }
+--- before/Assets\Scripts\InputManager.cs
++++ after/Assets\Scripts\InputManager.cs
+@@ -23,6 +23,9 @@
+     [Header("Action Keys")]
+     public KeyCode DashKey = KeyCode.LeftShift;
+     public KeyCode ShootKey = KeyCode.Mouse0;
++    [Header("Item Keys")]
++    public KeyCode UseItemKey = KeyCode.Mouse1;
++    public KeyCode Item1Key = KeyCode.Alpha1, Item2Key = KeyCode.Alpha2, Item3Key = KeyCode.Alpha3, Item4Key = KeyCode.Alpha4;
+     
+     [Header("UI Keys")]
+     public KeyCode PauseKey = KeyCode.Escape;
+@@ -130,7 +133,6 @@
+ 
+     public void SetKeybind(string action, KeyCode newKey)
+     {
+-        if (ReservedForItems(newKey)) return;
+         switch (action.ToLower())
+         {
+             case "moveleft": MoveLeftKey = newKey; break;
+@@ -144,6 +146,11 @@
+             case "jumpalt": JumpAlt = newKey; break;
+             case "crouchalt": CrouchAlt = newKey; break;
+             case "pause": PauseKey = newKey; break;
++            case "useitem": UseItemKey = newKey; break;
++            case "item1": Item1Key = newKey; break;
++            case "item2": Item2Key = newKey; break;
++            case "item3": Item3Key = newKey; break;
++            case "item4": Item4Key = newKey; break;
+         }
+         SaveKeybinds();
+     }
+@@ -163,6 +170,11 @@
+             case "jumpalt": return JumpAlt;
+             case "crouchalt": return CrouchAlt;
+             case "pause": return PauseKey;
++            case "useitem": return UseItemKey;
++            case "item1": return Item1Key;
++            case "item2": return Item2Key;
++            case "item3": return Item3Key;
++            case "item4": return Item4Key;
+             default: return KeyCode.None;
+         }
+     }
+@@ -180,6 +192,10 @@
+         PlayerPrefs.SetInt("Key_JumpAlt", (int)JumpAlt);
+         PlayerPrefs.SetInt("Key_CrouchAlt", (int)CrouchAlt);
+         PlayerPrefs.SetInt("Key_Pause", (int)PauseKey);
++        PlayerPrefs.SetInt("Key_UseItem", (int)UseItemKey);
++        PlayerPrefs.SetInt("Key_Item1", (int)Item1Key); PlayerPrefs.SetInt("Key_Item2", (int)Item2Key);
++        PlayerPrefs.SetInt("Key_Item3", (int)Item3Key); PlayerPrefs.SetInt("Key_Item4", (int)Item4Key);
++        PlayerPrefs.SetInt("Key_ItemBindingsVersion", 1);
+         PlayerPrefs.Save();
+     }
+ 
+@@ -207,7 +223,13 @@
+             CrouchAlt = (KeyCode)PlayerPrefs.GetInt("Key_CrouchAlt");
+         if (PlayerPrefs.HasKey("Key_Pause"))
+             PauseKey = (KeyCode)PlayerPrefs.GetInt("Key_Pause");
+-        // Old mappings remain saved, but fixed item controls must not trigger two actions.
++        UseItemKey = (KeyCode)PlayerPrefs.GetInt("Key_UseItem", (int)KeyCode.Mouse1);
++        Item1Key = (KeyCode)PlayerPrefs.GetInt("Key_Item1", (int)KeyCode.Alpha1);
++        Item2Key = (KeyCode)PlayerPrefs.GetInt("Key_Item2", (int)KeyCode.Alpha2);
++        Item3Key = (KeyCode)PlayerPrefs.GetInt("Key_Item3", (int)KeyCode.Alpha3);
++        Item4Key = (KeyCode)PlayerPrefs.GetInt("Key_Item4", (int)KeyCode.Alpha4);
++        if (PlayerPrefs.HasKey("Key_ItemBindingsVersion")) return;
++        // One-time migration from the old reserved-item controls.
+         if (ReservedForItems(MoveLeftKey)) MoveLeftKey = KeyCode.A;
+         if (ReservedForItems(MoveRightKey)) MoveRightKey = KeyCode.D;
+         if (ReservedForItems(JumpKey)) JumpKey = KeyCode.Space;
+@@ -219,6 +241,7 @@
+         if (ReservedForItems(JumpAlt)) JumpAlt = KeyCode.W;
+         if (ReservedForItems(CrouchAlt)) CrouchAlt = KeyCode.DownArrow;
+         if (ReservedForItems(PauseKey)) PauseKey = KeyCode.Escape;
++        SaveKeybinds();
+     }
+ 
+     public static bool ReservedForItems(KeyCode key) => key == KeyCode.Mouse1 || key >= KeyCode.Alpha1 && key <= KeyCode.Alpha4;
+@@ -236,6 +259,7 @@
+         DashKey = KeyCode.LeftShift;
+         ShootKey = KeyCode.Mouse0;
+         PauseKey = KeyCode.Escape;
++        UseItemKey = KeyCode.Mouse1; Item1Key = KeyCode.Alpha1; Item2Key = KeyCode.Alpha2; Item3Key = KeyCode.Alpha3; Item4Key = KeyCode.Alpha4;
+         SaveKeybinds();
+     }
+ }
+--- before/Assets\Scripts\ItemArea.cs
++++ after/Assets\Scripts\ItemArea.cs
+@@ -12,9 +12,27 @@
+     int _waveExpires;
+     Vector2 _throwOrigin, _throwAim;
+     float _launchedAt;
+-    public const float BombFlightTime = 1.25f;
++    bool _radiation;
++    static readonly RaycastHit2D[] _bombHits = new RaycastHit2D[64];
++    public const float BombFlightTime = 2.5f;
+     public static Vector2 ThrowPosition(Vector2 origin, Vector2 aim, float seconds) =>
+-        origin + (aim.normalized * 12 + Vector2.up * 4) * seconds + .5f * Physics2D.gravity * seconds * seconds;
++        origin + new Vector2(aim.x < 0 ? -7 : 7, 11) * seconds + Vector2.down * (9 * seconds * seconds);
++    public static bool TraceBomb(Vector2 from, Vector2 to, int groundMask, out Vector2 impact)
++    {
++        Vector2 delta = to - from;
++        int count = Physics2D.CircleCast(from, .18f, delta.normalized, new ContactFilter2D { useTriggers = true }, _bombHits, delta.magnitude);
++        float nearest = float.PositiveInfinity;
++        impact = to;
++        for (int i = 0; i < count; i++)
++        {
++            var hit = _bombHits[i];
++            var enemy = hit.collider.GetComponentInParent<EnemyBase>();
++            bool ground = !hit.collider.isTrigger && (groundMask & (1 << hit.collider.gameObject.layer)) != 0;
++            if ((!ground && (enemy == null || !enemy.IsAlive)) || hit.distance >= nearest) continue;
++            nearest = hit.distance; impact = hit.centroid;
++        }
++        return nearest < float.PositiveInfinity;
++    }
+     SpriteRenderer _visual;
+     static Sprite _circle;
+     public static Sprite Circle
+@@ -35,12 +53,14 @@
+         var area = new GameObject(ItemCatalog.Names[(int)kind]).AddComponent<ItemArea>();
+         area._kind = kind; area._owner = owner; area.transform.position = owner.transform.position;
+         area._radius = kind == ItemKind.Shield ? 2.5f : 5;
+-        area._expires = Time.time + 30; area._waveExpires = PlayerItems.CompletedWaves + 10;
++        area._expires = Time.time + .3f;
++        area._waveExpires = PlayerItems.CompletedWaves + (kind == ItemKind.Shield ? 2 : kind == ItemKind.Flamethrower ? 3 : 10);
+         area._visual = area.gameObject.AddComponent<SpriteRenderer>(); area._visual.sprite = Circle;
+         area._visual.sortingOrder = 8;
+         area._visual.color = kind == ItemKind.Shield ? new Color(.025f, .12f, .8f, .38f) : kind == ItemKind.BattleBanner ? new Color(1, .72f, .05f, .3f) : new Color(1, .28f, .025f, .3f);
+         area.transform.localScale = Vector3.one * area._radius * 2;
+         if (kind == ItemKind.Flamethrower) area.BuildMapFlames();
++        if (kind == ItemKind.Shield) area.PushEnemiesOutside();
+         if (kind == ItemKind.BattleBanner)
+         {
+             var banner = new GameObject("Banner placeholder").AddComponent<SpriteRenderer>(); banner.transform.SetParent(area.transform, false);
+@@ -50,11 +70,21 @@
+     }
+     public static void LobBomb(PlayerStats owner, Vector2 aim)
+     {
+-        var bomb = Place(ItemKind.Bomb, owner); bomb._expires = Time.time + BombFlightTime; bomb._radius = 4;
++        var bomb = Place(ItemKind.Bomb, owner); bomb._expires = Time.time + 8; bomb._radius = 4;
+         bomb._throwOrigin = owner.transform.position; bomb._throwAim = aim; bomb._launchedAt = Time.time;
+         bomb._visual.sprite = ItemCatalog.Icon(1); bomb._visual.color = Color.white; bomb._visual.sortingOrder = 20;
+         bomb.transform.localScale = Vector3.one * .8f;
+     }
++    public static ItemArea DropNuke(PlayerStats owner)
++    {
++        var nuke = Place(ItemKind.Nuke, owner);
++        var camera = Camera.main;
++        nuke.transform.position = new Vector3(owner.transform.position.x, camera != null ? camera.transform.position.y + camera.orthographicSize + 3 : owner.transform.position.y + 15, 0);
++        nuke._throwOrigin = owner.transform.position;
++        nuke._visual.sprite = ItemCatalog.Icon((int)ItemKind.Nuke); nuke._visual.color = Color.white;
++        nuke._visual.sortingOrder = 100; nuke.transform.localScale = Vector3.one * 1.5f;
++        return nuke;
++    }
+     void OnEnable() { _areas.Add(this); }
+     void OnDisable() { _areas.Remove(this); }
+     public static float BannerBonus(Vector2 position)
+@@ -67,7 +97,7 @@
+     {
+         foreach (var area in _areas)
+         {
+-            if (area == null || area._kind != ItemKind.Shield || Time.time >= area._expires) continue;
++            if (area == null || area._kind != ItemKind.Shield || PlayerItems.CompletedWaves >= area._waveExpires) continue;
+             Vector2 delta = to - from;
+             float t = delta.sqrMagnitude < .00001f ? 0 : Mathf.Clamp01(Vector2.Dot((Vector2)area.transform.position - from, delta) / delta.sqrMagnitude);
+             if ((from + delta * t - (Vector2)area.transform.position).sqrMagnitude <= area._radius * area._radius) return true;
+@@ -76,7 +106,11 @@
+     }
+     void FixedUpdate()
+     {
+-        if (_kind != ItemKind.Shield || Time.time >= _expires) return;
++        if (_kind != ItemKind.Shield || PlayerItems.CompletedWaves >= _waveExpires) return;
++        PushEnemiesOutside();
++    }
++    void PushEnemiesOutside()
++    {
+         // Resolve penetration at the body edge, including newly spawned enemies.
+         foreach (var enemy in EnemyBase.ActiveEnemies)
+         {
+@@ -100,20 +134,33 @@
+         if (_kind == ItemKind.Bomb)
+         {
+             Vector2 old = transform.position;
+-            Vector2 next = ThrowPosition(_throwOrigin, _throwAim, Mathf.Min(BombFlightTime, Time.time - _launchedAt));
++            Vector2 next = ThrowPosition(_throwOrigin, _throwAim, Time.time - _launchedAt);
+             var movement = _owner != null ? _owner.GetComponent<PlayerController>() : null;
+-            var hit = Physics2D.Linecast(old, next, movement != null ? movement.GroundLayer.value : 0);
+-            transform.position = hit.collider != null ? hit.point : next;
+-            if (hit.collider != null || Time.time >= _expires) Explode();
++            bool hit = TraceBomb(old, next, movement != null ? movement.GroundLayer.value : 0, out var impact);
++            transform.position = impact;
++            if (hit || Time.time >= _expires) Explode();
+             return;
+         }
+-        if (_kind == ItemKind.BattleBanner ? PlayerItems.CompletedWaves >= _waveExpires : Time.time >= _expires) { Destroy(gameObject); return; }
+-        if (_kind != ItemKind.Flamethrower) return;
++        if (_kind == ItemKind.Nuke && !_radiation)
++        {
++            transform.position = Vector3.MoveTowards(transform.position, _throwOrigin, 22 * Time.deltaTime);
++            if (Vector2.Distance(transform.position, _throwOrigin) > .05f) return;
++            EnemyBase.CopyActiveEnemies(_targets);
++            foreach (var enemy in _targets) if (enemy != null && enemy.IsAlive) enemy.TakeItemDamage(0, _owner, true);
++            _radiation = true; _waveExpires = PlayerItems.CompletedWaves + 10;
++            BuildMapFlames();
++        }
++        if (_kind == ItemKind.None ? Time.time >= _expires : PlayerItems.CompletedWaves >= _waveExpires) { Destroy(gameObject); return; }
++        if (_kind != ItemKind.Flamethrower && !_radiation) return;
+         _tick += Time.deltaTime;
+         if (_tick < .2f) return;
+-        float damage = 5 * _tick; _tick = 0;
++        float seconds = _tick; _tick = 0;
+         EnemyBase.CopyActiveEnemies(_targets);
+-        foreach (var enemy in _targets) if (enemy != null && enemy.IsAlive) enemy.TakeItemDamage(damage, _owner);
++        foreach (var enemy in _targets) if (enemy != null && enemy.IsAlive)
++        {
++            if (_radiation) enemy.ApplyZoneSlow(.5f, .3f);
++            else enemy.TakeItemDamage(enemy.MaxHealth * .1f * seconds, _owner);
++        }
+     }
+     void Explode()
+     {
+@@ -143,14 +190,19 @@
+             {
+                 if (hits[j].normal.y < .5f || world != null && world.IsPlayerWall(hits[j].collider)) continue;
+                 var flame = Instantiate(prefab, hits[j].point, Quaternion.identity, transform);
+-                // ItemArea retains the existing map-wide 5 DPS; these patches supply only the authored visual.
++                // ItemArea owns damage and wave lifetime; these patches supply only the authored visual.
+                 var patch = flame.GetComponent<FireTrailPatch>();
+-                if (patch != null) { patch.Initialize(0, 30); patch.enabled = false; }
++                if (patch != null) { patch.Initialize(0, 1); patch.enabled = false; }
+                 foreach (var collider in flame.GetComponentsInChildren<Collider2D>()) collider.enabled = false;
+                 foreach (var particles in flame.GetComponentsInChildren<ParticleSystem>())
+                 {
+                     particles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+                     var main = particles.main; main.loop = true; main.stopAction = ParticleSystemStopAction.None;
++                    if (_radiation)
++                    {
++                        main.startColor = new Color(.25f, 1, .15f, .65f);
++                        var color = particles.colorOverLifetime; color.enabled = false;
++                    }
+                     particles.Play();
+                 }
+                 break;
+--- before/Assets\Scripts\ItemCatalog.cs
++++ after/Assets\Scripts\ItemCatalog.cs
+@@ -1,15 +1,27 @@
+ using UnityEngine;
+ 
+-public enum ItemKind { None, Bomb, HealthPotion, Shield, BattleBanner, PocketCasino, CloneProjector, ExperiencePotion, Flamethrower }
++public enum ItemKind { None, Bomb, HealthPotion, Shield, BattleBanner, PocketCasino, CloneProjector, ExperiencePotion, Flamethrower, Sawblade, Shock, DivineIntervention, Nuke }
+ public enum PermanentUpgrade { Damage, Health, Speed, FireRate, Luck }
+ 
+ // Stable IDs are save data. Append new items; never reorder existing entries.
+ public static class ItemCatalog
+ {
+-    public const int Count = 8;
+-    public static readonly string[] Names = { "Empty", "Bomb", "Health Potion", "Shield", "Battle Banner", "Pocket Casino", "Clone Projector", "Experience Potion", "Flamethrower" };
+-    public static readonly int[] Prices = { 0, 100, 100, 250, 250, 500, 500, 100, 250 };
+-    public static readonly string[] Descriptions = { "", "Lob an explosive that instantly defeats enemies in its blast.", "Instantly restore maximum health.", "Place an unbreakable shield for 30 seconds.", "Place a banner for 10 waves. Nearby players gain 15% damage and fire rate.", "Spin for a positive or negative effect lasting 2 waves.", "Create two AI clones with your current cards and half your fire rate for 2 waves.", "Instantly gain one level.", "Cover the entire map in flames for 30 seconds, dealing 5 damage per second." };
++    public const int Count = 12;
++    public static readonly string[] Names = { "Empty", "Bomb", "Health Potion", "Shield", "Battle Banner", "Pocket Casino", "Clone", "Experience Potion", "Flamethrower", "Sawblade", "Shock", "Divine Intervention", "Nuke" };
++    public static readonly int[] Prices = { 0, 100, 100, 250, 250, 500, 500, 100, 500, 250, 250, 1000, 1000 };
++    public static readonly string[] Descriptions = {
++        "", "Lob a bomb that explodes on contact with ground or enemies and instantly kills all enemies in its radius.",
++        "Instantly heal to maximum health.",
++        "Create an unbreakable shield for 2 waves. Enemies and their shots cannot pass through; enemies inside are pushed out.",
++        "Place a banner that gives +15% damage and fire rate to all players inside for 10 waves.",
++        "Gain a random positive effect for 10 waves or a negative effect for 2 waves.",
++        "Create one AI clone with your current stats for 5 waves.", "Instantly gain a level.",
++        "Ignite the world for 3 waves, dealing 10% of enemies' maximum health per second.",
++        "Summon a sawblade orbiting the cursor, dealing 1 damage on contact once per enemy per orbit. Up to 4 blades; lasts until death.",
++        "Stun all enemies for 10 seconds and damage them for 50% of their maximum health.",
++        "For 2 waves, suspend all card effects. Gain flight, 90% less shot delay, lightning dealing 50% maximum health and chaining to 5 more enemies with 10% less damage per chain, and 10 health regeneration per second.",
++        "Drop a nuke that instantly kills all enemies and leaves radiation slowing enemies by 50% for 10 waves."
++    };
+     public static bool Valid(int id) => id > 0 && id <= Count;
+     public static bool IsThrowable(int id) => id == (int)ItemKind.Bomb;
+     static Sprite[] _icons;
+@@ -21,7 +33,7 @@
+         if (_icons[id] != null) return _icons[id];
+         var texture = new Texture2D(24, 24, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, name = Names[id] + " placeholder" };
+         var pixels = new Color32[24 * 24];
+-        Color fill = Color.HSVToRGB((id - 1) / 8f, .65f, .95f);
++        Color fill = Color.HSVToRGB(Mathf.Repeat((id - 1) / 8f, 1), .65f, .95f);
+         for (int y = 2; y < 22; y++) for (int x = 2; x < 22; x++)
+         {
+             bool body = id == 1 ? (x - 12) * (x - 12) + (y - 10) * (y - 10) < 70 :
+--- before/Assets\Scripts\ItemClone.cs
++++ after/Assets\Scripts\ItemClone.cs
+@@ -31,7 +31,7 @@
+         clone.SpawnAcceleration = player.Movement.EffectiveAcceleration;
+         clone._body = body.GetComponent<Rigidbody2D>(); clone._sourceBody = player.GetComponent<Rigidbody2D>();
+         clone._stats = body.GetComponent<PlayerStats>(); clone._movement = body.GetComponent<PlayerController>(); clone._health = body.GetComponent<PlayerHealth>();
+-        clone._expiresWave = PlayerItems.CompletedWaves + 2;
++        clone._expiresWave = PlayerItems.CompletedWaves + 5;
+         // These are real player-only components. The AI supplies input through InputHelper.
+         foreach (var component in body.GetComponents<LocalPlayer>()) { component.enabled = false; Destroy(component); }
+         foreach (var component in body.GetComponents<PlayerItems>()) { component.enabled = false; Destroy(component); }
+--- before/Assets\Scripts\ItemUpdatePlayProbe.cs
++++ after/Assets\Scripts\ItemUpdatePlayProbe.cs
+@@ -0,0 +1,259 @@
++#if UNITY_EDITOR
++using System;
++using System.Collections;
++using System.Collections.Generic;
++using System.IO;
++using System.Linq;
++using System.Reflection;
++using UnityEngine;
++using UnityEngine.EventSystems;
++using UnityEngine.InputSystem;
++using UnityEngine.InputSystem.LowLevel;
++
++// Run only through the existing isolated verification save. Never touches the real profile.
++public class ItemUpdatePlayProbe : MonoBehaviour
++{
++    public static string Result;
++    public static string ReportPath => Path.GetFullPath("tmp/item-update/verification.txt");
++    readonly List<string> _checks = new List<string>();
++    readonly List<Gamepad> _pads = new List<Gamepad>(), _realPads = new List<Gamepad>();
++    const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
++    void Check(bool condition, string message)
++    {
++        if (!condition) throw new InvalidOperationException(message);
++        _checks.Add(message); Result = "Running: " + message;
++    }
++    static T Field<T>(object target, string name) => (T)target.GetType().GetField(name, Private).GetValue(target);
++    static void Set(object target, string name, object value) => target.GetType().GetField(name, Private).SetValue(target, value);
++    IEnumerator Start()
++    {
++        if (string.IsNullOrEmpty(SaveSystem.VerificationSavePath)) throw new InvalidOperationException("Start isolated Play verification first.");
++        DontDestroyOnLoad(gameObject); Directory.CreateDirectory(Path.GetDirectoryName(ReportPath));
++        foreach (var pad in Gamepad.all.ToArray()) if (pad.enabled) { _realPads.Add(pad); InputSystem.DisableDevice(pad); }
++        for (int i = 0; i < 2; i++) _pads.Add(InputSystem.AddDevice<Gamepad>());
++        var routine = Run();
++        while (true)
++        {
++            object next;
++            try { if (!routine.MoveNext()) break; next = routine.Current; }
++            catch (Exception ex) { Result = "FAILED: " + ex; Finish(); yield break; }
++            yield return next;
++        }
++        Result = "PASS: " + _checks.Count + " update 6 checks"; Finish();
++    }
++    void Finish()
++    {
++        File.WriteAllText(ReportPath, Result + "\n" + string.Join("\n", _checks));
++        Debug.Log(Result); Destroy(gameObject);
++    }
++    void OnDestroy()
++    {
++        foreach (var pad in _pads) if (pad.added) InputSystem.RemoveDevice(pad);
++        foreach (var pad in _realPads) if (pad.added) InputSystem.EnableDevice(pad);
++        Time.timeScale = 1;
++    }
++    IEnumerator Pad(GamepadState state, float seconds = .06f)
++    {
++        InputSystem.QueueStateEvent(_pads[0], state); yield return new WaitForSecondsRealtime(seconds);
++        InputSystem.QueueStateEvent(_pads[0], new GamepadState()); yield return new WaitForSecondsRealtime(.06f);
++    }
++    EnemyBase Enemy(Vector2 position, float health = 100)
++    {
++        var go = new GameObject("Update 6 test enemy"); go.transform.position = position;
++        go.AddComponent<Rigidbody2D>().constraints = RigidbodyConstraints2D.FreezeAll;
++        go.AddComponent<BoxCollider2D>();
++        var enemy = go.AddComponent<SwarmerEnemy>(); enemy.BaseHealth = health; enemy.BaseSpeed = 0;
++        enemy.SpawnProtectionSeconds = 0; enemy.XPValue = 0; enemy.CoinDropRange = Vector2Int.zero;
++        enemy.SeparationForce = 0; enemy.DamageOnHit = 0; enemy.Initialize(1);
++        return enemy;
++    }
++    void ClearEnemies()
++    {
++        foreach (var enemy in EnemyBase.ActiveEnemies.ToArray()) if (enemy != null) { enemy.gameObject.SetActive(false); Destroy(enemy.gameObject); }
++    }
++    void Use(PlayerItems items, ItemKind kind)
++    {
++        items.Slots[0] = (int)kind; items.Select(0);
++        int before = SaveSystem.LoadData().ItemInventory[(int)kind];
++        Check(items.UseSelected(), "activate " + kind);
++        Check(SaveSystem.LoadData().ItemInventory[(int)kind] == before - 1 && items.Slots[0] == 0, "consume exactly one " + kind);
++    }
++    IEnumerator Run()
++    {
++        int frame = Time.frameCount; yield return null; yield return null;
++        Check(Time.frameCount > frame, "Play Mode advances frames");
++        var old = new PlayerData { ItemInventory = new[] { 0, 1, 2, 3, 4, 5, 6, 7, 8 }, TotalCoins = 5432 };
++        old.NormalizeShopData();
++        Check(old.ItemInventory.Length == 13 && old.ItemInventory[8] == 8 && old.ItemInventory[12] == 0 && old.TotalCoins == 5432, "old inventories expand without losing items or coins");
++        Check(ItemCatalog.Prices[(int)ItemKind.Flamethrower] == 500 && ItemCatalog.Prices[(int)ItemKind.Sawblade] == 250 && ItemCatalog.Prices[(int)ItemKind.Nuke] == 1000, "updated item prices");
++        ControllerBindings.Reset(); InputManager.Instance.ResetToDefaults();
++        Check(ControllerBindings.TrySet("UseItem", "buttonWest", out _) && ControllerBindings.TrySet("Shoot", "rightShoulder", out _), "controller item and gameplay controls can trade formerly reserved buttons");
++        Check(ControllerBindings.TrySet("Item1", "start", out _) && ControllerBindings.Get("Item1") == "start", "Start can be assigned to an item slot");
++        Check(!ControllerBindings.TrySet("Item2", "start", out _), "duplicate gameplay bindings are rejected");
++        ControllerBindings.Reset();
++        var menu = MainMenuUI.Instance; var shop = ShopManager.Instance;
++        var data = shop.Progress;
++        data.TotalCoins = 500000; data.StartingCardSlots = 5; data.PackOpeningTier = 2;
++        for (int i = 1; i <= ItemCatalog.Count; i++) data.ItemInventory[i] = 20;
++        foreach (var loadout in data.CoopLoadouts) Array.Clear(loadout.Items, 0, 4);
++        SaveSystem.SaveData(data); shop.LoadEconomy();
++        LocalCoopSession.RequestedPlayers = 2; LocalCoopSession.AdvancedLoadouts = true; LocalCoopSession.KeyboardTest = false;
++        var host = menu.GetComponent<HostMenuUI>(); host.Open(); host.Hide();
++        var lobby = menu.GetComponent<CoopLobbyUI>() ?? menu.gameObject.AddComponent<CoopLobbyUI>(); lobby.Open(host);
++        for (int i = 0; i < 2; i++) LocalCoopSession.PlayerControllers[i] = _pads[i];
++        var panels = Field<LoadoutPanel[]>(lobby, "_loadouts");
++        for (int i = 0; i < 2; i++) { panels[i].Root.gameObject.SetActive(true); panels[i].ShowCards(false); }
++        panels[1].OpenItem(1); var modal = panels[1].NavigationScope;
++        Check(shop.EquipItem(1, 0, 0), "P1 equips shared item");
++        Check(panels.Take(2).All(p => p.Root.GetComponentsInChildren<TMPro.TMP_Text>(true).Any(t => t.text.Contains("Bomb\nOwned: 20\nAvailable: 19"))), "both lobby availability counters refresh immediately");
++        Check(panels[1].NavigationScope == modal && panels[1].HasModal, "another player's open equip menu survives inventory refresh");
++        Check(shop.EquipItem(0, 0, 0), "P1 unequips shared item");
++        Check(panels.Take(2).All(p => p.Root.GetComponentsInChildren<TMPro.TMP_Text>(true).Any(t => t.text.Contains("Bomb\nOwned: 20\nAvailable: 20"))), "both lobby counters refresh on unequip");
++        lobby.Close(); LocalCoopSession.RequestedPlayers = 1;
++        menu.ShowPanel(menu.SettingsPanel); var settings = menu.SettingsPanel.GetComponent<SettingsMenuUI>();
++        settings.OpenKeybinds(); yield return null;
++        Check(settings.KeybindLabels.Length == 15 && settings.KeybindLabels.All(t => t != null), "settings includes all keyboard item controls");
++        Check(settings.TryAssignBinding(10, KeyCode.Mouse2) && settings.TryAssignBinding(5, KeyCode.Mouse1), "keyboard item use and shooting can trade former reserved key");
++        settings.RestoreKeybinds();
++        var controllerUI = Field<ControllerBindingsUI>(settings, "_controllerBindings"); controllerUI.Show(true); yield return null;
++        Check(settings.KeybindPanel.GetComponentsInChildren<TMPro.TMP_Text>().Any(t => t.text == "Item slot 4"), "controller settings includes every item slot");
++        foreach (var label in settings.KeybindPanel.GetComponentsInChildren<TMPro.TMP_Text>())
++        { label.ForceMeshUpdate(); Check(label.font == menu.UIFont && label.color == Color.white && !label.isTextOverflowing, "controller text fits with original white font: " + label.text); }
++        ScreenCapture.CaptureScreenshot("tmp/item-update/controller-settings.png"); yield return null;
++        settings.CloseKeybinds(); yield return null;
++        var slider = settings.MasterSlider; slider.value = .5f;
++        EventSystem.current.SetSelectedGameObject(slider.gameObject);
++        yield return Pad(new GamepadState { leftStick = Vector2.right }, .2f);
++        Check(Mathf.Approximately(slider.value, .5f), "browsing past a slider does not change its value");
++        EventSystem.current.SetSelectedGameObject(slider.gameObject);
++        yield return Pad(new GamepadState().WithButton(GamepadButton.East));
++        yield return Pad(new GamepadState { leftStick = Vector2.right }, .3f);
++        Check(slider.value > .55f && EventSystem.current.currentSelectedGameObject == slider.gameObject, "Interact locks slider focus and thumbstick adjusts smoothly");
++        yield return Pad(new GamepadState().WithButton(GamepadButton.East));
++        float value = slider.value;
++        yield return Pad(new GamepadState { leftStick = Vector2.right }, .2f);
++        Check(Mathf.Approximately(slider.value, value), "second Interact exits slider editing");
++        menu.OpenShop(); menu.GetComponent<ShopUpdateUI>().ShowPage(0); yield return null;
++        float tripleHeight = 0;
++        foreach (int count in new[] { 3, 6 })
++        {
++            menu.PackContainer.GetComponentInChildren<UnityEngine.UI.Button>().onClick.Invoke(); yield return null;
++            (count == 3 ? menu.BuyThreeButton : menu.BuySixButton).onClick.Invoke(); yield return null;
++            if (count == 3) Check(menu.PackImage.rectTransform.rect.height >= 342, "three packs use their own larger pack size");
++            menu.SendMessage("CompleteSlice");
++            float deadline = Time.unscaledTime + 15;
++            while (!menu.ContinueButton.gameObject.activeSelf && Time.unscaledTime < deadline) yield return null;
++            Check(menu.CardRevealCenter.GetComponentsInChildren<CardDisplay>().Length == count * 3, "all cards revealed for " + count + " packs");
++            if (count == 3) { tripleHeight = menu.RevealGrid.cellSize.y; Check(menu.RevealGrid.constraintCount == 5, "three-pack reveal uses five columns and two rows"); }
++            else Check(tripleHeight > menu.RevealGrid.cellSize.y * 1.3f, "three-pack cards are substantially larger than six-pack cards");
++            ScreenCapture.CaptureScreenshot("tmp/item-update/reveal-" + count + ".png"); yield return null;
++            menu.ContinueButton.onClick.Invoke(); yield return null;
++        }
++        menu.OpenIndex(); yield return null;
++        var cardView = menu.IndexPanel.GetComponentsInChildren<CardDisplay>().First(c => c.AssignedCard != null);
++        var saved = shop.GetCardData(cardView.AssignedCard.ID); saved.IsAscended = true; saved.Level = 6;
++        cardView.Setup(cardView.AssignedCard); yield return null;
++        Color beforeColor = cardView.BackgroundImage.color; yield return new WaitForSecondsRealtime(.3f);
++        Check(cardView.BackgroundImage.color != beforeColor && cardView.NameText.color == Color.white, "ascended background changes chromatically while text remains white");
++        data = SaveSystem.LoadData(); Array.Clear(data.PermanentUpgrades, 0, 5); Array.Clear(data.SoloLoadout.Cards, 0, 5);
++        data.ShowTips = false; SaveSystem.SaveData(data);
++        UnityEngine.SceneManagement.SceneManager.LoadScene("SampleScene"); yield return null; yield return null; yield return new WaitForSeconds(.3f);
++        var wave = WaveManager.Instance; wave.StopAllCoroutines(); wave.enabled = false;
++        if (EnemyTipUI.Instance != null) { EnemyTipUI.Instance.Dismiss(); EnemyTipUI.Instance.enabled = false; }
++        ClearEnemies();
++        var plan = new List<WaveManager.SpawnRequest>();
++        for (int kind = 0; kind < 4; kind++) foreach (bool elite in new[] { false, true })
++        {
++            int number = (int)(elite ? wave.EliteUnlockWaves[kind] : wave.NormalUnlockWaves[kind]);
++            for (int roll = 0; roll < 6; roll++)
++            {
++                Check(wave.TryBuildWave(number, null, plan, out _), "build introduction wave " + number);
++                var intro = plan.Single(p => p.Introduction);
++                Check(plan.Count(p => p.Prefab == intro.Prefab && p.Elite == intro.Elite) == 1, "exactly one introduced variant on wave " + number);
++            }
++        }
++        var player = LocalCoopSession.Instance.Players[0]; player.AssignController(_pads[0], true);
++        float baseShotDelay = player.Weapon.FireRate;
++        var items = player.Stats.Items;
++        InputSystem.QueueStateEvent(_pads[0], new GamepadState { rightStick = Vector2.right }); yield return null;
++        Check(ItemArea.ThrowPosition(Vector2.zero, new Vector2(1, -4), .5f) == ItemArea.ThrowPosition(Vector2.zero, new Vector2(1, 4), .5f), "bomb arc depends only on left/right aim");
++        var bombTarget = Enemy(ItemArea.ThrowPosition(player.transform.position, Vector2.right, .25f));
++        Use(items, ItemKind.Bomb); yield return new WaitForSeconds(.55f);
++        Check(bombTarget == null || !bombTarget.IsAlive, "bomb detonates on enemy contact before landing"); ClearEnemies();
++        var a = Enemy((Vector2)player.transform.position + new Vector2(5, 2), 100);
++        var b = Enemy((Vector2)player.transform.position + new Vector2(8, 2), 200);
++        Use(items, ItemKind.Shock);
++        Check(a.IsFrozen && b.IsFrozen && a.HealthRemaining == a.MaxHealth * .5f && b.HealthRemaining == b.MaxHealth * .5f, "Shock stuns and removes exactly half maximum health");
++        yield return new WaitForSeconds(9.5f); Check(a.IsFrozen, "Shock remains active before ten seconds");
++        yield return new WaitForSeconds(.7f); Check(!a.IsFrozen, "Shock ends after ten seconds"); ClearEnemies();
++        Use(items, ItemKind.Shield); var shield = FindObjectsByType<ItemArea>(FindObjectsSortMode.None).Single(x => x.name == "Shield");
++        Set(shield, "_expires", Time.time - 1); yield return null;
++        Check(shield != null, "shield ignores the former seconds timer");
++        LocalCoopSession.Instance.CompleteWave(); yield return null; Check(shield != null, "shield survives one wave");
++        LocalCoopSession.Instance.CompleteWave(); yield return null; yield return null; Check(shield == null, "shield expires after two waves");
++        items.ApplyCasino(0); int expiry = items.CasinoExpiresWave;
++        Check(expiry == PlayerItems.CompletedWaves + 10, "positive casino effect lasts ten waves");
++        items.ApplyCasino(4); Check(items.CasinoExpiresWave == PlayerItems.CompletedWaves + 2, "negative casino effect lasts two waves");
++        LocalCoopSession.Instance.CompleteWave(); LocalCoopSession.Instance.CompleteWave();
++        Use(items, ItemKind.CloneProjector); yield return null; yield return null;
++        var clone = FindObjectsByType<ItemClone>(FindObjectsSortMode.None).Single();
++        Check(Mathf.Approximately(clone.GetComponent<WeaponPlayer>().EffectiveFireInterval, player.Weapon.EffectiveFireInterval) && Mathf.Approximately(clone.GetComponent<WeaponPlayer>().FeatherDamage(), player.Weapon.FeatherDamage()), "one clone copies full damage and fire rate");
++        float interval = clone.GetComponent<WeaponPlayer>().EffectiveFireInterval; player.Weapon.ApplyFireRateReduction(.1f);
++        Check(Mathf.Approximately(clone.GetComponent<WeaponPlayer>().EffectiveFireInterval, interval), "later player upgrades do not alter clone stats");
++        for (int i = 0; i < 4; i++) LocalCoopSession.Instance.CompleteWave(); yield return null; Check(clone != null, "clone survives four waves");
++        LocalCoopSession.Instance.CompleteWave(); yield return null; yield return null; Check(clone == null, "clone expires after five waves");
++        a = Enemy((Vector2)player.transform.position + new Vector2(30, 2), 100); b = Enemy((Vector2)player.transform.position + new Vector2(35, 2), 200);
++        Use(items, ItemKind.Flamethrower); yield return new WaitForSeconds(1.05f);
++        Check(a.HealthRemaining / a.MaxHealth < .92f && a.HealthRemaining / a.MaxHealth > .86f && Mathf.Abs(a.HealthRemaining / a.MaxHealth - b.HealthRemaining / b.MaxHealth) < .001f, "flamethrower applies ten percent maximum health per second to different health pools");
++        var fire = FindObjectsByType<ItemArea>(FindObjectsSortMode.None).Single(x => x.name == "Flamethrower");
++        for (int i = 0; i < 2; i++) LocalCoopSession.Instance.CompleteWave(); yield return null; Check(fire != null, "flames survive two waves");
++        LocalCoopSession.Instance.CompleteWave(); yield return null; yield return null; Check(fire == null, "flames expire after three waves"); ClearEnemies();
++        var stats = player.Stats; stats.GlobalDamageBonus = .75f; stats.HasMiniGun = true; stats.HasSlowingAura = true; stats.SlowingAuraSlowPercent = .3f;
++        stats.ActivateAscension(CardAscension.RecoveryPlus); player.Movement.MaxRunSpeed += 5; player.Health.AddMaxHealth(20);
++        int originalMax = player.Health.MaxHealth; float speed = player.Movement.MaxRunSpeed;
++        stats.CoinsCollectedRun = 77;
++        Use(items, ItemKind.DivineIntervention);
++        Check(stats.CardsSuppressed && !stats.HasMiniGun && !stats.HasSlowingAura && !stats.HasAscension(CardAscension.RecoveryPlus) && player.Movement.MaxRunSpeed < speed, "Divine suspends card stats and ascensions");
++        Check(player.Movement.IsFlying && Mathf.Approximately(player.Weapon.EffectiveFireInterval, baseShotDelay * .1f) && player.Health.MaxHealth < originalMax, "Divine grants flight and reduced base shot delay with card health suspended");
++        var basic = CardManager.Instance.AllCards.First(c => c.IsBasic && c.Modifiers.Any(m => m.StatType == StatType.Damage));
++        int damage = player.Weapon.CurrentStats.Damage, picked = CardManager.Instance.GetRunPickups(basic.ID, stats);
++        CardManager.Instance.ApplyCardEffect(basic, stats);
++        Check(player.Weapon.CurrentStats.Damage == damage && CardManager.Instance.GetRunPickups(basic.ID, stats) == picked + 1, "cards selected during Divine are recorded once and deferred");
++        Set(player.Health, "_currentHealth", 1); yield return new WaitForSeconds(.22f);
++        Check(player.Health.CurrentHealth >= 3, "Divine regenerates ten health per second");
++        stats.ReportCoinsGained(3);
++        var chain = new List<EnemyBase>();
++        Vector2 origin = player.Weapon.FirePoint.position;
++        for (int i = 0; i < 6; i++) chain.Add(Enemy(origin + Vector2.right * (3 + i * 2), 100));
++        items.FireDivineLightning();
++        for (int i = 0; i < 6; i++) Check(Mathf.Abs(chain[i].HealthRemaining - chain[i].MaxHealth * (1 - .5f * Mathf.Pow(.9f, i))) < .01f, "Divine lightning chain damage hop " + i);
++        LocalCoopSession.Instance.CompleteWave(); yield return null; Check(items.DivineActive, "Divine survives one completed wave");
++        LocalCoopSession.Instance.CompleteWave(); yield return null;
++        Check(!items.DivineActive && !stats.CardsSuppressed && stats.GlobalDamageBonus == .75f && stats.HasMiniGun && stats.HasAscension(CardAscension.RecoveryPlus) && player.Movement.MaxRunSpeed == speed && player.Health.MaxHealth == originalMax, "Divine restores original card stats at two waves");
++        Check(player.Weapon.CurrentStats.Damage > damage && CardManager.Instance.GetRunPickups(basic.ID, stats) == picked + 1 && stats.CoinsCollectedRun == 80, "deferred card applies exactly once and run counters survive restoration");
++        stats.HasSlowingAura = false; ClearEnemies();
++        a = Enemy((Vector2)player.transform.position + Vector2.right * 40); Use(items, ItemKind.Nuke);
++        yield return new WaitForSeconds(2);
++        Check(a == null || !a.IsAlive, "falling nuke defeats off-screen enemies");
++        var radiation = FindObjectsByType<ItemArea>(FindObjectsSortMode.None).Single(x => x.name == "Nuke");
++        Check(radiation.GetComponentsInChildren<ParticleSystem>().Any(p => p.main.startColor.color.g > p.main.startColor.color.r), "radiation reuses fire particles tinted green");
++        a = Enemy((Vector2)player.transform.position + Vector2.right * 30); yield return new WaitForSeconds(.3f);
++        float factor = (float)typeof(EnemyBase).GetProperty("MovementSpeedFactor", Private).GetValue(a);
++        Check(Mathf.Abs(factor - .5f) < .001f, "radiation slows newly spawned enemies by fifty percent");
++        for (int i = 0; i < 9; i++) LocalCoopSession.Instance.CompleteWave(); yield return null; Check(radiation != null, "radiation survives nine waves");
++        LocalCoopSession.Instance.CompleteWave(); yield return null; yield return null; Check(radiation == null, "radiation expires after ten waves"); ClearEnemies();
++        Vector2 cursor = Camera.main.ScreenToWorldPoint(player.AimScreenPosition());
++        a = Enemy(cursor); a.GetComponent<BoxCollider2D>().size = Vector2.one * 5;
++        for (int i = 0; i < 4; i++) Use(items, ItemKind.Sawblade);
++        yield return null; yield return null; float sawHealth = a.HealthRemaining;
++        Check(items.SawbladeCount == 4 && sawHealth == a.MaxHealth - 4, "four sawblades each deal one contact damage");
++        yield return new WaitForSeconds(.3f); Check(a.HealthRemaining == sawHealth, "each sawblade hits an enemy only once during an orbit");
++        yield return new WaitForSeconds(1.4f); Check(a.HealthRemaining <= a.MaxHealth - 8 && a.HealthRemaining >= a.MaxHealth - 12, "sawblades hit again after a full orbit");
++        var saws = FindObjectsByType<SpriteRenderer>(FindObjectsSortMode.None).Where(s => s.name == "Item sawblade").ToArray();
++        Check(saws.Length == 4 && Vector2.Distance((saws[0].transform.position + saws[2].transform.position) * .5f, cursor) < .15f, "four sawblades remain evenly spaced around the cursor");
++        ScreenCapture.CaptureScreenshot("tmp/item-update/sawblades.png"); yield return null;
++        stats.HasSecondWind = false; player.Health.TryTakeDamage(10000); yield return null;
++        Check(items.SawbladeCount == 0, "sawblades are removed on player death");
++    }
++}
++#endif
+--- before/Assets\Scripts\ItemWheelUI.cs
++++ after/Assets\Scripts\ItemWheelUI.cs
+@@ -87,7 +87,7 @@
+         {
+             _quarters[i].color = i == _items.SelectedSlot ? new Color(.35f, .5f, .65f, .94f) : new Color(.06f, .1f, .17f, .9f);
+             _icons[i].sprite = ItemCatalog.Icon(_items.Slots[i]); _icons[i].enabled = _icons[i].sprite != null;
+-            _keys[i].text = _player.UsesGamepad ? DirectionLabels[i] : (i + 1).ToString();
++            _keys[i].text = _player.UsesGamepad ? ControllerBindings.Label(InputHelper.ItemActions[i]) : InputManager.Instance != null ? InputManager.Instance.GetKeybind(InputHelper.ItemActions[i]).ToString() : (i + 1).ToString();
+             if (_mobile.gameObject.activeSelf)
+             {
+                 var button = _mobile.GetChild(i).GetComponent<UnityEngine.UI.Button>();
+--- before/Assets\Scripts\LevelManager.cs
++++ after/Assets\Scripts\LevelManager.cs
+@@ -70,7 +70,7 @@
+             for (int i = 0; i < session.Players.Count && budget > 0; i++)
+             {
+                 var player = session.Players[(_meteorPlayerCursor + i) % session.Players.Count];
+-                if (!player.Alive) continue;
++                if (!player.Alive || player.Stats.CardsSuppressed) continue;
+                 if (player.PendingMeteors > 0) { player.PendingMeteors--; player.Movement.SpawnMeteor(); budget--; }
+                 if (budget > 0 && player.PendingSecondaryMeteors > 0) { player.PendingSecondaryMeteors--; player.Movement.SpawnSecondaryMeteor(); budget--; }
+             }
+--- before/Assets\Scripts\LoadoutPanel.cs
++++ after/Assets\Scripts\LoadoutPanel.cs
+@@ -33,6 +33,7 @@
+     bool _modalOnly;
+     UnityEngine.UI.Button[] _controls = new UnityEngine.UI.Button[0];
+     readonly List<CardDefinition> _cards = new List<CardDefinition>();
++    readonly Dictionary<int, TMP_Text> _itemAvailability = new Dictionary<int, TMP_Text>();
+     public LoadoutPanel(Transform parent, int seat, bool lobby, Action close, object context = null)
+     {
+         Seat = seat; _lobby = lobby; _shop = ShopManager.Instance; _close = close; _context = context ?? this;
+@@ -55,6 +56,7 @@
+         if (restoreFocus) focusedName = selected.name;
+         if (_modal != null) focusedName = _returnFocusName;
+         CloseModal();
++        _itemAvailability.Clear();
+         if (_body != null) { _body.gameObject.SetActive(false); UnityEngine.Object.Destroy(_body.gameObject); }
+         _body = CoopUIElements.Panel(Root, "Equipment content", Vector2.zero, Vector2.one, Color.clear);
+         _body.GetComponent<UnityEngine.UI.Image>().raycastTarget = false;
+@@ -108,10 +110,16 @@
+         button.name = slot >= 0 ? "Item slot " + (slot + 1) : "Item " + id;
+         var text = button.GetComponentInChildren<TMP_Text>(); text.fontSizeMax = 21; text.fontSizeMin = 12;
+         text.text = slot >= 0 ? "Slot " + (slot + 1) + (id == 0 ? "\nEmpty" : "\n" + ItemCatalog.Names[id]) : ItemCatalog.Names[id] + "\nOwned: " + _shop.Progress.ItemInventory[id] + "\nAvailable: " + Mathf.Max(0, _shop.Progress.ItemInventory[id] - _shop.ReservedItems(id, Seat));
++        if (slot < 0) _itemAvailability[id] = text;
+         CoopUIElements.Stretch(text.rectTransform, new Vector2(.02f, 0), new Vector2(.98f, .38f));
+         var icon = CoopUIElements.Panel(button.transform, "Icon", new Vector2(.24f, .39f), new Vector2(.76f, .96f), Color.white).GetComponent<UnityEngine.UI.Image>();
+         icon.sprite = ItemCatalog.Icon(id); icon.enabled = icon.sprite != null; icon.preserveAspect = true; icon.raycastTarget = false;
+         BindDrag(button.gameObject, false, slot, icon.sprite, () => OpenItem(id, slot), destination => slot >= 0 ? _shop.MoveEquipment(false, slot, destination, Seat) : _shop.EquipItem(id, destination, Seat), () => _shop.EquipItem(0, slot, Seat));
++    }
++    public void RefreshItemAvailability()
++    {
++        foreach (var pair in _itemAvailability)
++            if (pair.Value != null) pair.Value.text = ItemCatalog.Names[pair.Key] + "\nOwned: " + _shop.Progress.ItemInventory[pair.Key] + "\nAvailable: " + Mathf.Max(0, _shop.Progress.ItemInventory[pair.Key] - _shop.ReservedItems(pair.Key, Seat));
+     }
+     public UnityEngine.UI.Button MiniCard(Transform parent, string id, Vector2 min, Vector2 max, int slot, bool equipped)
+     {
+@@ -129,6 +137,7 @@
+             background.color = definition == null ? new Color(.4f, .4f, .4f) : definition.Rarity == CardRarity.Legendary ? new Color(1, .8f, .2f) : definition.Rarity == CardRarity.Rare ? new Color(.3f, .5f, 1) : new Color(.6f, .6f, .6f);
+         }
+         var fitter = face.gameObject.AddComponent<UnityEngine.UI.AspectRatioFitter>(); fitter.aspectMode = UnityEngine.UI.AspectRatioFitter.AspectMode.FitInParent; fitter.aspectRatio = 5f / 7f;
++        AscendedCardTint.Apply(face.GetComponent<UnityEngine.UI.Image>(), saved?.IsAscended == true);
+         face.GetComponent<UnityEngine.UI.Image>().raycastTarget = false;
+         var text = button.GetComponentInChildren<TMP_Text>(); text.transform.SetParent(face, false);
+         CoopUIElements.Stretch(text.rectTransform, new Vector2(.04f, .03f), new Vector2(.96f, .4f)); text.fontSizeMax = _lobby ? 20 : 24; text.fontSizeMin = 10;
+--- before/Assets\Scripts\MainMenuUI.cs
++++ after/Assets\Scripts\MainMenuUI.cs
+@@ -372,11 +372,11 @@
+     void StartPackOpening(ShopPackDefinition pack)
+     {
+         if (AdditionalPackImages == null) AdditionalPackImages = new UnityEngine.UI.Image[0];
+-        if (_packCount == 6 && AdditionalPackImages.Length < 5)
++        if (AdditionalPackImages.Length < _packCount - 1)
+         {
+             int previous = AdditionalPackImages.Length;
+-            System.Array.Resize(ref AdditionalPackImages, 5);
+-            for (int i = previous; i < 5; i++) AdditionalPackImages[i] = Instantiate(PackImage, PackImage.transform.parent);
++            System.Array.Resize(ref AdditionalPackImages, _packCount - 1);
++            for (int i = previous; i < AdditionalPackImages.Length; i++) AdditionalPackImages[i] = Instantiate(PackImage, PackImage.transform.parent);
+         }
+         OpeningOverlay.SetActive(true);
+         ShopPanel.SetActive(false);
+@@ -396,13 +396,15 @@
+         if (RevealGrid != null)
+         {
+             RevealGrid.constraint = UnityEngine.UI.GridLayoutGroup.Constraint.FixedColumnCount;
+-            RevealGrid.constraintCount = _packCount == 6 ? 6 : 3;
+-            RevealGrid.spacing = new Vector2(20, 20);
+-            CoopUIElements.Stretch((RectTransform)CardRevealCenter, new Vector2(.06f, .16f), new Vector2(.94f, .84f));
++            RevealGrid.constraintCount = _packCount == 6 ? 6 : _packCount == 3 ? 5 : 3;
++            RevealGrid.spacing = _packCount == 3 ? new Vector2(14, 14) : new Vector2(20, 20);
++            CoopUIElements.Stretch((RectTransform)CardRevealCenter, new Vector2(.06f, .14f), new Vector2(.94f, .90f));
+             Canvas.ForceUpdateCanvases();
+             var size = ((RectTransform)CardRevealCenter).rect.size;
+-            int columns = RevealGrid.constraintCount, rows = _packCount == 1 ? 1 : 3;
+-            RevealGrid.cellSize = new Vector2((size.x - RevealGrid.spacing.x * (columns - 1)) / columns, (size.y - RevealGrid.spacing.y * (rows - 1)) / rows);
++            int columns = RevealGrid.constraintCount, rows = _packCount == 1 ? 1 : _packCount == 3 ? 2 : 3;
++            float fit = Mathf.Min((size.x - RevealGrid.spacing.x * (columns - 1)) / columns / CardReferenceSize.x,
++                (size.y - RevealGrid.spacing.y * (rows - 1)) / rows / CardReferenceSize.y);
++            RevealGrid.cellSize = CardReferenceSize * fit;
+             RevealGrid.childAlignment = TextAnchor.MiddleCenter;
+         }
+         SliceZone.SetActive(true);
+@@ -437,8 +439,8 @@
+         for (int i = 0; i < _packCount; i++)
+         {
+             var rect = i == 0 ? PackImage.rectTransform : AdditionalPackImages[i - 1].rectTransform;
+-            rect.sizeDelta = _packCount == 6 ? new Vector2(180, 263) : _normalPackSize;
+-            rect.localScale = _packCount == 6 ? Vector3.one : _normalPackScale;
++            rect.sizeDelta = _packCount == 6 ? new Vector2(180, 263) : _packCount == 3 ? new Vector2(250, 365) : _normalPackSize;
++            rect.localScale = _packCount == 1 ? _normalPackScale : Vector3.one;
+             if (_packCount == 6)
+             {
+                 rect.anchorMin = rect.anchorMax = rect.pivot = Vector2.one * .5f;
+@@ -454,6 +456,8 @@
+         row.anchoredPosition = Vector2.zero;
+         layout.childAlignment = TextAnchor.MiddleCenter;
+         layout.childForceExpandWidth = false;
++        layout.childControlWidth = layout.childControlHeight = false;
++        layout.spacing = _packCount == 3 ? 32 : 20;
+         layout.childScaleWidth = true;
+         LayoutRebuilder.ForceRebuildLayoutImmediate(row);
+     }
+@@ -579,6 +583,8 @@
+                     rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(.5f, .5f);
+                     // Offset the card inside its slot so the grid cannot overwrite the shift.
+                     rect.anchoredPosition = Vector2.zero;
++                    if (_packCount == 3 && spawnedCards.Count >= 5)
++                        rect.anchoredPosition = Vector2.right * ((RevealGrid.cellSize.x + RevealGrid.spacing.x) * .5f);
+                     rect.sizeDelta = CardReferenceSize;
+                 }
+                 CardDisplay disp = cardObj.GetComponent<CardDisplay>();
+--- before/Assets\Scripts\Meteor.cs
++++ after/Assets\Scripts\Meteor.cs
+@@ -34,6 +34,7 @@
+ 
+     void Update()
+     {
++        if (OwnerStats != null && OwnerStats.CardsSuppressed) { Destroy(gameObject); return; }
+         transform.Rotate(0, 0, RotationSpeed * Time.deltaTime);
+     }
+ 
+@@ -49,6 +50,7 @@
+ 
+     void Explode()
+     {
++        if (OwnerStats != null && OwnerStats.CardsSuppressed) { Destroy(gameObject); return; }
+         if (_hasExploded) return;
+         _hasExploded = true;
+ 
+--- before/Assets\Scripts\PlayerController.cs
++++ after/Assets\Scripts\PlayerController.cs
+@@ -142,7 +142,7 @@
+     // Jump apex scales with impulse squared. Keep gravity/upgraded jump counts unchanged.
+     public float EffectiveJumpForce => JumpForce * Mathf.Sqrt(RebirthMultiplier);
+     float _prePhysicsSpeed;
+-    public bool IsFlying => Time.time < _flightUntil;
++    public bool IsFlying => OwnerStats != null && OwnerStats.Items != null && OwnerStats.Items.DivineActive || Time.time < _flightUntil;
+ 
+     private static readonly int AnimIsMoving = Animator.StringToHash("isMoving");
+     private static readonly int AnimIsIdle = Animator.StringToHash("isIdle");
+@@ -449,6 +449,13 @@
+         if (_weapon != null) _weapon.TriggerTripleshot();
+     }
+ 
++    public void CancelCardMovement()
++    {
++        StopAllCoroutines(); _isDashing = _isBlinking = _dashEnding = false;
++        IsInvulnerable = false; _flightUntil = -1; _currentJumpCount = 0; _currentDashCount = MaxDashes;
++        if (_rb != null) _rb.gravityScale = _defaultGravity;
++    }
++
+     public void ResetAfterRespawn()
+     {
+         StopAllCoroutines(); _isDead = false; _isDashing = _isBlinking = _dashEnding = false;
+--- before/Assets\Scripts\PlayerData.cs
++++ after/Assets\Scripts\PlayerData.cs
+@@ -14,7 +14,7 @@
+     public List<CardSaveData> CardCollection = new List<CardSaveData>();
+     public int StartingCardSlots, PackOpeningTier;
+     public int[] PermanentUpgrades = new int[5];
+-    public int[] ItemInventory = new int[9]; // ItemKind.None is zero, including in old saves.
++    public int[] ItemInventory = new int[ItemCatalog.Count + 1]; // Existing IDs keep their positions in old saves.
+     public PlayerLoadout SoloLoadout = new PlayerLoadout();
+     public PlayerLoadout[] CoopLoadouts = new PlayerLoadout[4];
+     public int CompletedRuns;
+@@ -29,7 +29,7 @@
+         StartingCardSlots = UnityEngine.Mathf.Clamp(StartingCardSlots, 0, 5);
+         PackOpeningTier = UnityEngine.Mathf.Clamp(PackOpeningTier, 0, 2);
+         NormalizeArray(ref PermanentUpgrades, 5);
+-        NormalizeArray(ref ItemInventory, 9);
++        NormalizeArray(ref ItemInventory, ItemCatalog.Count + 1);
+         NormalizeArray(ref EssenceDiscovered, 4);
+         NormalizeArray(ref ItemShopStock, 6);
+         NormalizeArray(ref ItemShopSold, 6);
+@@ -97,7 +97,7 @@
+     {
+         if (Items == null) Items = new int[4]; else if (Items.Length != 4) System.Array.Resize(ref Items, 4);
+         if (Cards == null) Cards = new string[5]; else if (Cards.Length != 5) System.Array.Resize(ref Cards, 5);
+-        for (int i = 0; i < Items.Length; i++) if (Items[i] < 0 || Items[i] > 8) Items[i] = 0;
++        for (int i = 0; i < Items.Length; i++) if (Items[i] != 0 && !ItemCatalog.Valid(Items[i])) Items[i] = 0;
+     }
+ }
+ 
+--- before/Assets\Scripts\PlayerHealth.cs
++++ after/Assets\Scripts\PlayerHealth.cs
+@@ -95,6 +95,14 @@
+         UpdateUI();
+     }
+ 
++    public void SetTemporaryMaxHealth(int maximum)
++    {
++        float fraction = _currentHealth / (float)Mathf.Max(1, MaxHealth);
++        MaxHealth = Mathf.Max(1, maximum);
++        _currentHealth = _isDead ? 0 : Mathf.Clamp(Mathf.CeilToInt(fraction * MaxHealth), 1, MaxHealth);
++        UpdateUI();
++    }
++
+     public void ApplyWaveRegen()
+     {
+         if (RegenPerWave > 0) Heal(Mathf.Max(0, RegenPerWave));
+--- before/Assets\Scripts\PlayerItems.cs
++++ after/Assets\Scripts\PlayerItems.cs
+@@ -1,4 +1,5 @@
+ using System.Collections;
++using System.Collections.Generic;
+ using UnityEngine;
+ 
+ public class PlayerItems : MonoBehaviour
+@@ -21,6 +22,25 @@
+     public static int CompletedWaves => LocalCoopSession.Instance != null ? LocalCoopSession.Instance.CompletedWaves : 0;
+     LocalPlayer _player;
+     float _nextRegen;
++    string _baseStats, _baseMovement, _savedStats, _savedMovement;
++    int _baseMaxHealth, _savedMaxHealth, _savedRegen, _savedThorns;
++    float _baseShotDelay, _divineRegen;
++    readonly List<System.Action> _deferredCards = new List<System.Action>();
++    readonly List<EnemyBase> _targets = new List<EnemyBase>();
++    readonly List<EnemyBase> _lightningHits = new List<EnemyBase>(6);
++    readonly List<Saw> _saws = new List<Saw>(4);
++    float _orbit;
++    int _lastPrunedOrbit;
++    readonly List<int> _staleSawHits = new List<int>();
++    public int SawbladeCount => _saws.Count;
++    public int DivineExpiresWave { get; private set; }
++    public bool DivineActive => _savedStats != null;
++    public float DivineShotDelay => Mathf.Max(.005f, _baseShotDelay * .1f);
++    sealed class Saw
++    {
++        public SpriteRenderer Visual;
++        public readonly Dictionary<int, float> NextHit = new Dictionary<int, float>();
++    }
+     bool _initialized, _loadoutsEnabled;
+     int _aimingSlot = -1;
+     bool _touchHeld;
+@@ -47,6 +67,9 @@
+         stats.PermanentFireRate = data.PermanentUpgrades[3] * .01f;
+         stats.PermanentLuck = data.PermanentUpgrades[4] * .01f;
+         player.Health.AddMaxHealthPercent(data.PermanentUpgrades[1] * .01f);
++        // Capture the authored player plus permanent upgrades before starting cards apply.
++        _baseStats = JsonUtility.ToJson(stats); _baseMovement = JsonUtility.ToJson(player.Movement);
++        _baseMaxHealth = player.Health.MaxHealth; _baseShotDelay = player.Weapon.FireRate;
+         var loadout = LocalCoopSession.Multiplayer ? data.CoopLoadouts[player.Index] : data.SoloLoadout;
+         if (loadoutsEnabled)
+         {
+@@ -64,7 +87,17 @@
+     }
+     void Update()
+     {
+-        if (!_initialized || !_player.Alive || Time.timeScale == 0) { CancelUse(); return; }
++        if (!_initialized) return;
++        if (!_player.Alive) { CancelUse(); ClearSawblades(); EndDivine(); return; }
++        if (DivineActive && CompletedWaves >= DivineExpiresWave) EndDivine();
++        if (Time.timeScale == 0) { CancelUse(); return; }
++        UpdateSawblades();
++        if (DivineActive)
++        {
++            _divineRegen += Time.deltaTime * 10;
++            int heal = Mathf.FloorToInt(_divineRegen);
++            if (heal > 0) { _divineRegen -= heal; _player.Health.Heal(heal); }
++        }
+         int slot = InputHelper.GetItemSelection(this);
+         if (slot >= 0) Select(slot);
+         if (!CanUse) CancelUse();
+@@ -101,7 +134,7 @@
+         _aimingSlot = -1; _touchHeld = false;
+         if (_trajectory != null) _trajectory.enabled = false;
+     }
+-    void OnDisable() { CancelUse(); }
++    void OnDisable() { CancelUse(); ClearSawblades(); EndDivine(); }
+     void UpdateTrajectory()
+     {
+         if (_trajectory == null)
+@@ -120,9 +153,9 @@
+         for (int i = 1; i <= 32; i++)
+         {
+             Vector2 next = ItemArea.ThrowPosition(origin, _player.Weapon.AimDirection, ItemArea.BombFlightTime * i / 32f);
+-            var hit = Physics2D.Linecast(previous, next, _player.Movement.GroundLayer);
+-            _trajectory.SetPosition(i, hit.collider != null ? hit.point : next);
+-            if (hit.collider != null) { _trajectory.positionCount = i + 1; break; }
++            bool hit = ItemArea.TraceBomb(previous, next, _player.Movement.GroundLayer, out var impact);
++            _trajectory.SetPosition(i, impact);
++            if (hit) { _trajectory.positionCount = i + 1; break; }
+             previous = next;
+         }
+     }
+@@ -131,6 +164,7 @@
+         if (!CanUse) return false;
+         int id = Slots[SelectedSlot];
+         if (!ItemCatalog.Valid(id)) return false;
++        if (id == (int)ItemKind.Sawblade && SawbladeCount >= 4) return false;
+         var data = SaveSystem.LoadData();
+         if (data.ItemInventory[id] <= 0) { Slots[SelectedSlot] = 0; return false; }
+         data.ItemInventory[id]--;
+@@ -147,9 +181,13 @@
+             case ItemKind.Shield: ItemArea.Place(ItemKind.Shield, _player.Stats); break;
+             case ItemKind.BattleBanner: ItemArea.Place(ItemKind.BattleBanner, _player.Stats); break;
+             case ItemKind.PocketCasino: StartCoroutine(Spin()); break;
+-            case ItemKind.CloneProjector: ItemClone.Create(_player, -1); ItemClone.Create(_player, 1); break;
++            case ItemKind.CloneProjector: ItemClone.Create(_player, _player.Weapon.AimDirection.x < 0 ? -1 : 1); break;
+             case ItemKind.ExperiencePotion: LevelManager.Instance?.GrantItemLevel(); break;
+             case ItemKind.Flamethrower: ItemArea.Place(ItemKind.Flamethrower, _player.Stats); break;
++            case ItemKind.Sawblade: AddSawblade(); break;
++            case ItemKind.Shock: Shock(); break;
++            case ItemKind.DivineIntervention: BeginDivine(); break;
++            case ItemKind.Nuke: ItemArea.DropNuke(_player.Stats); break;
+         }
+         return true;
+     }
+@@ -164,9 +202,138 @@
+     }
+     public void ApplyCasino(int effect)
+     {
+-        CasinoEffect = Mathf.Clamp(effect, 0, 7); CasinoExpiresWave = CompletedWaves + 2;
++        CasinoEffect = Mathf.Clamp(effect, 0, 7); CasinoExpiresWave = CompletedWaves + (CasinoEffect < 4 ? 10 : 2);
+         _nextRegen = Time.time + 5;
+         string[] names = { "+5 damage", "+25% speed", "+15% fire rate", "+1 health every 5 seconds", "Damage set to 1", "Speed set to 0", "Enemies drop no coins", "-25% experience" };
+         ResultText = names[CasinoEffect]; ResultUntil = Time.time + 2;
+     }
++
++    public void AddSawblade()
++    {
++        if (_saws.Count >= 4) return;
++        var visual = new GameObject("Item sawblade").AddComponent<SpriteRenderer>();
++        visual.sprite = ItemCatalog.Icon((int)ItemKind.Sawblade); visual.sortingOrder = 100;
++        visual.transform.localScale = Vector3.one * .6f;
++        _saws.Add(new Saw { Visual = visual });
++    }
++    void ClearSawblades()
++    {
++        foreach (var saw in _saws) if (saw.Visual != null) Destroy(saw.Visual.gameObject);
++        _saws.Clear(); _orbit = 0;
++    }
++    void UpdateSawblades()
++    {
++        if (_saws.Count == 0 || Camera.main == null) return;
++        _orbit += Time.deltaTime / 1.5f;
++        Vector3 center = Camera.main.ScreenToWorldPoint(InputHelper.GetMousePosition(this)); center.z = 0;
++        EnemyBase.CopyActiveEnemies(_targets);
++        if (Mathf.FloorToInt(_orbit) != _lastPrunedOrbit)
++        {
++            _lastPrunedOrbit = Mathf.FloorToInt(_orbit);
++            foreach (var saw in _saws)
++            {
++                _staleSawHits.Clear();
++                foreach (var hit in saw.NextHit) if (hit.Value <= _orbit) _staleSawHits.Add(hit.Key);
++                foreach (int id in _staleSawHits) saw.NextHit.Remove(id);
++            }
++        }
++        for (int i = 0; i < _saws.Count; i++)
++        {
++            var saw = _saws[i];
++            float angle = (_orbit + i / (float)_saws.Count) * Mathf.PI * 2;
++            Vector2 position = (Vector2)center + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * 1.5f;
++            saw.Visual.transform.position = position; saw.Visual.transform.rotation = Quaternion.Euler(0, 0, -_orbit * 720);
++            foreach (var enemy in _targets)
++            {
++                if (enemy == null || !enemy.IsAlive) continue;
++                int id = enemy.GetInstanceID();
++                if (saw.NextHit.TryGetValue(id, out float next) && _orbit < next) continue;
++                Vector2 point = enemy.BodyCollider != null ? enemy.BodyCollider.ClosestPoint(position) : (Vector2)enemy.transform.position;
++                if ((point - position).sqrMagnitude > .3f * .3f) continue;
++                saw.NextHit[id] = _orbit + 1;
++                enemy.TakeItemDamage(1, _player.Stats);
++            }
++        }
++    }
++    public void Shock()
++    {
++        EnemyBase.CopyActiveEnemies(_targets);
++        foreach (var enemy in _targets) if (enemy != null && enemy.IsAlive)
++        {
++            enemy.ApplyItemStun(10);
++            _player.Weapon.ShowElectricChain(enemy.transform.position + Vector3.up * 12, enemy.transform.position);
++            enemy.TakeItemDamage(enemy.MaxHealth * .5f, _player.Stats);
++        }
++    }
++    public void BeginDivine()
++    {
++        if (_player == null || _baseStats == null) return;
++        DivineExpiresWave = CompletedWaves + 2;
++        if (DivineActive) return;
++        var stats = _player.Stats;
++        _savedStats = JsonUtility.ToJson(stats); _savedMovement = JsonUtility.ToJson(_player.Movement);
++        _savedMaxHealth = _player.Health.MaxHealth; _savedRegen = _player.Health.RegenPerWave; _savedThorns = _player.Health.ThornsDamage;
++        int coins = stats.CoinsCollectedRun;
++        JsonUtility.FromJsonOverwrite(_baseStats, stats); stats.CoinsCollectedRun = coins;
++        JsonUtility.FromJsonOverwrite(_baseMovement, _player.Movement);
++        stats.CardsSuppressed = true;
++        _player.Health.SetTemporaryMaxHealth(_baseMaxHealth);
++        _player.Health.RegenPerWave = _player.Health.ThornsDamage = 0;
++        _player.Movement.CancelCardMovement();
++        _player.Weapon.StopCardAttacks();
++        stats.GetComponent<AscensionEffects>()?.SuspendWalls(true);
++        stats.NotifyTurretsChanged(); stats.NotifySecondWindChanged();
++        _divineRegen = 0;
++    }
++    public void DeferCard(System.Action apply) { _deferredCards.Add(apply); }
++    public void EndDivine()
++    {
++        if (!DivineActive || _player == null) return;
++        var stats = _player.Stats;
++        int coins = stats.CoinsCollectedRun;
++        JsonUtility.FromJsonOverwrite(_savedStats, stats); stats.CoinsCollectedRun = coins;
++        JsonUtility.FromJsonOverwrite(_savedMovement, _player.Movement);
++        _savedStats = _savedMovement = null; stats.CardsSuppressed = false;
++        _player.Weapon.StopCardAttacks();
++        _player.Health.SetTemporaryMaxHealth(_savedMaxHealth);
++        _player.Health.RegenPerWave = _savedRegen; _player.Health.ThornsDamage = _savedThorns;
++        stats.GetComponent<AscensionEffects>()?.SuspendWalls(false);
++        foreach (var apply in _deferredCards) apply();
++        _deferredCards.Clear();
++        stats.NotifyTurretsChanged(); stats.NotifySecondWindChanged();
++    }
++    public void FireDivineLightning()
++    {
++        if (!DivineActive) return;
++        _lightningHits.Clear();
++        Vector2 origin = _player.Weapon.FirePoint != null ? (Vector2)_player.Weapon.FirePoint.position : (Vector2)transform.position;
++        Vector2 direction = _player.Weapon.AimDirection;
++        EnemyBase first = null; float nearest = 40;
++        foreach (var enemy in EnemyBase.ActiveEnemies)
++        {
++            if (enemy == null || !enemy.CanTakeDamage) continue;
++            Vector2 delta = (Vector2)enemy.transform.position - origin;
++            float along = Vector2.Dot(delta, direction);
++            float width = enemy.BodyCollider != null ? Mathf.Max(enemy.BodyCollider.bounds.extents.x, enemy.BodyCollider.bounds.extents.y) : .5f;
++            if (along < 0 || along > nearest || Mathf.Abs(delta.x * direction.y - delta.y * direction.x) > width + .4f) continue;
++            nearest = along; first = enemy;
++        }
++        if (first == null) { _player.Weapon.ShowElectricChain(origin, origin + direction * 15); return; }
++        EnemyBase target = first;
++        Vector3 previous = first.transform.position + Vector3.up * 15;
++        for (int hop = 0; hop <= 5 && target != null; hop++)
++        {
++            _lightningHits.Add(target);
++            Vector3 position = target.transform.position;
++            _player.Weapon.ShowElectricChain(previous, position);
++            target.TakeItemDamage(target.MaxHealth * .5f * Mathf.Pow(.9f, hop), _player.Stats);
++            previous = position; target = null; float best = 6 * 6;
++            foreach (var enemy in EnemyBase.ActiveEnemies)
++            {
++                if (enemy == null || !enemy.CanTakeDamage || _lightningHits.Contains(enemy)) continue;
++                float distance = (enemy.transform.position - position).sqrMagnitude;
++                if (distance < best) { best = distance; target = enemy; }
++            }
++        }
++    }
+ }
+--- before/Assets\Scripts\PlayerStats.cs
++++ after/Assets\Scripts\PlayerStats.cs
+@@ -23,9 +23,13 @@
+     public static PlayerStats Instance;
+     public int CoinsPerWave;
+     [NonSerialized] public PlayerItems Items;
++    [NonSerialized] public bool CardsSuppressed;
+     [NonSerialized] public float PermanentDamage, PermanentSpeed, PermanentFireRate, PermanentLuck;
+     [NonSerialized] public float CloneFireRateFactor = 1;
+-    public float ItemFireRateMultiplier => (1 + PermanentFireRate + (Items != null ? Items.FireRateBonus : 0) + ItemArea.BannerBonus(transform.position)) * CloneFireRateFactor;
++    bool _cloneSnapshot, _cloneDamageLocked;
++    float _cloneItemDamage, _cloneBannerBonus, _cloneMoneyHighBonus, _cloneFireMultiplier;
++    public float ItemFireRateMultiplier => _cloneSnapshot ? _cloneFireMultiplier :
++        (1 + PermanentFireRate + (Items != null ? Items.FireRateBonus : 0) + ItemArea.BannerBonus(transform.position)) * CloneFireRateFactor;
+     public const float RebirthBonus = 1.5f;
+ 
+     [Header("Card Rework")]
+@@ -42,7 +46,7 @@
+     public float RebirthStatBonus;
+     public bool RebirthUsed;
+     readonly HashSet<CardAscension> _ascensions = new HashSet<CardAscension>();
+-    public bool HasAscension(CardAscension kind) => _ascensions.Contains(kind);
++    public bool HasAscension(CardAscension kind) => !CardsSuppressed && _ascensions.Contains(kind);
+     // Rebirth is applied explicitly to core stats, never as a generic upgrade scaler.
+     public float RebirthStatMultiplier => 1f + Mathf.Max(0, RebirthStatBonus);
+     public float SpeedMultiplier => Items != null && Items.SpeedLocked ? 0 : Mathf.Max(.05f, 1f + PermanentSpeed + RunSpeedBonus + (Items != null ? Items.SpeedBonus : 0) + (HasAscension(CardAscension.Untouchable) ? 4f : 0f)) * RebirthStatMultiplier;
+@@ -91,9 +95,10 @@
+     // Rebirth then multiplies current feather damage only; standalone upgrade damage is unchanged.
+     public float CalculateDamage(float flat, bool feather, float ratio = 1f, float localBonus = 0f)
+     {
+-        if (Items != null && Items.DamageLocked) return 1;
+-        float baseDamage = flat + (feather ? 0 : NonFeatherFlatDamage) + (Items != null ? Items.FlatDamage : 0);
+-        float percent = PermanentDamage + ItemArea.BannerBonus(transform.position) + GlobalDamageBonus + RunDamageBonus +
++        if (CardsSuppressed) return 0;
++        if (_cloneSnapshot ? _cloneDamageLocked : Items != null && Items.DamageLocked) return 1;
++        float baseDamage = flat + (feather ? 0 : NonFeatherFlatDamage) + (_cloneSnapshot ? _cloneItemDamage : Items != null ? Items.FlatDamage : 0);
++        float percent = PermanentDamage + (_cloneSnapshot ? _cloneBannerBonus : ItemArea.BannerBonus(transform.position)) + GlobalDamageBonus + RunDamageBonus +
+             GetCurrentMoneyHighMultiplier() - 1f + localBonus;
+         return Mathf.Max(0f, baseDamage * Mathf.Max(0f, 1f + percent) * ratio * (feather ? RebirthStatMultiplier : 1f));
+     }
+@@ -359,10 +364,15 @@
+ 
+     public void CopyCloneRuntime(PlayerStats source)
+     {
+-        _ascensions.Clear(); foreach (var ascension in source._ascensions) _ascensions.Add(ascension);
++        _ascensions.Clear(); if (!source.CardsSuppressed) foreach (var ascension in source._ascensions) _ascensions.Add(ascension);
+         PermanentDamage = source.PermanentDamage; PermanentSpeed = source.PermanentSpeed;
+         PermanentFireRate = source.PermanentFireRate; PermanentLuck = source.PermanentLuck;
+-        CloneFireRateFactor = .5f; Items = null;
++        CloneFireRateFactor = 1; Items = null;
++        _cloneSnapshot = true; _cloneFireMultiplier = source.ItemFireRateMultiplier;
++        _cloneItemDamage = source.Items != null ? source.Items.FlatDamage : 0;
++        _cloneDamageLocked = source.Items != null && source.Items.DamageLocked;
++        _cloneBannerBonus = ItemArea.BannerBonus(source.transform.position);
++        _cloneMoneyHighBonus = source.GetCurrentMoneyHighMultiplier() - 1;
+         ResetSpecialFeatherCounters();
+     }
+ 
+@@ -446,6 +456,8 @@
+     /// </summary>
+     public float GetCurrentMoneyHighMultiplier()
+     {
++        if (CardsSuppressed) return 1;
++        if (_cloneSnapshot) return 1 + _cloneMoneyHighBonus;
+         // Prune-on-read guarantees correctness even if Update was skipped this frame.
+         PruneExpiredMoneyHighStacks();
+ 
+--- before/Assets\Scripts\Projectile.cs
++++ after/Assets\Scripts\Projectile.cs
+@@ -245,6 +245,7 @@
+ 
+     void Update()
+     {
++        if (OwnerStats != null && OwnerStats.CardsSuppressed) { SilentDeactivate(); return; }
+         if (_lingering) { _lifeTimer -= Time.deltaTime; if (_lifeTimer <= 0) Deactivate(); return; }
+         if (Stats.HomingSpeed > 0 && _target != null && !Stats.IsBuckshotPellet)
+         {
+@@ -280,6 +281,7 @@
+ 
+     void OnTriggerEnter2D(Collider2D collision)
+     {
++        if (OwnerStats != null && OwnerStats.CardsSuppressed) { SilentDeactivate(); return; }
+         if (collision.CompareTag("OutOfBounds"))
+         {
+             SilentDeactivate();
+--- before/Assets\Scripts\SettingsMenuUI.cs
++++ after/Assets\Scripts\SettingsMenuUI.cs
+@@ -22,8 +22,8 @@
+     public TextMeshProUGUI KeyCaptureText;
+     public TextMeshProUGUI[] KeybindLabels;
+     public TextMeshProUGUI KeybindStatus;
+-    public static readonly string[] BindingActions = { "moveleft", "moveright", "jump", "crouch", "dash", "shoot", "moveleftalt", "moverightalt", "jumpalt", "crouchalt" };
+-    public static readonly string[] BindingNames = { "Move left", "Move right", "Jump / fly up", "Crouch / fly down", "Dash / blink", "Shoot", "Left (alternate)", "Right (alternate)", "Jump (alternate)", "Crouch (alternate)" };
++    public static readonly string[] BindingActions = { "moveleft", "moveright", "jump", "crouch", "dash", "shoot", "moveleftalt", "moverightalt", "jumpalt", "crouchalt", "useitem", "item1", "item2", "item3", "item4" };
++    public static readonly string[] BindingNames = { "Move left", "Move right", "Jump / fly up", "Crouch / fly down", "Dash / blink", "Shoot", "Left (alternate)", "Right (alternate)", "Jump (alternate)", "Crouch (alternate)", "Use item (hold bomb)", "Item slot 1", "Item slot 2", "Item slot 3", "Item slot 4" };
+     static readonly KeyCode[] Keys = (KeyCode[])System.Enum.GetValues(typeof(KeyCode));
+     int _bindingIndex = -1;
+     float _captureAfter;
+@@ -139,8 +139,6 @@
+     {
+         var input = InputManager.Instance;
+         if (input == null || index < 0 || index >= BindingActions.Length || key == KeyCode.None || key == KeyCode.Escape) return false;
+-        if (InputManager.ReservedForItems(key))
+-        { if (KeybindStatus != null) KeybindStatus.text = "1 / 2 / 3 / 4 and right-click are reserved for items."; return false; }
+         for (int i = 0; i < BindingActions.Length; i++)
+             if (i != index && input.GetKeybind(BindingActions[i]) == key)
+             {
+--- before/Assets\Scripts\ShopManager.Upgrades.cs
++++ after/Assets\Scripts\ShopManager.Upgrades.cs
+@@ -105,7 +105,7 @@
+     }
+     public static void SanitizeItems(PlayerData data, bool coop, int seats)
+     {
+-        var used = new int[9];
++        var used = new int[ItemCatalog.Count + 1];
+         for (int p = 0; p < seats; p++)
+         {
+             var loadout = coop ? data.CoopLoadouts[p] : data.SoloLoadout;
+--- before/Assets\Scripts\ShopUpdatePlayProbe.cs
++++ after/Assets\Scripts\ShopUpdatePlayProbe.cs
+@@ -144,16 +144,15 @@
+         Destroy(inside.gameObject);
+         Use(items, ItemKind.CloneProjector); yield return null; yield return null;
+         var clones = FindObjectsByType<ItemClone>(FindObjectsSortMode.None);
+-        Check(clones.Length == 2 && LocalCoopSession.Instance.Players.Count == 1, "two clones do not become real players");
++        Check(clones.Length == 1 && LocalCoopSession.Instance.Players.Count == 1, "one clone does not become a real player");
+         Check(clones.All(c => c.GetComponent<PlayerHealth>().MaxHealth == player.Health.MaxHealth), "clones copy max health");
+-        Check(clones.All(c => Mathf.Abs(c.GetComponent<WeaponPlayer>().EffectiveFireInterval - player.Weapon.EffectiveFireInterval * 2) < .001f), "clones fire at half rate");
++        Check(clones.All(c => Mathf.Abs(c.GetComponent<WeaponPlayer>().EffectiveFireInterval - player.Weapon.EffectiveFireInterval) < .001f), "clones copy the full fire rate");
+         Check(clones.All(c => Mathf.Approximately(c.GetComponent<PlayerController>().EffectiveMaxSpeed, player.Movement.EffectiveMaxSpeed)), "clones snapshot upgraded player movement speed");
+         Check(clones.All(c => Physics2D.GetIgnoreCollision(c.GetComponent<Collider2D>(), player.GetComponent<Collider2D>())), "active clones ignore the owner collider");
+-        Check(Physics2D.GetIgnoreCollision(clones[0].GetComponent<Collider2D>(), clones[1].GetComponent<Collider2D>()), "active clones do not block each other");
+         float clonedSpeed = clones[0].SpawnMoveSpeed; player.Stats.RunSpeedBonus += .5f;
+         Check(Mathf.Approximately(clones[0].GetComponent<PlayerController>().EffectiveMaxSpeed, clonedSpeed), "later player speed changes do not alter clone snapshot");
+         player.Stats.RunSpeedBonus -= .5f;
+-        var movingClone = clones.First(c => c.name == "Right clone");
++        var movingClone = clones[0];
+         movingClone.GetComponent<Rigidbody2D>().position = playerBody.position + Vector2.left * 4;
+         yield return new WaitForSeconds(.2f);
+         Check(movingClone.GetComponent<Rigidbody2D>().linearVelocity.x > clonedSpeed * .75f, "clone accelerates to player-like running speed");
+@@ -162,20 +161,23 @@
+         Check(LocalCoopSession.NearestAlive(clones[0].transform.position) == player.Stats, "clone does not capture camera or pickups");
+         clones[0].GetComponent<PlayerHealth>().TryTakeDamage(10000); yield return null;
+         Check(!LocalCoopSession.Instance.GameOver && !player.Health.IsDead, "clone death does not end run");
+-        LocalCoopSession.Instance.CompleteWave(); LocalCoopSession.Instance.CompleteWave(); yield return null; yield return null;
+-        Check(FindObjectsByType<ItemClone>(FindObjectsSortMode.None).Length == 0, "clones expire after two waves");
++        Use(items, ItemKind.CloneProjector); yield return null;
++        for (int i = 0; i < 4; i++) LocalCoopSession.Instance.CompleteWave(); yield return null;
++        Check(FindObjectsByType<ItemClone>(FindObjectsSortMode.None).Length == 1, "clone survives four waves");
++        LocalCoopSession.Instance.CompleteWave(); yield return null; yield return null;
++        Check(FindObjectsByType<ItemClone>(FindObjectsSortMode.None).Length == 0, "clone expires after five waves");
+         if (target != null) Destroy(target.gameObject);
+         var far = Enemy(player.transform.position + Vector3.right * 35); far.SpawnProtectionSeconds = 3; far.Initialize(1);
+         Check(far.IsSpawnProtected, "off-screen test enemy has normal spawn protection"); float beforeHealth = far.HealthRemaining;
+         Use(items, ItemKind.Flamethrower); yield return new WaitForSeconds(1.1f);
+-        Check(far.HealthRemaining < beforeHealth && far.HealthRemaining >= beforeHealth - 7, "flames deal about five DPS off screen");
++        Check(far.HealthRemaining < beforeHealth - far.MaxHealth * .08f && far.HealthRemaining >= beforeHealth - far.MaxHealth * .15f, "flames deal ten percent maximum HP per second off screen");
+         var mapFire = FindObjectsByType<ItemArea>(FindObjectsSortMode.None).First(a => a.name == "Flamethrower");
+         var patches = mapFire.GetComponentsInChildren<FireTrailPatch>();
+         Check(patches.Length > 30 && patches.All(p => !p.enabled && Mathf.Abs(p.transform.position.y - world.Floor) < .2f), "map flames reuse fire-trail prefab on the ground");
+         Check(patches.All(p => p.GetComponentsInChildren<ParticleSystem>().All(ps => ps.main.loop)), "map fire continues for the item lifetime");
+         ScreenCapture.CaptureScreenshot(Path.Combine(Path.GetTempPath(), "duck-balance-ground-flames.png")); yield return null;
+         Destroy(far.gameObject);
+-        var bombTarget = Enemy(player.transform.position + Vector3.up * 1.5f);
++        var bombTarget = Enemy(ItemArea.ThrowPosition(player.transform.position, Vector2.right, .25f));
+         ItemArea.LobBomb(player.Stats, Vector2.zero); yield return new WaitForSeconds(1.4f);
+         Check(bombTarget == null || !bombTarget.IsAlive, "bomb instantly defeats enemies in blast");
+         var data = SaveSystem.LoadData(); int collected = data.ItemInventory[1];
+@@ -493,9 +495,11 @@
+             Check(menu.CardRevealCenter.GetComponentsInChildren<CardDisplay>().Length == count * 3, "all cards revealed for " + count);
+             foreach (var card in menu.CardRevealCenter.GetComponentsInChildren<CardDisplay>())
+             {
+-                var rect = (RectTransform)card.transform; var slot = (RectTransform)rect.parent;
++                var rect = (RectTransform)card.transform;
++                // Three-pack reveals center the four-card second row between grid columns.
++                var slot = count == 3 ? (RectTransform)menu.CardRevealCenter : (RectTransform)rect.parent;
+                 var corners = new Vector3[4]; rect.GetWorldCorners(corners);
+-                Check(corners.All(c => { Vector3 p = slot.InverseTransformPoint(c); return p.x >= slot.rect.xMin - 1 && p.x <= slot.rect.xMax + 1 && p.y >= slot.rect.yMin - 1 && p.y <= slot.rect.yMax + 1; }), "revealed card fits its grid cell");
++                Check(corners.All(c => { Vector3 p = slot.InverseTransformPoint(c); return p.x >= slot.rect.xMin - 1 && p.x <= slot.rect.xMax + 1 && p.y >= slot.rect.yMin - 1 && p.y <= slot.rect.yMax + 1; }), "revealed card fits its reveal area");
+             }
+             Check(menu.RevealGrid.spacing.y >= 0, "reveal rows have no negative spacing");
+             Visible("revealed cards " + count);
+--- before/Assets\Scripts\TankEnemy.cs
++++ after/Assets\Scripts\TankEnemy.cs
+@@ -77,10 +77,16 @@
+                 line = ChainPrefab != null ? Instantiate(ChainPrefab, transform) : new GameObject("Protection Chain").AddComponent<LineRenderer>();
+                 line.transform.SetParent(transform, false);
+                 line.useWorldSpace = true; line.positionCount = 2;
++                // Apply to authored chain prefabs too, without changing their colors.
++                var gradient = line.colorGradient;
++                var alpha = gradient.alphaKeys;
++                for (int i = 0; i < alpha.Length; i++) alpha[i].alpha *= .4f;
++                gradient.alphaKeys = alpha; line.colorGradient = gradient;
+                 if (ChainPrefab == null)
+                 {
+                     line.startWidth = line.endWidth = .06f;
+-                    line.startColor = line.endColor = ChainColor;
++                    var color = ChainColor; color.a *= .4f;
++                    line.startColor = line.endColor = color;
+                     if (SpriteRen != null) { line.sharedMaterial = SpriteRen.sharedMaterial; line.sortingLayerID = SpriteRen.sortingLayerID; line.sortingOrder = SpriteRen.sortingOrder + 1; }
+                 }
+             }
+--- before/Assets\Scripts\TurretBase.cs
++++ after/Assets\Scripts\TurretBase.cs
+@@ -72,7 +72,7 @@
+ 
+     void Update()
+     {
+-        if (PlayerTransform == null || OwnerHealth != null && OwnerHealth.IsDead) return;
++        if (PlayerTransform == null || OwnerHealth != null && OwnerHealth.IsDead || OwnerStats != null && OwnerStats.CardsSuppressed) return;
+ 
+         FollowPlayer();
+         TickAction();
+--- before/Assets\Scripts\WaveManager.cs
++++ after/Assets\Scripts\WaveManager.cs
+@@ -27,6 +27,7 @@
+     {
+         public GameObject Prefab;
+         public bool Elite;
++        public bool Introduction;
+         public int SpawnPointIndex;
+         public float DelayBefore, Interval;
+     }
+@@ -144,7 +145,7 @@
+         }
+         int baseCount = _spawnPlan.Count;
+         for (int player = 1; player < LocalCoopSession.PlayerCount; player++)
+-            for (int i = 0; i < baseCount; i++) _spawnPlan.Add(_spawnPlan[i]);
++            for (int i = 0; i < baseCount; i++) if (!_spawnPlan[i].Introduction) _spawnPlan.Add(_spawnPlan[i]);
+         _spawnIndex = 0;
+         int enemiesThisWave = _spawnPlan.Count;
+         
+@@ -281,16 +282,23 @@
+                 string kind = prefab.GetComponent<EnemyBase>().EnemyKind;
+                 int kindIndex = kind == "ground" ? 0 : kind == "flying" ? 1 : kind == "tank" ? 2 : 3;
+                 if (UseIntroductoryWaves && wave < NormalUnlockWaves[kindIndex]) continue;
++                bool normalIntro = definition == null && UseIntroductoryWaves && wave == NormalUnlockWaves[kindIndex];
++                bool eliteIntro = definition == null && UseIntroductoryWaves && wave == EliteUnlockWaves[kindIndex];
+                 bool eliteUnlocked = !UseIntroductoryWaves || wave >= EliteUnlockWaves[kindIndex];
+-                options.Add(new WaveEnemyOption { Prefab = prefab, Weight = 1, EliteChance = eliteUnlocked ? EliteChance : 0 });
++                if (!normalIntro) options.Add(new WaveEnemyOption { Prefab = prefab, Weight = 1, EliteChance = eliteUnlocked && !eliteIntro ? EliteChance : 0 });
+                 // Guarantee the introduction is the first spawn; custom definitions control their own order.
+-                if (definition == null && UseIntroductoryWaves && (wave == NormalUnlockWaves[kindIndex] || wave == EliteUnlockWaves[kindIndex]))
+-                    plan.Add(new SpawnRequest { Prefab = prefab, Elite = wave == EliteUnlockWaves[kindIndex], SpawnPointIndex = -1, Interval = -1 });
++                if (normalIntro || eliteIntro)
++                    plan.Add(new SpawnRequest { Prefab = prefab, Elite = eliteIntro, Introduction = true, SpawnPointIndex = -1, Interval = -1 });
+             }
+         }
+         float weight = 0;
+         foreach (var option in options) weight += option.Weight;
+-        if (weight <= 0) { error = "Wave " + wave + " has no eligible random enemies after exclusions."; return false; }
++        if (weight <= 0)
++        {
++            // The first ground-enemy wave has no previously introduced filler type.
++            if (plan.Count > 0) return EnsureTankPredecessor(plan, definition, out error);
++            error = "Wave " + wave + " has no eligible random enemies after exclusions."; return false;
++        }
+         while (plan.Count < total)
+         {
+             float roll = Random.value * weight;
+--- before/Assets\Scripts\WeaponPlayer.cs
++++ after/Assets\Scripts\WeaponPlayer.cs
+@@ -91,7 +91,8 @@
+     float _fireReduction;
+     public Vector2 AimDirection => ComputeAimDir();
+     float RebirthMultiplier => OwnerStats != null ? OwnerStats.RebirthStatMultiplier : 1f;
+-    public float EffectiveFireInterval => Mathf.Max(.005f, FireRate / RebirthMultiplier / (OwnerStats != null ? Mathf.Max(.01f, OwnerStats.ItemFireRateMultiplier) : 1));
++    public float EffectiveFireInterval => OwnerStats != null && OwnerStats.Items != null && OwnerStats.Items.DivineActive
++        ? OwnerStats.Items.DivineShotDelay : Mathf.Max(.005f, FireRate / RebirthMultiplier / (OwnerStats != null ? Mathf.Max(.01f, OwnerStats.ItemFireRateMultiplier) : 1));
+     public int EffectiveParallelProjectiles => Mathf.Max(0, Mathf.RoundToInt(ParallelProjectiles * RebirthMultiplier));
+     // Temporary Triple or Nothing projectiles are an upgrade effect, not a core-stat increase.
+     public int EffectiveSpreadProjectiles => Mathf.Max(0, Mathf.RoundToInt(SpreadProjectiles * RebirthMultiplier) + BonusSpreadProjectiles);
+@@ -356,6 +357,8 @@
+ 
+     void ShootNormal()
+     {
++        if (OwnerStats != null && OwnerStats.Items != null && OwnerStats.Items.DivineActive)
++        { OwnerStats.Items.FireDivineLightning(); return; }
+         // 1.4.13: Play player shoot SFX. Hooked here (the entry point for the normal 
+         // fire path) so it plays once per volley regardless of how many parallel/spread 
+         // projectiles get spawned. AudioManager handles random slice selection if the 
+@@ -717,15 +720,31 @@
+         Emit(position, Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg, stats, color);
+     }
+ 
++    public void StopCardAttacks()
++    {
++        // Existing timed buffs keep their expiry routines, so they cannot become permanent.
++        _nextNormalFireTime = _nextMiniGunFireTime = Time.time;
++    }
++
++    static Material _fallbackLightningMaterial;
+     public void ShowElectricChain(Vector3 from, Vector3 to)
+     {
+-        if (ElectricChainEffectPrefab == null || !isActiveAndEnabled) return;
++        if (!isActiveAndEnabled) return;
+ 
+         int index = 0;
+         while (index < _electricChainLines.Count && _electricChainLines[index].enabled) index++;
+         if (index == _electricChainLines.Count)
+         {
+-            LineRenderer line = Instantiate(ElectricChainEffectPrefab, transform);
++            LineRenderer line;
++            if (ElectricChainEffectPrefab != null) line = Instantiate(ElectricChainEffectPrefab, transform);
++            else
++            {
++                line = new GameObject("Lightning").AddComponent<LineRenderer>(); line.transform.SetParent(transform, false);
++                if (_fallbackLightningMaterial == null) _fallbackLightningMaterial = new Material(Shader.Find("Sprites/Default"));
++                line.sharedMaterial = _fallbackLightningMaterial;
++                line.startWidth = line.endWidth = .06f; line.startColor = line.endColor = new Color(.65f, .85f, 1, .8f);
++                line.sortingOrder = 105;
++            }
+             line.gameObject.SetActive(true);
+             _electricChainLines.Add(line);
+             _electricChainExpirations.Add(0f);
+--- before/Docs\ARCHITECTURE.md
++++ after/Docs\ARCHITECTURE.md
+@@ -482,6 +482,7 @@
+ 
+ * slower melee
+ * three lifetime protection chains to nearby non-tank enemies, with exclusive ownership
++* chain visuals use 40% of their authored alpha
+ * 50% damage redirection using fractional health damage
+ * elite shield gain from redirected damage and capped ally-death speed/damage bonuses
+ 
+@@ -535,6 +536,9 @@
+ weighted random pools, exclusions, or mixed ordered/random spawning. Unspecified
+ waves use the existing count/cap controls and a configurable introduction schedule:
+ normal ground/flying/tank/lobber at 1/3/6/9, elite variants at 12/16/20/25.
++Each automatic introduction wave contains exactly one of its new variant, including
++co-op; random filler and multiplayer duplication exclude that introduction.
++Explicit WaveDefinition pools/groups retain their authored behavior.
+ Tanks follow at least one non-tank spawn; tank-only scripted waves are rejected.
+ Protected allies receive a blue tint, while status-effect colors keep priority.
+ The active flying enemy prefab uses a seven-unit firing range.
+@@ -982,26 +986,39 @@
+ and is independent of coin magnetism. Drops have gravity and collide only with
+ Ground. Collection shows a brief white-infill "+1 item name" above the collector.
+ 
+-`ItemArea` owns fixed shield/banner zones, lobbed bombs and map-wide flames.
+-Consumable damage explicitly bypasses off-screen spawn protection through
+-EnemyBase's existing damage/death path. Banners do not stack. Shield/flames last
+-30 game seconds; banners expire after ten completed waves. Casino effects and
+-`ItemClone` AI expire after two completed waves. Clones copy the player's current
+-card build, max health and permanent stats, fire at half rate, stay within six
+-units, and do not count as real players for camera framing, pickups or game over.
+-Clones snapshot effective movement speed/acceleration at creation and configure
+-owner/clone collision exclusions after activation. Bombs show a trajectory while
+-right mouse/RB/touch Use is held and launch on release; the preview and flight
+-share the same ballistic formula. Switching slots or pausing cancels the throw.
+-Flamethrower visuals reuse PlayerController.FireTrailPatchPrefab at terrain height;
+-ItemArea retains the map-wide damage and 30-second lifetime. Other item icons and
+-world effects retain their procedural placeholders.
++`ItemArea` owns fixed shield/banner zones, lobbed bombs, map-wide flames and the
++falling nuke/radiation. Consumable damage bypasses off-screen spawn protection
++through EnemyBase's existing damage/death path. Shields last two completed waves,
++flames three, and banners ten. Flames deal 10% maximum health per second; radiation
++slows existing and newly spawned enemies by 50% for ten waves after detonation.
++Banners do not stack. Casino positives last ten waves and negatives two.
++`ItemClone` creates one AI for five waves, snapshots the player's full current
++damage/fire rate and effective movement, and stays within six units. Clones do not
++count as real players for camera framing, pickups or game over. Collision exclusions
++are configured after activation. Bombs use one high arc mirrored left/right,
++detonate on terrain or enemy contact, and share their collision tracing with the
++held-Use trajectory preview. Switching slots or pausing cancels the throw.
++Flamethrower and green radiation reuse PlayerController.FireTrailPatchPrefab at
++terrain height, with ItemArea owning damage/slow and wave lifetime.
++
++`PlayerItems` manages up to four evenly spaced cursor sawblades until death, with
++one hit per enemy per blade per orbit, plus the ten-second Shock stun/50%-health hit.
++Divine Intervention snapshots and suspends card stats/effects for two waves,
++restores the baseline captured before starting cards, grants flight, 10 HP/second
++regeneration and lightning at 10% of the baseline shot interval. Lightning deals
++50% maximum health, then chains to five more targets at 90% of the preceding
++fraction. Cards picked during Divine are recorded immediately and applied once
++after restoration. Existing projectiles, areas and companions respect suppression.
++The twelve item IDs preserve the original eight IDs; older inventories expand on
++load. Item icons and world effects retain procedural placeholders.
+ 
+ `ItemWheelUI` provides the temporary four-way selection HUD, pickup text, casino
+ display with a fixed landing tick and outcome-matched stopping angle, and
+-mobile slot/Use buttons. Keyboard 1–4/right-click and controller D-pad/RB are
+-reserved for items; ordinary gamepad movement uses the configured analog stick.
+-Saved gameplay mappings that conflict with these controls resolve to defaults.
++mobile slot/Use buttons. Keyboard 1–4/right-click and controller D-pad/RB are the
++remappable item defaults; ordinary gamepad movement uses the configured analog stick.
++The old reserved-control mapping rule migrates once, then saved choices are retained.
++Co-op collection events update availability text in every loadout pane without
++closing another player's item menu.
+ 
+ ---
+ 
+@@ -1317,7 +1334,7 @@
+ right stick aim with a narrow horizontal snap, RT fire, LB dash. Shared menus use
+ ControllerMenuNavigation with the first controller, right face/B to confirm and
+ bottom face/A to go back by default. `ControllerBindings` saves remappable Jump,
+-Dash, Shoot, Confirm and Back buttons plus move/aim stick swapping in PlayerPrefs;
++Dash, Shoot, Confirm, Back, Use Item and four item-slot buttons, plus move/aim stick swapping in PlayerPrefs;
+ the existing keybind panel has keyboard and controller tabs. Menu movement stays
+ on D-pad/left stick. Solo automatically prioritizes an attached controller and
+ falls back to keyboard/mouse when disconnected. Co-op card panes handle their assigned controllers
+@@ -1327,6 +1344,8 @@
+ independent of button tint and card scale. Shared menus follow EventSystem focus;
+ each co-op card pane has its own frame, green while selected and yellow while browsing.
+ The frames do not intercept pointer input and require no prefab wiring.
++Sliders stay in navigation mode until Interact is pressed. Their focus turns green
++while the left stick adjusts them; Interact or Back returns to navigation.
+ 
+ Pack opening accepts a fresh Confirm/Interact press (B by default) as well as a
+ pointer swipe. Holding the purchase press does not skip the swipe screen. Card
+@@ -1337,7 +1356,7 @@
+ Desktop movement, jump, dash and shooting use InputManager's saved bindings;
+ mobile input still takes priority. MainMenu includes the persistent InputManager,
+ so settings changes carry into gameplay. The keybind screen exposes six primary
+-actions and four alternate movement keys, rejects duplicates, and supports
++actions, four alternate movement keys and five item controls, rejects duplicates, and supports
+ restoring defaults. Escape cancels capture.
+ 
+ InputManager removes only a duplicate component, preserving MobileInputController
+@@ -1651,4 +1670,8 @@
+ 
+ MainMenuUI centers single-/three-pack images in the authored horizontal PackRow.
+ Six packs use a centered 3×2 arrangement with that layout temporarily disabled.
++Three-pack opening uses larger pack images and a five-column, two-row reveal,
++with the four-card bottom row centered. Six-pack reveals retain six columns and
++three rows. `AscendedCardTint` adds a slow chromatic background tint to ascended
++collection and loadout cards while preserving the original white text.
+ The card reveal uses positive spacing and fits each card inside its grid cell.
+--- before/Docs\UPDATE_6_IMPLEMENTATION.md
++++ after/Docs\UPDATE_6_IMPLEMENTATION.md
+@@ -0,0 +1,130 @@
++# Duck Defender Update (6) — implementation and verification
++
++Implemented from the three-page `Duck Defender Update (6).pdf` supplied by the user. Verification completed October 21, 2026, in Unity 6000.0.35f1.
++
++## Result
++
++| Item | Cost | Behavior |
++| --- | ---: | --- |
++| Bomb | 100 | One high arc mirrored left/right, independent of vertical aim. Preview and flight share collision tracing. Terrain or enemy contact detonates an instant-kill radius. |
++| Health Potion | 100 | Full heal; existing behavior retained. |
++| Experience Potion | 100 | One level; existing behavior retained. |
++| Sawblade | 250 | Up to four evenly spaced blades orbit the cursor. Each deals one contact damage to an enemy at most once per full orbit. Persists until death. A fifth blade is not consumed. |
++| Shock | 250 | All living enemies receive a ten-second stun and damage equal to 50% of maximum health. |
++| Battle Banner | 250 | Nearby players receive +15% damage and fire rate for ten completed waves; existing behavior retained. |
++| Shield | 250 | Unbreakable for two completed waves. Expels enemies inside and blocks enemy movement/projectiles. |
++| Pocket Casino | 500 | Positive outcomes last ten completed waves; negative outcomes last two. |
++| Clone | 500 | One AI clone for five completed waves. Copies the current card build, health, full damage/fire rate, permanent bonuses, and effective movement. Later owner upgrades do not change the snapshot. |
++| Flamethrower | 500 | Map-wide damage of 10% enemy maximum health per second for three completed waves. Reuses the existing fire particles. |
++| Divine Intervention | 1,000 | Suspends card effects for two completed waves, grants flight and 10 HP/second regeneration, and replaces ordinary shooting with lightning. Afterwards restores the saved build and applies cards selected during the effect exactly once. |
++| Nuke | 1,000 | Falls from above, instantly defeats all enemies, then creates green fire-particle radiation that slows enemies by 50% for ten completed waves. Includes enemies spawned during radiation. |
++
++The project's `FireRate` is a shot interval. Divine's “90% reduced fire rate” is implemented as **90% less interval**, using the baseline before starting cards: the current scene's 0.5 seconds becomes 0.05 seconds. Lightning hits the aimed target for 50% maximum health, then up to five additional nearby enemies; each hop uses 90% of the preceding damage fraction (50%, 45%, 40.5%, …). Other item buffs and permanent upgrades are not cards. Ordinary item damage uses the existing tank protection/shield rules; instant defeat uses the existing death/reward path.
++
++Wave durations count wave completions after activation. Reusing Divine refreshes its two-wave duration without replacing the original saved build. Temporary enemy statuses already inflicted keep their normal expiry, while ongoing damage from suppressed cards is gated. Existing temporary card buffs also retain their normal clocks.
++
++Additional fixes:
++
++- Co-op equip/unequip refreshes availability counts in every loadout pane without dismissing another player's open menu.
++- Tank chain alpha is 40% of its previous value, for both authored and fallback lines.
++- Each automatic normal/elite introduction wave contains exactly one new variant, including co-op. Explicit custom WaveDefinition groups/pools retain their authored behavior.
++- Keyboard and controller settings include Use Item and all four item slots. Formerly reserved controls can be remapped. Duplicate controls are rejected within the gameplay or menu group; menu and gameplay can share buttons.
++- Controller sliders require Interact to enter editing; the left stick adjusts them, and Interact or Back exits. Editing focus is green.
++- Ascended card backgrounds slowly cycle a subtle chromatic tint; text stays white.
++- Three-pack opening has larger pack images and a five-column/two-row card reveal with a centered second row. Six packs retain a six-column/three-row reveal.
++
++## Files changed by this task
++
++The working tree already contained other edits. This list is based on comparison with the files captured at the start of this task, rather than attributing all existing Git changes to this update.
++
++All script paths below are under `Assets/Scripts/`.
++
++| File | Why it changed |
++| --- | --- |
++| `ItemCatalog.cs` | Append four stable item IDs, update costs/descriptions/name, and wrap placeholder icon hues for the expanded catalog. |
++| `PlayerData.cs` | Expand and normalize old inventories without changing existing IDs or balances. |
++| `ShopManager.Upgrades.cs` | Sanitize reservations against the expanded catalog. |
++| `PlayerItems.cs` | New item activation, sawblade orbit/hit limits, Shock, Divine snapshot/restore/deferred cards, casino durations, single clone, and shared bomb preview. |
++| `ItemArea.cs` | Bomb contact tracing, wave-based shields/flames, percentage damage, falling nuke, radiation slow and reused particles. |
++| `ItemClone.cs` | Five-wave clone lifetime. |
++| `PlayerStats.cs` | Card suppression and full current clone damage/fire-rate snapshots. |
++| `EnemyBase.cs` | Fractional item damage and off-screen item stun; prevent suppressed card damage. |
++| `WeaponPlayer.cs` | Divine firing interval/lightning route, firing-clock reset, reusable fallback lightning visuals. |
++| `PlayerController.cs` | Divine flight and cancellation of active card movement when suppression begins. |
++| `PlayerHealth.cs` | Temporarily rescale maximum/current health while retaining the underlying permanent/card health bookkeeping. |
++| `CardManager.cs` | Record cards picked during Divine immediately and defer their effects until restoration. |
++| `AscensionEffects.cs` | Suspend defender walls, identify healing-orb ownership, and gate delayed eruptions. |
++| `AscensionArea.cs` | Suspend damage/healing/pull while the source's cards are disabled. |
++| `FireTrailPatch.cs` | Suppress ongoing card fire damage. |
++| `HealingOrb.cs` | Prevent a suppressed source's healing orb from applying its card effect. |
++| `Projectile.cs` | Silently remove projectiles from a suppressed card source. |
++| `Meteor.cs` | Cancel suppressed card meteors and their explosions. |
++| `TurretBase.cs` | Pause card companion actions during suppression. |
++| `LevelManager.cs` | Skip suppressed players when distributing queued card meteors. |
++| `WaveManager.cs` | Mark introduction spawns and exclude the introduced variant from random filler and co-op duplication. |
++| `TankEnemy.cs` | Translucent protection-chain visuals. |
++| `CoopLobbyUI.cs` | Subscribe to collection changes and refresh every pane's availability text. |
++| `LoadoutPanel.cs` | Update counters in place and tint ascended mini-cards. |
++| `AscendedCardTint.cs` | New runtime component for the slow chromatic background tint. |
++| `CardDisplay.cs` | Apply the tint to eligible ascended cards. |
++| `MainMenuUI.cs` | Separate three-pack sizing/reveal layout and create the required additional pack images. |
++| `ControllerBindings.cs` | Five item actions, display names, formerly reserved remapping, and one-time compatibility migration. |
++| `InputManager.cs` | Persist/reset keyboard item bindings and migrate the previous reserved-control rule once. |
++| `Inputhelper.cs` | Read remapped item selection/use through the existing input abstraction. |
++| `SettingsMenuUI.cs` | Include keyboard item controls and permit remapping former item keys. |
++| `ControllerBindingsUI.cs` | Fit keyboard/controller item controls into the existing settings panel and allow Start to be captured. |
++| `ControllerMenuNavigation.cs` | Interact-to-edit sliders and editing focus feedback. |
++| `ItemWheelUI.cs` | Show the actual saved item-slot bindings. |
++| `Editor/UIUpdateSetup.cs` | Keep the existing menu setup helper compatible with the larger keybind list. This helper was not run to rewrite scenes. |
++| `Editor/UIUpdateVerification.cs` | Snapshot/restore the new binding preferences during isolated verification. |
++| `Editor/ShopUpdateVerification.cs` | Seed all twelve items for isolated checks. |
++| `ShopUpdatePlayProbe.cs` | Update legacy clone, flame, bomb, and reveal expectations to the new requirements. The entire older suite was not rerun. |
++| `ItemUpdatePlayProbe.cs` | New editor-only isolated integration probe for this update. |
++
++Unity generated `Assets/Scripts/AscendedCardTint.cs.meta` and `Assets/Scripts/ItemUpdatePlayProbe.cs.meta`; both were verified present. No existing meta files were edited by this task.
++
++Documentation:
++
++- `Docs/ARCHITECTURE.md`: updated current item, input, introduction-wave, tint, and pack-layout facts.
++- `Docs/UPDATE_6_IMPLEMENTATION.md`: this implementation, file list, verification, and handoff.
++
++Local verification artifacts are under `tmp/item-update/`: `verification.txt`, `extra-verification.cs`, `extra-verification.txt`, `implementation.diff`, and screenshots. They are diagnostics rather than Unity assets.
++
++## Verification performed
++
++- Unity compiled the implementation successfully in the open 6000.0.35f1 Editor.
++- The new isolated Play Mode suite passed **208 assertions**. It confirmed actual advancing frames, old inventory expansion, item consumption/prices, co-op count refresh, keyboard/controller mappings, white original-font controller text, slider behavior, pack sizes/reveals, chromatic tint, repeated introduction plans, bomb contact, Shock duration/damage, wave expiry boundaries, clone stat snapshots, flame percentage damage, Divine suppression/regeneration/lightning/restoration/deferred cards, nuke/radiation, and sawblade spacing/hit limits/death cleanup.
++- **11 focused Play Mode checks** passed using the real enemy prefabs and the real wave-start plan expansion: all eight four-player introduction waves remain unique, and both chain rendering paths have the intended alpha.
++- Existing visible-UI verification passed **182 assertions** for the twelve-item inventory, **91** for new shop offers, and **37** for the Divine item menu. These inspect font/color, text fit, and interactive controls.
++- Verified MainMenu uses `Assets/Fonts/DuckDefenderTestFontv2.asset`. The probe confirmed the new UI's white infill. No font/atlas/material was regenerated.
++- Inspected captured controller settings, three-pack/six-pack reveals, inventory, and item-description views. New item icons use the existing procedural placeholder approach.
++- Checked the Console during verification: no new gameplay runtime errors or compiler errors. A historical tooling timeout was already present; one later inspection expression also referenced gameplay objects after the death test had returned to MainMenu. Neither was a game-code failure.
++- `git diff --check` passed. Existing unrelated changes were preserved. No commit or push was made.
++- A final visual review caught an out-of-range hue in the expanded placeholder catalog. Wrapped the hue and verified all twelve icons contain visible colored pixels; Unity compilation still passed afterwards.
++- Tests used a separate verification save. The existing verification harness restores binding/audio/difficulty preferences on leaving Play Mode.
++- Finished with Play Mode stopped, the verification-save override cleared, and the active scene clean.
++
++The first two probe attempts exposed hard-coded test assumptions about difficulty-scaled enemy HP and the scene's initial fire interval. Assertions were corrected to use actual maximum health and the actual baseline interval; the complete subsequent run passed.
++
++## Unity Inspector and scene/prefab setup
++
++**No additional Inspector, scene, or prefab setup is required for the current project.** New UI and item behaviors attach through the existing runtime owners. The existing fire-trail prefab successfully supplied the flame/radiation particle visuals in Play Mode. Lightning has a runtime fallback when `WeaponPlayer.ElectricChainEffectPrefab` is unassigned.
++
++No scene, prefab, ScriptableObject, package version, build profile, or ProjectSettings values were intentionally changed by this task. Existing serialized names and the original eight item IDs are preserved. New keyboard binding fields have defaults and are initialized from PlayerPrefs; older inventories expand from nine entries (including empty ID zero) to thirteen. Migration keys are `Key_ItemBindingsVersion` and `DuckDefender_Controller_ItemBindingsVersion`.
++
++The four new item icons and sawblade/nuke representations are placeholders, consistent with the current item system. Final sprite artwork and visual tuning remain the user's visual-design work; no new art assets were generated.
++
++## Play Mode acceptance checklist
++
++1. In MainMenu, buy/equip the new items and inspect their descriptions. In a two- or four-player advanced lobby, leave one player's item menu open while another equips/unequips; all availability counts should update.
++2. Remap Use Item and a slot on keyboard and controller, reopen settings, and confirm they persist. Browse past sliders without changing values; press Interact, adjust with the left stick, then press Interact again.
++3. Open three packs and six packs. Check readability, centered rows, and Continue access at your normal window size. Inspect an ascended card's subtle color cycle.
++4. Throw bombs while aiming high/low on both sides. Compare the arc and verify terrain/enemy contact detonates. Check shield expulsion and projectile blocking.
++5. Exercise positive/negative casino effects and the shield/clone/flame expiry boundaries. Compare cloned fire rate/damage before and after upgrading the owner.
++6. Use Divine with a varied card build, including movement, health, companions, and ascensions. Confirm flight/lightning/regeneration, pick a card during it, and complete two waves to verify restoration. Check this in ordinary co-op play as well.
++7. Use Nuke with off-screen enemies and observe newly spawned enemies slowed during the next ten waves. Add four sawblades, confirm repeated contact is limited per orbit, and verify death clears them.
++8. Observe the normal/elite introduction waves and translucent tank links during a regular run.
++
++## Not verified
++
++No standalone or WebGL player build was produced. Real hardware controller feel, touch-device input, every card/item combination, long-session performance, and all screen aspect ratios still need normal acceptance testing. The automated checks cover representative card suppression/restoration and scripted virtual-controller interactions, not exhaustive gameplay balance or visual approval.

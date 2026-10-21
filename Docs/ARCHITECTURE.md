@@ -260,7 +260,8 @@ reserve), with three times the original playable boundary width. A 30-unit spawn
 reserve extends beyond each player boundary. Enemies ignore the four side-wall
 and anti-falloff colliders; players still collide with them. Dynamic enemy spawns
 raycast terrain, remain outside the current viewport and use a fixed distance
-independent of zoom.
+independent of zoom. Spawn candidates leave clearance from existing enemy bodies,
+including elite sizes. Ground enemy jump checks ignore the player-only walls.
 
 `CoopRunUI` creates overhead health or stacked clones of the solo health artwork,
 player names, offscreen arrows, individual card panes and results. The co-op XP
@@ -480,7 +481,8 @@ health/reach and apply a half-second player movement/feather stun on a successfu
 ### TankEnemy
 
 * slower melee
-* four lifetime protection chains to nearby non-tank enemies, with exclusive ownership
+* three lifetime protection chains to nearby non-tank enemies, with exclusive ownership
+* chain visuals use 40% of their authored alpha
 * 50% damage redirection using fractional health damage
 * elite shield gain from redirected damage and capped ally-death speed/damage bonuses
 
@@ -524,7 +526,7 @@ GameDifficulty applies the selected run modifiers: Easy is unchanged, Medium has
 1.5x health and 1.1x movement speed, and Hard has 2x health, 2x incoming enemy
 damage, 1.1x movement speed, and twice the additive wave-health growth. Existing
 wave spawn schedules and counts are unchanged.
-Tanks derive health as four times the rounded normal ground health. Elite enemies
+Tanks derive health as three times the rounded normal ground health. Elite enemies
 reuse the normal prefabs with preserved enlarged/darker visuals, double coin rewards,
 and 25% more XP (LevelManager carries fractional XP). Off-screen spawns reject damage
 until entering the gameplay camera. EnemyHealthBar displays numeric health and optional
@@ -534,6 +536,12 @@ WaveDefinition assets optionally override individual waves with scripted groups,
 weighted random pools, exclusions, or mixed ordered/random spawning. Unspecified
 waves use the existing count/cap controls and a configurable introduction schedule:
 normal ground/flying/tank/lobber at 1/3/6/9, elite variants at 12/16/20/25.
+Each automatic introduction wave contains exactly one of its new variant, including
+co-op; random filler and multiplayer duplication exclude that introduction.
+Explicit WaveDefinition pools/groups retain their authored behavior.
+Tanks follow at least one non-tank spawn; tank-only scripted waves are rejected.
+Protected allies receive a blue tint, while status-effect colors keep priority.
+The active flying enemy prefab uses a seven-unit firing range.
 See Docs/ENEMY_UPDATE.md for authoring, confirmed scaling boundaries, and verification.
 
 WaveManager automatically adds EnemyTipUI for full-view first-encounter tutorials.
@@ -970,25 +978,47 @@ loadouts for the run while retaining saved selections; permanent upgrades remain
 
 `LocalCoopSession` initializes `PlayerItems` after player Start methods. Starting
 cards go through CardManager's existing per-player application/history, so they
-use the saved level/ascension and are excluded from subsequent run offers. Items
+use the saved level/ascension and are excluded from subsequent run offers. Solo
+compatibility calls and explicit per-player calls share the same card history. Items
 are deducted and saved only on use. Unused copies survive death and quitting.
 Completed runs enable drops after the first two games; eligible kills roll 0.5%,
 with the first successful drop always a Bomb. `ItemPickup` requires nearby contact
-and is independent of coin magnetism.
+and is independent of coin magnetism. Drops have gravity and collide only with
+Ground. Collection shows a brief white-infill "+1 item name" above the collector.
 
-`ItemArea` owns fixed shield/banner zones, lobbed bombs and map-wide flames.
-Consumable damage explicitly bypasses off-screen spawn protection through
-EnemyBase's existing damage/death path. Banners do not stack. Shield/flames last
-30 game seconds; banners expire after ten completed waves. Casino effects and
-`ItemClone` AI expire after two completed waves. Clones copy the player's current
-card build, max health and permanent stats, fire at half rate, stay within six
-units, and do not count as real players for camera framing, pickups or game over.
-Item icons and world effects currently use procedural placeholder art.
+`ItemArea` owns fixed shield/banner zones, lobbed bombs, map-wide flames and the
+falling nuke/radiation. Consumable damage bypasses off-screen spawn protection
+through EnemyBase's existing damage/death path. Shields last two completed waves,
+flames three, and banners ten. Flames deal 10% maximum health per second; radiation
+slows existing and newly spawned enemies by 50% for ten waves after detonation.
+Banners do not stack. Casino positives last ten waves and negatives two.
+`ItemClone` creates one AI for five waves, snapshots the player's full current
+damage/fire rate and effective movement, and stays within six units. Clones do not
+count as real players for camera framing, pickups or game over. Collision exclusions
+are configured after activation. Bombs use one high arc mirrored left/right,
+detonate on terrain or enemy contact, and share their collision tracing with the
+held-Use trajectory preview. Switching slots or pausing cancels the throw.
+Flamethrower and green radiation reuse PlayerController.FireTrailPatchPrefab at
+terrain height, with ItemArea owning damage/slow and wave lifetime.
 
-`ItemWheelUI` provides the temporary four-way selection HUD, casino display and
-mobile slot/Use buttons. Keyboard 1–4/right-click and controller D-pad/RB are
-reserved for items; ordinary gamepad movement uses the configured analog stick.
-Saved gameplay mappings that conflict with these controls resolve to defaults.
+`PlayerItems` manages up to four evenly spaced cursor sawblades until death, with
+one hit per enemy per blade per orbit, plus the ten-second Shock stun/50%-health hit.
+Divine Intervention snapshots and suspends card stats/effects for two waves,
+restores the baseline captured before starting cards, grants flight, 10 HP/second
+regeneration and lightning at 10% of the baseline shot interval. Lightning deals
+50% maximum health, then chains to five more targets at 90% of the preceding
+fraction. Cards picked during Divine are recorded immediately and applied once
+after restoration. Existing projectiles, areas and companions respect suppression.
+The twelve item IDs preserve the original eight IDs; older inventories expand on
+load. Item icons and world effects retain procedural placeholders.
+
+`ItemWheelUI` provides the temporary four-way selection HUD, pickup text, casino
+display with a fixed landing tick and outcome-matched stopping angle, and
+mobile slot/Use buttons. Keyboard 1–4/right-click and controller D-pad/RB are the
+remappable item defaults; ordinary gamepad movement uses the configured analog stick.
+The old reserved-control mapping rule migrates once, then saved choices are retained.
+Co-op collection events update availability text in every loadout pane without
+closing another player's item menu.
 
 ---
 
@@ -1304,7 +1334,7 @@ reads only its own Input System Gamepad: D-pad/left stick movement and upward ju
 right stick aim with a narrow horizontal snap, RT fire, LB dash. Shared menus use
 ControllerMenuNavigation with the first controller, right face/B to confirm and
 bottom face/A to go back by default. `ControllerBindings` saves remappable Jump,
-Dash, Shoot, Confirm and Back buttons plus move/aim stick swapping in PlayerPrefs;
+Dash, Shoot, Confirm, Back, Use Item and four item-slot buttons, plus move/aim stick swapping in PlayerPrefs;
 the existing keybind panel has keyboard and controller tabs. Menu movement stays
 on D-pad/left stick. Solo automatically prioritizes an attached controller and
 falls back to keyboard/mouse when disconnected. Co-op card panes handle their assigned controllers
@@ -1314,11 +1344,19 @@ Controller focus uses a yellow frame with a dark border drawn in screen pixels,
 independent of button tint and card scale. Shared menus follow EventSystem focus;
 each co-op card pane has its own frame, green while selected and yellow while browsing.
 The frames do not intercept pointer input and require no prefab wiring.
+Sliders stay in navigation mode until Interact is pressed. Their focus turns green
+while the left stick adjusts them; Interact or Back returns to navigation.
+
+Pack opening accepts a fresh Confirm/Interact press (B by default) as well as a
+pointer swipe. Holding the purchase press does not skip the swipe screen. Card
+refreshes retain their selected control; when an upgrade becomes unavailable,
+focus stays on that card or a nearby available control. Equipment actions restore
+their source item/card/slot, including starting slots replaced during refresh.
 
 Desktop movement, jump, dash and shooting use InputManager's saved bindings;
 mobile input still takes priority. MainMenu includes the persistent InputManager,
 so settings changes carry into gameplay. The keybind screen exposes six primary
-actions and four alternate movement keys, rejects duplicates, and supports
+actions, four alternate movement keys and five item controls, rejects duplicates, and supports
 restoring defaults. Escape cancels capture.
 
 InputManager removes only a duplicate component, preserving MobileInputController
@@ -1632,4 +1670,8 @@ Savior areas continue to disable all authored physics colliders and bodies.
 
 MainMenuUI centers single-/three-pack images in the authored horizontal PackRow.
 Six packs use a centered 3×2 arrangement with that layout temporarily disabled.
+Three-pack opening uses larger pack images and a five-column, two-row reveal,
+with the four-card bottom row centered. Six-pack reveals retain six columns and
+three rows. `AscendedCardTint` adds a slow chromatic background tint to ascended
+collection and loadout cards while preserving the original white text.
 The card reveal uses positive spacing and fits each card inside its grid cell.

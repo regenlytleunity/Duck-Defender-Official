@@ -60,7 +60,9 @@ public class MainMenuUI : MonoBehaviour
     private bool _isSlicingMode = false;
     private Vector2 _lastMousePos;
     private float _sliceProgress = 0f;
+    int _sliceStartFrame;
     bool _shopBlocked;
+    readonly System.Collections.Generic.Dictionary<GameObject, GameObject> _panelFocus = new System.Collections.Generic.Dictionary<GameObject, GameObject>();
 
     void Awake()
     {
@@ -128,6 +130,7 @@ public class MainMenuUI : MonoBehaviour
     // --- NAVIGATION ---
 public void ShowPanel(GameObject panel)
 {
+    RememberFocus();
     GetComponent<HostMenuUI>()?.Hide();
     StopAllCoroutines();
     MenuPanel.SetActive(false);
@@ -145,6 +148,7 @@ public void ShowPanel(GameObject panel)
     // once the full hierarchy is active, including the runtime Items tab.
     panel.GetComponent<CardIndexUI>()?.ConfigureNavigation();
     if (panel == ShopPanel) GetComponent<ShopUpdateUI>()?.Refresh();
+    RestoreFocus(panel);
     
     // Switch music to match the panel being shown.
     // AudioManager.PlayMusic() crossfades smoothly and ignores duplicate calls 
@@ -163,6 +167,24 @@ public void ShowPanel(GameObject panel)
         // they overlay on top of an existing panel and inherit its music.
     }
 }
+
+    public void RememberFocus()
+    {
+        var selected = UnityEngine.EventSystems.EventSystem.current?.currentSelectedGameObject;
+        if (selected == null) return;
+        var scope = NavigationScope;
+        if (scope != null && selected.transform.IsChildOf(scope.transform)) _panelFocus[scope] = selected;
+    }
+
+    public void RestoreFocus(GameObject panel)
+    {
+        if (panel == null || !panel.activeInHierarchy) return;
+        ControllerMenuNavigation.ConfigureNavigation(panel);
+        if (_panelFocus.TryGetValue(panel, out var remembered) && remembered != null &&
+            remembered.TryGetComponent<UnityEngine.UI.Selectable>(out var control) && control.IsActive() && control.IsInteractable())
+            UnityEngine.EventSystems.EventSystem.current?.SetSelectedGameObject(remembered);
+        else FocusFirstControl(panel);
+    }
 
     public void OpenMenu()
     {
@@ -216,7 +238,14 @@ public void OpenShop()
             var nameText = btnObj.transform.Find("Name")?.GetComponent<TextMeshProUGUI>();
             var priceText = btnObj.transform.Find("Price")?.GetComponent<TextMeshProUGUI>();
             if (nameText != null) nameText.text = pack.PackName;
-            if (priceText != null) priceText.text = pack.Cost + " Coins";
+            if (priceText != null)
+            {
+                priceText.text = pack.Cost + " Coins";
+                priceText.rectTransform.anchoredPosition += Vector2.down * 18;
+                priceText.fontSize = priceText.fontSizeMax = 36;
+                priceText.fontSizeMin = 30;
+                CoopUIElements.WhiteInfill(priceText);
+            }
 
             Transform iconTr = btnObj.transform.Find("PackIcon");
             if (iconTr != null && iconTr.GetComponent<Image>())
@@ -247,6 +276,7 @@ public void OpenShop()
 void OnPackClicked(ShopPackDefinition pack)
 {
     if (ConfirmPanel.activeInHierarchy || OpeningOverlay.activeInHierarchy || _purchaseInProgress) return;
+    RememberFocus();
     if (AudioManager.Instance != null) AudioManager.Instance.PlaySFX("UI_button_Click");
     
     _selectedPack = pack;
@@ -342,11 +372,11 @@ void Purchase(int count)
     void StartPackOpening(ShopPackDefinition pack)
     {
         if (AdditionalPackImages == null) AdditionalPackImages = new UnityEngine.UI.Image[0];
-        if (_packCount == 6 && AdditionalPackImages.Length < 5)
+        if (AdditionalPackImages.Length < _packCount - 1)
         {
             int previous = AdditionalPackImages.Length;
-            System.Array.Resize(ref AdditionalPackImages, 5);
-            for (int i = previous; i < 5; i++) AdditionalPackImages[i] = Instantiate(PackImage, PackImage.transform.parent);
+            System.Array.Resize(ref AdditionalPackImages, _packCount - 1);
+            for (int i = previous; i < AdditionalPackImages.Length; i++) AdditionalPackImages[i] = Instantiate(PackImage, PackImage.transform.parent);
         }
         OpeningOverlay.SetActive(true);
         ShopPanel.SetActive(false);
@@ -366,22 +396,31 @@ void Purchase(int count)
         if (RevealGrid != null)
         {
             RevealGrid.constraint = UnityEngine.UI.GridLayoutGroup.Constraint.FixedColumnCount;
-            RevealGrid.constraintCount = _packCount == 6 ? 6 : 3;
-            RevealGrid.spacing = new Vector2(20, 20);
-            CoopUIElements.Stretch((RectTransform)CardRevealCenter, new Vector2(.06f, .16f), new Vector2(.94f, .84f));
+            RevealGrid.constraintCount = _packCount == 6 ? 6 : _packCount == 3 ? 5 : 3;
+            RevealGrid.spacing = _packCount == 3 ? new Vector2(14, 14) : new Vector2(20, 20);
+            CoopUIElements.Stretch((RectTransform)CardRevealCenter, new Vector2(.06f, .14f), new Vector2(.94f, .90f));
             Canvas.ForceUpdateCanvases();
             var size = ((RectTransform)CardRevealCenter).rect.size;
-            int columns = RevealGrid.constraintCount, rows = _packCount == 1 ? 1 : 3;
-            RevealGrid.cellSize = new Vector2((size.x - RevealGrid.spacing.x * (columns - 1)) / columns, (size.y - RevealGrid.spacing.y * (rows - 1)) / rows);
+            int columns = RevealGrid.constraintCount, rows = _packCount == 1 ? 1 : _packCount == 3 ? 2 : 3;
+            float fit = Mathf.Min((size.x - RevealGrid.spacing.x * (columns - 1)) / columns / CardReferenceSize.x,
+                (size.y - RevealGrid.spacing.y * (rows - 1)) / rows / CardReferenceSize.y);
+            RevealGrid.cellSize = CardReferenceSize * fit;
             RevealGrid.childAlignment = TextAnchor.MiddleCenter;
         }
         SliceZone.SetActive(true);
         SliceHelpText.SetActive(true);
+        var sliceHint = SliceHelpText.GetComponent<TMP_Text>();
+        if (sliceHint != null)
+        {
+            sliceHint.text = "Swipe or press " + ControllerBindings.Label("Confirm") + " to open";
+            sliceHint.enableAutoSizing = true;
+        }
         ContinueButton.gameObject.SetActive(false);
 
         foreach (Transform child in CardRevealCenter) Destroy(child.gameObject);
 
         _isSlicingMode = true;
+        _sliceStartFrame = Time.frameCount;
         _sliceProgress = 0f;
         _lastMousePos = Input.mousePosition;
     }
@@ -400,8 +439,8 @@ void Purchase(int count)
         for (int i = 0; i < _packCount; i++)
         {
             var rect = i == 0 ? PackImage.rectTransform : AdditionalPackImages[i - 1].rectTransform;
-            rect.sizeDelta = _packCount == 6 ? new Vector2(180, 263) : _normalPackSize;
-            rect.localScale = _packCount == 6 ? Vector3.one : _normalPackScale;
+            rect.sizeDelta = _packCount == 6 ? new Vector2(180, 263) : _packCount == 3 ? new Vector2(250, 365) : _normalPackSize;
+            rect.localScale = _packCount == 1 ? _normalPackScale : Vector3.one;
             if (_packCount == 6)
             {
                 rect.anchorMin = rect.anchorMax = rect.pivot = Vector2.one * .5f;
@@ -417,6 +456,8 @@ void Purchase(int count)
         row.anchoredPosition = Vector2.zero;
         layout.childAlignment = TextAnchor.MiddleCenter;
         layout.childForceExpandWidth = false;
+        layout.childControlWidth = layout.childControlHeight = false;
+        layout.spacing = _packCount == 3 ? 32 : 20;
         layout.childScaleWidth = true;
         LayoutRebuilder.ForceRebuildLayoutImmediate(row);
     }
@@ -455,8 +496,19 @@ void Purchase(int count)
         return false;
     }
 
+    public bool HandlePackControllerInput(UnityEngine.InputSystem.Gamepad pad)
+    {
+        if (!_isSlicingMode || !OpeningOverlay.activeInHierarchy) return false;
+        // The purchase press must not also open the pack. Require a new press
+        // after entering the swipe screen, using the player's Interact binding.
+        if (Time.frameCount <= _sliceStartFrame || !ControllerBindings.Pressed(pad, "Confirm")) return false;
+        CompleteSlice();
+        return true;
+    }
+
     void CompleteSlice()
     {
+        if (!_isSlicingMode) return;
         _isSlicingMode = false;
         SliceZone.SetActive(false);
         SliceHelpText.SetActive(false);
@@ -531,6 +583,8 @@ void Purchase(int count)
                     rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(.5f, .5f);
                     // Offset the card inside its slot so the grid cannot overwrite the shift.
                     rect.anchoredPosition = Vector2.zero;
+                    if (_packCount == 3 && spawnedCards.Count >= 5)
+                        rect.anchoredPosition = Vector2.right * ((RevealGrid.cellSize.x + RevealGrid.spacing.x) * .5f);
                     rect.sizeDelta = CardReferenceSize;
                 }
                 CardDisplay disp = cardObj.GetComponent<CardDisplay>();

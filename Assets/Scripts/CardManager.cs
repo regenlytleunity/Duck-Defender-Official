@@ -64,6 +64,7 @@ public class CardManager : MonoBehaviour
     /// </summary>
     public List<CardDefinition> GetRandomCards(int count)
     {
+        if (_activePlayer == null && TargetStats != null) return GetRandomCards(count, TargetStats);
         var pool = GetUnlockedCardPool();
         var basics = pool.Where(c => c.IsBasic).ToList();
         var collection = pool.Where(c => !c.IsBasic && GetRunPickups(c.ID) == 0).ToList();
@@ -184,6 +185,7 @@ public class CardManager : MonoBehaviour
 
     public int GetRunPickups(string cardID)
     {
+        if (_activePlayer == null && TargetStats != null) return GetRunPickups(cardID, TargetStats);
         if (string.IsNullOrEmpty(cardID)) return 0;
         return _cardRunPickups.TryGetValue(cardID, out int n) ? n : 0;
     }
@@ -204,6 +206,8 @@ public class CardManager : MonoBehaviour
 
     public void SetCardLevel(string cardID, int level)
     {
+        if (_activePlayer == null && TargetStats != null)
+        { ForPlayer(TargetStats, () => { SetCardLevel(cardID, level); return true; }); return; }
         _cardRunPickups[cardID] = level;
     }
 
@@ -214,6 +218,8 @@ public class CardManager : MonoBehaviour
     public void ApplyCardEffect(CardDefinition card)
     {
         if (card == null) return;
+        // Solo callers and explicit loadout/co-op callers share the same history.
+        if (_activePlayer == null && TargetStats != null) { ApplyCardEffect(card, TargetStats); return; }
 
         int shopLevel = GetShopLevel(card.ID);
         int pickupIndex = GetRunPickups(card.ID); // 0 on first pickup, 1 on second, etc.
@@ -223,6 +229,17 @@ public class CardManager : MonoBehaviour
         var localPlayer = TargetStats != null ? TargetStats.GetComponent<LocalPlayer>() : null;
         if (localPlayer != null) localPlayer.CardsPicked++;
         bool ascended = IsAscended(card.ID) && card.Ascension != CardAscension.None;
+        var target = TargetStats;
+        if (target != null && target.Items != null && target.Items.DivineActive)
+        {
+            target.Items.DeferCard(() => ForPlayer(target, () => { ApplyCardModifiers(card, shopLevel, ascended); return true; }));
+            return;
+        }
+        ApplyCardModifiers(card, shopLevel, ascended);
+    }
+
+    void ApplyCardModifiers(CardDefinition card, int shopLevel, bool ascended)
+    {
         if (ascended && TargetStats != null)
             TargetStats.ActivateAscension(card.Ascension);
         if (ascended && !card.AscensionRetainsBase) return;

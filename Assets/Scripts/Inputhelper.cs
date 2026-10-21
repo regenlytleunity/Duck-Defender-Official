@@ -46,7 +46,7 @@ public static class InputHelper
 
     public static bool GetJumpHeld(Component owner = null)
     {
-        var clone = owner != null ? owner.GetComponent<ItemClone>() : null; if (clone != null) return clone.Jump;
+        var clone = owner != null ? owner.GetComponent<ItemClone>() : null; if (clone != null) return clone.JumpHeld;
         var player = Player(owner);
         if (player != null && player.UsesGamepad) return player.JumpHeld;
         if (IsMobile)
@@ -92,16 +92,24 @@ public static class InputHelper
         if (player != null && player.UsesGamepad)
         {
             var pad = player.Controller; if (pad == null || !pad.added) return -1;
-            return pad.dpad.up.wasPressedThisFrame ? 0 : pad.dpad.right.wasPressedThisFrame ? 1 : pad.dpad.down.wasPressedThisFrame ? 2 : pad.dpad.left.wasPressedThisFrame ? 3 : -1;
+            for (int i = 0; i < 4; i++) if (ControllerBindings.Pressed(pad, ItemActions[i])) return i;
+            return -1;
         }
         if (IsMobile) return -1;
-        for (int i = 0; i < 4; i++) if (Input.GetKeyDown((KeyCode)((int)KeyCode.Alpha1 + i))) return i;
+        for (int i = 0; i < 4; i++) if (Input.GetKeyDown(InputManager.Instance != null ? InputManager.Instance.GetKeybind(ItemActions[i]) : (KeyCode)((int)KeyCode.Alpha1 + i))) return i;
         return -1;
     }
     public static bool GetUseItemDown(Component owner)
     {
         var player = Player(owner);
-        if (player != null && player.UsesGamepad) return player.Connected && player.Controller.rightShoulder.wasPressedThisFrame;
-        return !IsMobile && Input.GetMouseButtonDown(1);
+        if (player != null && player.UsesGamepad) return player.Connected && ControllerBindings.Pressed(player.Controller, "UseItem");
+        return !IsMobile && Input.GetKeyDown(InputManager.Instance != null ? InputManager.Instance.UseItemKey : KeyCode.Mouse1);
     }
+    public static bool GetUseItemHeld(Component owner)
+    {
+        var player = Player(owner);
+        if (player != null && player.UsesGamepad) return player.Connected && ControllerBindings.Held(player.Controller, "UseItem");
+        return !IsMobile && Input.GetKey(InputManager.Instance != null ? InputManager.Instance.UseItemKey : KeyCode.Mouse1);
+    }
+    public static readonly string[] ItemActions = { "Item1", "Item2", "Item3", "Item4" };
 }

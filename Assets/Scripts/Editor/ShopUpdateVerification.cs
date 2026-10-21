@@ -69,7 +69,7 @@ public static class ShopUpdateVerification
         data.StartingCardSlots = 5; data.PackOpeningTier = 2; data.CompletedRuns = 2;
         data.PermanentUpgrades = new[] { 50, 50, 50, 50, 50 };
         data.CardCollection = shop.AllCards.Where(c => c != null && !c.IsBasic).Select(c => new CardSaveData(c.ID) { Level = 1 }).ToList();
-        for (int i = 1; i <= 8; i++) data.ItemInventory[i] = 10;
+        for (int i = 1; i <= ItemCatalog.Count; i++) data.ItemInventory[i] = 10;
         data.SoloLoadout.Items = new[] { 1, 2, 3, 4 }; data.SoloLoadout.Cards[0] = "mun_faster_firing";
         SaveSystem.SaveData(data, true); shop.LoadEconomy(); shop.RefreshItemShop(); MainMenuUI.Instance.GetComponent<ShopUpdateUI>().Refresh();
         MainMenuUI.Instance.IndexPanel.GetComponent<IndexLoadoutUI>().Refresh();
@@ -134,5 +134,11 @@ public static class ShopUpdateVerification
         RequireIsolation();
         var probe = new GameObject("Shop update UI checks").AddComponent<ShopUpdatePlayProbe>();
         probe.UIOnly = true; probe.SeedUI = Seed; probe.CheckUI = CheckVisibleUI; probe.CheckScope = CheckScopeUI;
+    }
+    public static void StartController()
+    {
+        RequireIsolation();
+        var probe = new GameObject("Shop controller regression checks").AddComponent<ShopUpdatePlayProbe>();
+        probe.ControllerOnly = true; probe.SeedUI = Seed;
     }
 }

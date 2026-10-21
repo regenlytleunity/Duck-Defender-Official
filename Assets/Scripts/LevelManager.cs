@@ -70,7 +70,7 @@ public class LevelManager : MonoBehaviour
             for (int i = 0; i < session.Players.Count && budget > 0; i++)
             {
                 var player = session.Players[(_meteorPlayerCursor + i) % session.Players.Count];
-                if (!player.Alive) continue;
+                if (!player.Alive || player.Stats.CardsSuppressed) continue;
                 if (player.PendingMeteors > 0) { player.PendingMeteors--; player.Movement.SpawnMeteor(); budget--; }
                 if (budget > 0 && player.PendingSecondaryMeteors > 0) { player.PendingSecondaryMeteors--; player.Movement.SpawnSecondaryMeteor(); budget--; }
             }

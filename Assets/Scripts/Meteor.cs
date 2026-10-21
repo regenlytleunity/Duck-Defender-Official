@@ -34,6 +34,7 @@ public class Meteor : MonoBehaviour
 
     void Update()
     {
+        if (OwnerStats != null && OwnerStats.CardsSuppressed) { Destroy(gameObject); return; }
         transform.Rotate(0, 0, RotationSpeed * Time.deltaTime);
     }
 
@@ -49,6 +50,7 @@ public class Meteor : MonoBehaviour
 
     void Explode()
     {
+        if (OwnerStats != null && OwnerStats.CardsSuppressed) { Destroy(gameObject); return; }
         if (_hasExploded) return;
         _hasExploded = true;
 

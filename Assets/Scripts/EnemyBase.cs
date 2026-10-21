@@ -58,7 +58,15 @@ public abstract class EnemyBase : MonoBehaviour
     {
         bool previous = _itemDamage;
         _itemDamage = true;
-        try { if (instantDefeat) Defeat(owner); else TakeFractionalDamage(damage, owner); }
+        try { if (instantDefeat) Defeat(owner); else { DamageOwner = owner; ReceiveDamage(Mathf.Max(0, damage)); } }
+        finally { _itemDamage = previous; }
+    }
+
+    public void ApplyItemStun(float seconds)
+    {
+        bool previous = _itemDamage;
+        _itemDamage = true;
+        try { ApplyFreeze(seconds); }
         finally { _itemDamage = previous; }
     }
 
@@ -78,7 +86,12 @@ public abstract class EnemyBase : MonoBehaviour
     [Min(0)] public float SpawnProtectionSeconds = 3f;
     public bool IsSpawnProtected { get; private set; }
     public bool CanTakeDamage => IsAlive && (!IsSpawnProtected || _itemDamage);
-    public TankEnemy Protector { get; internal set; }
+    TankEnemy _protector;
+    public TankEnemy Protector
+    {
+        get => _protector;
+        internal set { _protector = value; UpdateColor(); }
+    }
     public Collider2D BodyCollider { get; private set; }
     protected PlayerHealth TargetHealth;
     protected Collider2D TargetCollider;
@@ -284,6 +297,7 @@ public abstract class EnemyBase : MonoBehaviour
     public virtual void TakeDamage(int damage) { TakeDamage(damage, PlayerStats.Instance); }
     public void TakeDamage(int damage, PlayerStats owner)
     {
+        if (!_itemDamage && owner != null && owner.CardsSuppressed) return;
         if (!CanTakeDamage || damage <= 0) return;
         DamageOwner = owner;
         ReceiveDamage(damage);
@@ -485,7 +499,7 @@ public abstract class EnemyBase : MonoBehaviour
         if (IsFrozen) SpriteRen.color = FrozenColor;
         else if (_isPoisoned) SpriteRen.color = Color.green;
         else if (_slowStacks > 0) SpriteRen.color = Color.cyan;
-        else SpriteRen.color = _normalColor;
+        else SpriteRen.color = Protector != null ? _normalColor * new Color(.75f, .88f, 1f) : _normalColor;
     }
 
     IEnumerator KnockbackRoutine()

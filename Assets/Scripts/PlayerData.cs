@@ -14,7 +14,7 @@ public class PlayerData
     public List<CardSaveData> CardCollection = new List<CardSaveData>();
     public int StartingCardSlots, PackOpeningTier;
     public int[] PermanentUpgrades = new int[5];
-    public int[] ItemInventory = new int[9]; // ItemKind.None is zero, including in old saves.
+    public int[] ItemInventory = new int[ItemCatalog.Count + 1]; // Existing IDs keep their positions in old saves.
     public PlayerLoadout SoloLoadout = new PlayerLoadout();
     public PlayerLoadout[] CoopLoadouts = new PlayerLoadout[4];
     public int CompletedRuns;
@@ -29,7 +29,7 @@ public class PlayerData
         StartingCardSlots = UnityEngine.Mathf.Clamp(StartingCardSlots, 0, 5);
         PackOpeningTier = UnityEngine.Mathf.Clamp(PackOpeningTier, 0, 2);
         NormalizeArray(ref PermanentUpgrades, 5);
-        NormalizeArray(ref ItemInventory, 9);
+        NormalizeArray(ref ItemInventory, ItemCatalog.Count + 1);
         NormalizeArray(ref EssenceDiscovered, 4);
         NormalizeArray(ref ItemShopStock, 6);
         NormalizeArray(ref ItemShopSold, 6);
@@ -97,7 +97,7 @@ public class PlayerLoadout
     {
         if (Items == null) Items = new int[4]; else if (Items.Length != 4) System.Array.Resize(ref Items, 4);
         if (Cards == null) Cards = new string[5]; else if (Cards.Length != 5) System.Array.Resize(ref Cards, 5);
-        for (int i = 0; i < Items.Length; i++) if (Items[i] < 0 || Items[i] > 8) Items[i] = 0;
+        for (int i = 0; i < Items.Length; i++) if (Items[i] != 0 && !ItemCatalog.Valid(Items[i])) Items[i] = 0;
     }
 }
 

@@ -95,6 +95,14 @@ public class PlayerHealth : MonoBehaviour
         UpdateUI();
     }
 
+    public void SetTemporaryMaxHealth(int maximum)
+    {
+        float fraction = _currentHealth / (float)Mathf.Max(1, MaxHealth);
+        MaxHealth = Mathf.Max(1, maximum);
+        _currentHealth = _isDead ? 0 : Mathf.Clamp(Mathf.CeilToInt(fraction * MaxHealth), 1, MaxHealth);
+        UpdateUI();
+    }
+
     public void ApplyWaveRegen()
     {
         if (RegenPerWave > 0) Heal(Mathf.Max(0, RegenPerWave));

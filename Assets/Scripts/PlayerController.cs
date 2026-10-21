@@ -14,6 +14,7 @@ using System.Collections;
 public class PlayerController : MonoBehaviour
 {
     PlayerStats _ownerStats;
+    ItemClone _clone;
     PlayerStats OwnerStats => _ownerStats != null ? _ownerStats : (_ownerStats = GetComponent<PlayerStats>());
 
     public static PlayerController Instance;
@@ -135,13 +136,13 @@ public class PlayerController : MonoBehaviour
     float _lastShockwaveTime = -100;
     float _flightUntil = -1, _flightReady;
     public bool IsGrounded => _isGrounded;
-    public float EffectiveMaxSpeed => MaxRunSpeed * (OwnerStats != null ? OwnerStats.SpeedMultiplier : 1f) * (_health != null ? _health.MovementMultiplier : 1f);
+    public float EffectiveMaxSpeed => (_clone != null ? _clone.SpawnMoveSpeed : MaxRunSpeed * (OwnerStats != null ? OwnerStats.SpeedMultiplier : 1f)) * (_health != null ? _health.MovementMultiplier : 1f);
     float RebirthMultiplier => OwnerStats != null ? OwnerStats.RebirthStatMultiplier : 1f;
-    public float EffectiveAcceleration => Acceleration * RebirthMultiplier;
+    public float EffectiveAcceleration => _clone != null ? _clone.SpawnAcceleration : Acceleration * RebirthMultiplier;
     // Jump apex scales with impulse squared. Keep gravity/upgraded jump counts unchanged.
     public float EffectiveJumpForce => JumpForce * Mathf.Sqrt(RebirthMultiplier);
     float _prePhysicsSpeed;
-    public bool IsFlying => Time.time < _flightUntil;
+    public bool IsFlying => OwnerStats != null && OwnerStats.Items != null && OwnerStats.Items.DivineActive || Time.time < _flightUntil;
 
     private static readonly int AnimIsMoving = Animator.StringToHash("isMoving");
     private static readonly int AnimIsIdle = Animator.StringToHash("isIdle");
@@ -153,6 +154,7 @@ public class PlayerController : MonoBehaviour
 
     void Awake()
     {
+        _clone = GetComponent<ItemClone>();
         if (Instance == null) Instance = this;
         _rb = GetComponent<Rigidbody2D>();
         _bodyCollider = GetComponent<Collider2D>();
@@ -445,6 +447,13 @@ public class PlayerController : MonoBehaviour
     {
         // Renamed to Tripleshot internally, kept legacy entry point
         if (_weapon != null) _weapon.TriggerTripleshot();
+    }
+
+    public void CancelCardMovement()
+    {
+        StopAllCoroutines(); _isDashing = _isBlinking = _dashEnding = false;
+        IsInvulnerable = false; _flightUntil = -1; _currentJumpCount = 0; _currentDashCount = MaxDashes;
+        if (_rb != null) _rb.gravityScale = _defaultGravity;
     }
 
     public void ResetAfterRespawn()

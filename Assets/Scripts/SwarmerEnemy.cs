@@ -88,7 +88,10 @@ public class SwarmerEnemy : EnemyBase
         float velocity = direction * Mathf.Clamp(speed + separation * direction, speed * .5f, speed * MaxSpeedMultiplier);
         Rb.linearVelocity = new Vector2(velocity, Rb.linearVelocity.y);
         Vector2 origin = WallCheckPoint != null ? WallCheckPoint.position : transform.position;
-        if (Physics2D.Raycast(origin, Vector2.right * direction, .5f, GroundLayer) && Mathf.Abs(Rb.linearVelocity.y) < .1f)
+        var obstacle = Physics2D.Raycast(origin, Vector2.right * direction, .5f, GroundLayer);
+        if (obstacle.collider != null && !obstacle.collider.isTrigger && Mathf.Abs(obstacle.normal.x) > .5f &&
+            (WorldCamera.Instance == null || !WorldCamera.Instance.IsPlayerWall(obstacle.collider)) &&
+            (BodyCollider == null || !Physics2D.GetIgnoreCollision(BodyCollider, obstacle.collider)) && Mathf.Abs(Rb.linearVelocity.y) < .1f)
             Rb.AddForce(Vector2.up * JumpForce, ForceMode2D.Impulse);
     }
 

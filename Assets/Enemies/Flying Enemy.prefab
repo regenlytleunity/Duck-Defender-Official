@@ -201,7 +201,7 @@ MonoBehaviour:
   BaseShootRate: 1
   MinShootRate: 0.5
   ShootRateScaling: 0
-  ShootRange: 8
+  ShootRange: 7
   ShotWindup: 0.35
   InaccuracyAngle: 0
   RetreatInterval: 6

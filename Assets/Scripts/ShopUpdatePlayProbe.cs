@@ -12,6 +12,7 @@ public class ShopUpdatePlayProbe : MonoBehaviour
 {
     public static string Result = "Not started";
     public bool UIOnly;
+    public bool ControllerOnly;
     public Action SeedUI;
     public Func<string> CheckUI;
     public Func<GameObject, string> CheckScope;
@@ -24,7 +25,7 @@ public class ShopUpdatePlayProbe : MonoBehaviour
     {
         if (string.IsNullOrEmpty(SaveSystem.VerificationSavePath)) throw new InvalidOperationException("Isolated save required");
         foreach (var pad in Gamepad.all.ToArray()) if (pad.enabled) { _realPads.Add(pad); InputSystem.DisableDevice(pad); }
-        var tests = UIOnly ? RunUI() : Run();
+        var tests = ControllerOnly ? RunController() : UIOnly ? RunUI() : Run();
         while (true)
         {
             object current;
@@ -32,7 +33,7 @@ public class ShopUpdatePlayProbe : MonoBehaviour
             catch (Exception ex) { Result = "FAILED: " + ex; File.WriteAllText(ReportPath, Result + "\n" + string.Join("\n", _checks)); Debug.LogError(Result); Destroy(gameObject); yield break; }
             yield return current;
         }
-        Result = "PASS: " + _checks.Count + (UIOnly ? " UI interaction checks" : " gameplay checks");
+        Result = "PASS: " + _checks.Count + (ControllerOnly ? " controller regression checks" : UIOnly ? " UI interaction checks" : " gameplay checks");
         File.WriteAllText(ReportPath, Result + "\n" + string.Join("\n", _checks)); Debug.Log(Result);
         Destroy(gameObject);
     }
@@ -68,6 +69,46 @@ public class ShopUpdatePlayProbe : MonoBehaviour
         Check(player.Stats.PermanentDamage == .5f && player.Stats.PermanentLuck == .5f && player.Health.MaxHealth > 5, "permanent bonuses applied");
         Check(CardManager.Instance.GetRunPickups("mun_faster_firing", player.Stats) == 1, "starting card applied once");
         for (int i = 0; i < 20; i++) Check(CardManager.Instance.GetRandomCards(3, player.Stats).All(c => c.ID != "mun_faster_firing"), "starting card excluded from offers " + i);
+        Check(CardManager.Instance.GetRunPickups("mun_faster_firing") == 1, "solo compatibility API shares the starting-card history");
+        for (int i = 0; i < 20; i++) Check(CardManager.Instance.GetRandomCards(3).All(c => c.ID != "mun_faster_firing"), "solo level-up API excludes starting card " + i);
+        LevelUpUI.Instance.ShowLevelUpOptions();
+        var offered = LevelUpUI.Instance.CardContainer.GetComponentsInChildren<CardDisplay>();
+        Check(offered.Length == 3 && offered.All(c => c.AssignedCard.ID != "mun_faster_firing"), "actual solo level-up UI excludes starting card");
+        LevelUpUI.Instance.SelectCard(offered[0].AssignedCard); yield return null;
+        float fireInterval = player.Weapon.FireRate;
+        CardManager.Instance.ApplyCardEffect(CardManager.Instance.AllCards.Find(c => c.ID == "mun_faster_firing"));
+        Check(Mathf.Approximately(fireInterval, player.Weapon.FireRate), "solo repeat cannot reapply starting-card effect");
+
+        var world = WorldCamera.Instance; var playerBody = player.GetComponent<Rigidbody2D>();
+        var groundPrefab = WaveManager.Instance.EnemyPrefabs.First(p => p.GetComponent<EnemyBase>().EnemyKind == "ground");
+        foreach (float edge in new[] { world.Left + 2, world.Right - 2 })
+        {
+            playerBody.position = new Vector2(edge, world.Floor + 1); playerBody.linearVelocity = Vector2.zero;
+            yield return new WaitForSeconds(.3f);
+            var spawned = new List<EnemyBase>();
+            for (int i = 0; i < 8; i++)
+            {
+                Check(world.TrySpawnPosition(groundPrefab, out var position, i % 2 == 0), "edge spawn has available terrain " + edge + "/" + i);
+                var enemy = Instantiate(groundPrefab, position, Quaternion.identity).GetComponent<EnemyBase>();
+                enemy.IsElite = i % 2 == 0; enemy.Initialize(1);
+                enemy.GetComponent<Rigidbody2D>().constraints = RigidbodyConstraints2D.FreezeAll;
+                Physics2D.SyncTransforms();
+                Check(spawned.All(e => !e.BodyCollider.bounds.Intersects(enemy.BodyCollider.bounds)), "edge spawn avoids body overlap " + i);
+                Check(!enemy.IsInView(false), "edge spawn stays outside viewport " + i);
+                spawned.Add(enemy);
+            }
+            foreach (var enemy in spawned) Destroy(enemy.gameObject);
+            float side = edge < 0 ? -1 : 1;
+            var walker = Instantiate(groundPrefab, new Vector3(edge + side * 4, world.Floor + 1, 0), Quaternion.identity).GetComponent<SwarmerEnemy>();
+            walker.DamageOnHit = 0; walker.CoinPrefab = null; walker.XPValue = 0; walker.Initialize(1);
+            float highest = walker.transform.position.y;
+            float end = Time.time + 1.6f;
+            while (Time.time < end) { highest = Mathf.Max(highest, walker.transform.position.y); yield return new WaitForFixedUpdate(); }
+            Check(highest < world.Floor + 1.3f, "ground enemy crosses player boundary without jumping " + edge);
+            Destroy(walker.gameObject);
+        }
+        playerBody.position = new Vector2(0, world.Floor + 1); playerBody.linearVelocity = Vector2.zero;
+        yield return new WaitForSeconds(.3f);
         player.Health.TryTakeDamage(2); int injured = player.Health.CurrentHealth;
         Use(items, ItemKind.HealthPotion); Check(player.Health.CurrentHealth == player.Health.MaxHealth && injured < player.Health.MaxHealth, "health potion fully heals");
         float baseDamage = player.Weapon.FeatherDamage(); float baseSpeed = player.Movement.EffectiveMaxSpeed; float baseInterval = player.Weapon.EffectiveFireInterval;
@@ -103,36 +144,89 @@ public class ShopUpdatePlayProbe : MonoBehaviour
         Destroy(inside.gameObject);
         Use(items, ItemKind.CloneProjector); yield return null; yield return null;
         var clones = FindObjectsByType<ItemClone>(FindObjectsSortMode.None);
-        Check(clones.Length == 2 && LocalCoopSession.Instance.Players.Count == 1, "two clones do not become real players");
+        Check(clones.Length == 1 && LocalCoopSession.Instance.Players.Count == 1, "one clone does not become a real player");
         Check(clones.All(c => c.GetComponent<PlayerHealth>().MaxHealth == player.Health.MaxHealth), "clones copy max health");
-        Check(clones.All(c => Mathf.Abs(c.GetComponent<WeaponPlayer>().EffectiveFireInterval - player.Weapon.EffectiveFireInterval * 2) < .001f), "clones fire at half rate");
+        Check(clones.All(c => Mathf.Abs(c.GetComponent<WeaponPlayer>().EffectiveFireInterval - player.Weapon.EffectiveFireInterval) < .001f), "clones copy the full fire rate");
+        Check(clones.All(c => Mathf.Approximately(c.GetComponent<PlayerController>().EffectiveMaxSpeed, player.Movement.EffectiveMaxSpeed)), "clones snapshot upgraded player movement speed");
+        Check(clones.All(c => Physics2D.GetIgnoreCollision(c.GetComponent<Collider2D>(), player.GetComponent<Collider2D>())), "active clones ignore the owner collider");
+        float clonedSpeed = clones[0].SpawnMoveSpeed; player.Stats.RunSpeedBonus += .5f;
+        Check(Mathf.Approximately(clones[0].GetComponent<PlayerController>().EffectiveMaxSpeed, clonedSpeed), "later player speed changes do not alter clone snapshot");
+        player.Stats.RunSpeedBonus -= .5f;
+        var movingClone = clones[0];
+        movingClone.GetComponent<Rigidbody2D>().position = playerBody.position + Vector2.left * 4;
+        yield return new WaitForSeconds(.2f);
+        Check(movingClone.GetComponent<Rigidbody2D>().linearVelocity.x > clonedSpeed * .75f, "clone accelerates to player-like running speed");
         var target = Enemy(player.transform.position + Vector3.right * 4); yield return new WaitForSeconds(.3f);
         Check(clones.Any(c => c.Shooting), "clone AI finds a target");
         Check(LocalCoopSession.NearestAlive(clones[0].transform.position) == player.Stats, "clone does not capture camera or pickups");
         clones[0].GetComponent<PlayerHealth>().TryTakeDamage(10000); yield return null;
         Check(!LocalCoopSession.Instance.GameOver && !player.Health.IsDead, "clone death does not end run");
-        LocalCoopSession.Instance.CompleteWave(); LocalCoopSession.Instance.CompleteWave(); yield return null; yield return null;
-        Check(FindObjectsByType<ItemClone>(FindObjectsSortMode.None).Length == 0, "clones expire after two waves");
+        Use(items, ItemKind.CloneProjector); yield return null;
+        for (int i = 0; i < 4; i++) LocalCoopSession.Instance.CompleteWave(); yield return null;
+        Check(FindObjectsByType<ItemClone>(FindObjectsSortMode.None).Length == 1, "clone survives four waves");
+        LocalCoopSession.Instance.CompleteWave(); yield return null; yield return null;
+        Check(FindObjectsByType<ItemClone>(FindObjectsSortMode.None).Length == 0, "clone expires after five waves");
         if (target != null) Destroy(target.gameObject);
         var far = Enemy(player.transform.position + Vector3.right * 35); far.SpawnProtectionSeconds = 3; far.Initialize(1);
         Check(far.IsSpawnProtected, "off-screen test enemy has normal spawn protection"); float beforeHealth = far.HealthRemaining;
         Use(items, ItemKind.Flamethrower); yield return new WaitForSeconds(1.1f);
-        Check(far.HealthRemaining < beforeHealth && far.HealthRemaining >= beforeHealth - 7, "flames deal about five DPS off screen");
+        Check(far.HealthRemaining < beforeHealth - far.MaxHealth * .08f && far.HealthRemaining >= beforeHealth - far.MaxHealth * .15f, "flames deal ten percent maximum HP per second off screen");
+        var mapFire = FindObjectsByType<ItemArea>(FindObjectsSortMode.None).First(a => a.name == "Flamethrower");
+        var patches = mapFire.GetComponentsInChildren<FireTrailPatch>();
+        Check(patches.Length > 30 && patches.All(p => !p.enabled && Mathf.Abs(p.transform.position.y - world.Floor) < .2f), "map flames reuse fire-trail prefab on the ground");
+        Check(patches.All(p => p.GetComponentsInChildren<ParticleSystem>().All(ps => ps.main.loop)), "map fire continues for the item lifetime");
+        ScreenCapture.CaptureScreenshot(Path.Combine(Path.GetTempPath(), "duck-balance-ground-flames.png")); yield return null;
         Destroy(far.gameObject);
-        var bombTarget = Enemy(player.transform.position + Vector3.up * 1.5f);
+        var bombTarget = Enemy(ItemArea.ThrowPosition(player.transform.position, Vector2.right, .25f));
         ItemArea.LobBomb(player.Stats, Vector2.zero); yield return new WaitForSeconds(1.4f);
         Check(bombTarget == null || !bombTarget.IsAlive, "bomb instantly defeats enemies in blast");
         var data = SaveSystem.LoadData(); int collected = data.ItemInventory[1];
-        var pickup = ItemPickup.Spawn(player.transform.position + Vector3.right * 10, 1);
+        var pickup = ItemPickup.Spawn(player.transform.position + Vector3.right * 10 + Vector3.up * 5, 1);
+        float dropY = pickup.transform.position.y;
         yield return new WaitForSeconds(.6f); Check(pickup != null, "item pickup ignores coin magnet");
+        Check(pickup.transform.position.y < dropY - 1, "flying-enemy item drops fall under gravity");
+        yield return new WaitForSeconds(1);
+        Check(pickup.GetComponent<Collider2D>().bounds.min.y >= world.Floor - .1f, "item drop settles above ground");
         pickup.transform.position = player.transform.position; yield return null;
         Check(SaveSystem.LoadData().ItemInventory[1] == collected + 1, "item pickup grants persistent inventory");
+        var popup = GameObject.Find("Item HUD 1").GetComponentsInChildren<TMPro.TMP_Text>().FirstOrDefault(t => t.text == "+1 Bomb");
+        Check(popup != null && popup.font.name == "DuckDefenderTestFontv2" && popup.color.r == 1 && popup.color.g == 1 && popup.color.b == 1, "pickup shows item name with original font and white infill");
+        ScreenCapture.CaptureScreenshot(Path.Combine(Path.GetTempPath(), "duck-balance-item-popup.png")); yield return null;
+
+        var throwPad = InputSystem.AddDevice<Gamepad>(); _pads.Add(throwPad); player.AssignController(throwPad, true);
+        items.Slots[0] = (int)ItemKind.Bomb; items.Select(0);
+        int bombStock = SaveSystem.LoadData().ItemInventory[1];
+        InputSystem.QueueStateEvent(throwPad, new GamepadState { rightStick = new Vector2(1, .6f) }.WithButton(GamepadButton.RightShoulder));
+        yield return null; yield return null; yield return new WaitForSeconds(.2f);
+        var line = player.transform.Find("Item throw path").GetComponent<LineRenderer>();
+        Check(items.IsAimingThrowable && line.enabled && line.positionCount > 3 && SaveSystem.LoadData().ItemInventory[1] == bombStock, "holding RB previews without consuming bomb");
+        Vector2 predicted = ItemArea.ThrowPosition(player.transform.position, player.Weapon.AimDirection, ItemArea.BombFlightTime / 32);
+        Check(Vector2.Distance(line.GetPosition(1), predicted) < .02f, "trajectory preview matches launch formula");
+        ScreenCapture.CaptureScreenshot(Path.Combine(Path.GetTempPath(), "duck-balance-throw-preview.png")); yield return null;
+        InputSystem.QueueStateEvent(throwPad, new GamepadState { rightStick = new Vector2(1, .6f) }); yield return null; yield return null;
+        Check(!items.IsAimingThrowable && !line.enabled && items.Slots[0] == 0 && SaveSystem.LoadData().ItemInventory[1] == bombStock - 1, "releasing RB throws exactly one bomb");
+        player.AssignController(null, false);
+        items.Slots[0] = (int)ItemKind.Bomb; items.Select(0); items.BeginUse(true); items.Select(1);
+        Check(!items.IsAimingThrowable && items.Slots[0] == 1, "switching item cancels a pending throw without consumption");
+        items.Select(0); items.BeginUse(true); Time.timeScale = 0; yield return null;
+        Check(!items.IsAimingThrowable && items.Slots[0] == 1, "pausing cancels a pending throw"); Time.timeScale = 1;
+        items.BeginUse(true); items.ReleaseUse();
+        Check(items.Slots[0] == 0, "touch hold/release shares throwable behavior");
+        Use(items, ItemKind.PocketCasino);
+        yield return new WaitForSeconds(1);
+        var indicator = GameObject.Find("Casino indicator");
+        var tick = indicator.transform.Find("Landing tick");
+        Check(tick != null && tick.localEulerAngles == Vector3.zero, "casino landing tick stays fixed while wheel rotates");
+        ScreenCapture.CaptureScreenshot(Path.Combine(Path.GetTempPath(), "duck-balance-casino.png")); yield return null;
+        yield return new WaitForSeconds(2.1f);
+        Check((items.CasinoEffect < 4) == (items.SpinEndAngle < 288), "casino lands in the color matching its applied outcome");
+        Check(Mathf.Abs(Mathf.DeltaAngle(indicator.transform.Find("Casino wheel").localEulerAngles.z, items.SpinEndAngle)) < .1f, "casino visibly stops at its rolled outcome");
         var mobile = MobileInputController.Instance; mobile.AutoDetectPlatform = false; mobile.IsMobileEnabled = true;
         yield return null; yield return null;
         var touch = GameObject.Find("Touch items"); Check(touch != null, "mobile item controls are visible");
         touch.transform.GetChild(2).GetComponent<UnityEngine.UI.Button>().onClick.Invoke(); Check(items.SelectedSlot == 2, "mobile slot button selects item");
         items.Slots[2] = (int)ItemKind.HealthPotion; int potionStock = SaveSystem.LoadData().ItemInventory[2];
-        touch.transform.GetChild(4).GetComponent<UnityEngine.UI.Button>().onClick.Invoke();
+        UnityEngine.EventSystems.ExecuteEvents.Execute(touch.transform.GetChild(4).gameObject, new UnityEngine.EventSystems.PointerEventData(UnityEngine.EventSystems.EventSystem.current), UnityEngine.EventSystems.ExecuteEvents.pointerDownHandler);
         Check(items.Slots[2] == 0 && SaveSystem.LoadData().ItemInventory[2] == potionStock - 1, "mobile Use consumes selected item");
         ScreenCapture.CaptureScreenshot(Path.Combine(Path.GetTempPath(), "duck-shop-item-hud.png")); yield return null;
         mobile.IsMobileEnabled = false;
@@ -182,6 +276,136 @@ public class ShopUpdatePlayProbe : MonoBehaviour
     void Visible(string label)
     {
         string result = CheckUI(); Check(result.StartsWith("PASS"), label + ": " + result);
+    }
+    IEnumerator Press(Gamepad pad, GamepadButton button)
+    {
+        InputSystem.QueueStateEvent(pad, new GamepadState().WithButton(button)); yield return null; yield return null;
+        InputSystem.QueueStateEvent(pad, new GamepadState()); yield return null; yield return null;
+    }
+    IEnumerator RunController()
+    {
+        SeedUI(); ControllerBindings.Reset();
+        var pad = InputSystem.AddDevice<Gamepad>(); _pads.Add(pad);
+        var menu = MainMenuUI.Instance; var shop = ShopManager.Instance;
+        var events = UnityEngine.EventSystems.EventSystem.current;
+        foreach (var data in shop.Progress.CardCollection) data.Duplicates = 100;
+        foreach (CardPackType category in new[] { CardPackType.Mobility, CardPackType.Munitions, CardPackType.Survival, CardPackType.Gadget }) shop.Progress.AddEssence(category, 2000);
+        shop.Progress.PermanentUpgrades = new int[5];
+        SaveSystem.SaveData(shop.Progress); shop.LoadEconomy();
+        menu.ShowPanel(menu.MenuPanel);
+        var homeIndex = menu.MenuPanel.transform.Find("IndexButton").gameObject;
+        events.SetSelectedGameObject(homeIndex); yield return Press(pad, GamepadButton.East);
+        Check(menu.IndexPanel.activeSelf, "controller opens Index from home");
+        yield return Press(pad, GamepadButton.South);
+        Check(menu.MenuPanel.activeSelf && events.currentSelectedGameObject == homeIndex, "leaving Index restores the home Index button");
+        menu.OpenIndex(); yield return null;
+        var index = menu.IndexPanel.GetComponent<IndexLoadoutUI>();
+        var card = menu.IndexPanel.GetComponentsInChildren<CardDisplay>()[1];
+        string id = card.AssignedCard.ID;
+        for (int level = 1; level < card.AssignedCard.MaxLevel; level++)
+        {
+            events.SetSelectedGameObject(card.UpgradeButton.gameObject);
+            yield return Press(pad, GamepadButton.East);
+            Check(shop.GetCardData(id).Level == level + 1, "B upgrades the selected card exactly once to level " + (level + 1));
+            var expected = level + 1 < card.AssignedCard.MaxLevel ? card.UpgradeButton : card.AscendButton.IsActive() && card.AscendButton.IsInteractable() ? card.AscendButton : card.ClickButton;
+            Check(events.currentSelectedGameObject == expected.gameObject, "focus stays on the card's available control at level " + (level + 1));
+        }
+        if (card.AscendButton.IsActive() && card.AscendButton.IsInteractable())
+        {
+            yield return Press(pad, GamepadButton.East);
+            Check(shop.GetCardData(id).IsAscended && events.currentSelectedGameObject == card.ClickButton.gameObject, "ascension returns focus to the same card");
+        }
+        events.SetSelectedGameObject(card.ClickButton.gameObject);
+        yield return Press(pad, GamepadButton.East);
+        var equip = menu.NavigationScope.GetComponentsInChildren<UnityEngine.UI.Button>().First(b => b.GetComponentInChildren<TMPro.TMP_Text>()?.text == "Equip to slot 2");
+        events.SetSelectedGameObject(equip.gameObject); yield return Press(pad, GamepadButton.East);
+        Check(shop.Loadout().Cards[1] == id && events.currentSelectedGameObject == card.ClickButton.gameObject, "equipping a starting card returns to its source card");
+        var slot = menu.IndexPanel.GetComponentsInChildren<UnityEngine.UI.Button>().First(b => b.name == "Starting slot 2");
+        events.SetSelectedGameObject(slot.gameObject); yield return Press(pad, GamepadButton.East);
+        yield return Press(pad, GamepadButton.East);
+        Check(string.IsNullOrEmpty(shop.Loadout().Cards[1]) && events.currentSelectedGameObject?.name == "Starting slot 2", "unequipping restores the rebuilt starting slot");
+
+        index.ShowItems(); yield return null;
+        var item = menu.IndexPanel.GetComponentsInChildren<UnityEngine.UI.Button>().First(b => b.name == "Item 6");
+        events.SetSelectedGameObject(item.gameObject); yield return Press(pad, GamepadButton.East);
+        equip = menu.NavigationScope.GetComponentsInChildren<UnityEngine.UI.Button>().First(b => b.GetComponentInChildren<TMPro.TMP_Text>()?.text == "Equip to slot 2");
+        events.SetSelectedGameObject(equip.gameObject); yield return Press(pad, GamepadButton.East);
+        Check(shop.Loadout().Items[1] == 6 && events.currentSelectedGameObject?.name == "Item 6", "item equip restores its inventory button");
+        slot = menu.IndexPanel.GetComponentsInChildren<UnityEngine.UI.Button>().First(b => b.name == "Item slot 2");
+        events.SetSelectedGameObject(slot.gameObject); yield return Press(pad, GamepadButton.East);
+        yield return Press(pad, GamepadButton.East);
+        Check(shop.Loadout().Items[1] == 0 && events.currentSelectedGameObject?.name == "Item slot 2", "item unequip restores its slot button");
+        yield return Press(pad, GamepadButton.DpadDown);
+        Check(events.currentSelectedGameObject != null && events.currentSelectedGameObject.name != "BackButton", "navigation continues from restored item focus");
+
+        menu.OpenShop(); menu.GetComponent<ShopUpdateUI>().ShowPage(2); yield return null;
+        var permanent = menu.ShopPanel.GetComponentsInChildren<UnityEngine.UI.Button>().First(b => b.name == "Permanent upgrade 4");
+        events.SetSelectedGameObject(permanent.gameObject); yield return Press(pad, GamepadButton.East);
+        Check(shop.Progress.PermanentUpgrades[2] == 1 && events.currentSelectedGameObject == permanent.gameObject, "permanent upgrade retains its button");
+        shop.Progress.PermanentUpgrades[2] = 49; menu.GetComponent<ShopUpdateUI>().Refresh();
+        yield return Press(pad, GamepadButton.East);
+        Check(shop.Progress.PermanentUpgrades[2] == 50 && events.currentSelectedGameObject != null && events.currentSelectedGameObject.transform.IsChildOf(permanent.transform.parent), "maxed permanent upgrade moves focus to a nearby upgrade");
+
+        foreach (int count in new[] { 1, 3, 6 })
+        {
+            menu.OpenShop(); menu.GetComponent<ShopUpdateUI>().ShowPage(0); yield return null;
+            int packIndex = count == 1 ? 0 : count == 3 ? 1 : 3;
+            var pack = menu.PackContainer.GetChild(packIndex).GetComponent<UnityEngine.UI.Button>();
+            events.SetSelectedGameObject(pack.gameObject); yield return Press(pad, GamepadButton.East);
+            var buy = count == 1 ? menu.YesButton : count == 3 ? menu.BuyThreeButton : menu.BuySixButton;
+            events.SetSelectedGameObject(buy.gameObject);
+            int coins = shop.CurrentCoins;
+            InputSystem.QueueStateEvent(pad, new GamepadState().WithButton(GamepadButton.East));
+            yield return null; yield return null; yield return new WaitForSecondsRealtime(.15f);
+            Check(menu.SliceZone.activeSelf && !menu.ContinueButton.gameObject.activeSelf, "held purchase press does not open " + count + " packs");
+            var hint = menu.SliceHelpText.GetComponent<TMPro.TMP_Text>(); hint.ForceMeshUpdate();
+            Check(hint.text.Contains(ControllerBindings.Label("Confirm")) && !hint.isTextOverflowing, "pack swipe hint shows the binding and fits");
+            Check(shop.CurrentCoins == coins - shop.AvailablePacks[packIndex].Cost * count, "controller purchase charges once for " + count + " packs");
+            InputSystem.QueueStateEvent(pad, new GamepadState()); yield return null; yield return null;
+            if (count == 3)
+            {
+                Check(ControllerBindings.TrySet("Confirm", "buttonWest", out _), "Interact can be remapped for the swipe screen");
+                yield return Press(pad, GamepadButton.East);
+                Check(menu.SliceZone.activeSelf, "old B binding cannot open a pack after remapping");
+            }
+            var interact = count == 3 ? GamepadButton.West : GamepadButton.East;
+            yield return Press(pad, interact);
+            Check(!menu.SliceZone.activeSelf, "Interact opens the " + count + " pack swipe screen");
+            yield return Press(pad, interact);
+            float deadline = Time.unscaledTime + 12;
+            while (!menu.ContinueButton.gameObject.activeSelf && Time.unscaledTime < deadline) yield return null;
+            yield return null;
+            Check(menu.ContinueButton.gameObject.activeSelf && menu.CardRevealCenter.GetComponentsInChildren<CardDisplay>().Length == count * 3, "repeated Interact reveals exactly " + count * 3 + " cards");
+            Check(shop.CurrentCoins == coins - shop.AvailablePacks[packIndex].Cost * count && events.currentSelectedGameObject == menu.ContinueButton.gameObject, "reveal preserves coins and focuses Continue");
+            yield return Press(pad, interact);
+            Check(menu.ShopPanel.activeSelf && !menu.OpeningOverlay.activeSelf, "controller Continue returns to shop");
+            Check(events.currentSelectedGameObject == pack.gameObject, "pack opening restores the specific purchased pack");
+            ControllerBindings.Reset();
+        }
+
+        menu.PackContainer.GetComponentInChildren<UnityEngine.UI.Button>().onClick.Invoke(); menu.BuyPack(); yield return null;
+        yield return Press(pad, GamepadButton.South);
+        Check(menu.MenuPanel.activeSelf && !menu.OpeningOverlay.activeSelf, "Back still leaves the pack swipe screen");
+
+        // Per-seat equipment uses independent focus instead of EventSystem.
+        _pads.Add(InputSystem.AddDevice<Gamepad>());
+        LocalCoopSession.RequestedPlayers = 2; LocalCoopSession.AdvancedLoadouts = true; LocalCoopSession.KeyboardTest = false;
+        var host = menu.GetComponent<HostMenuUI>(); host.Open(); host.Hide();
+        var lobby = menu.GetComponent<CoopLobbyUI>(); if (lobby == null) lobby = menu.gameObject.AddComponent<CoopLobbyUI>();
+        lobby.Open(host); for (int i = 0; i < 2; i++) LocalCoopSession.PlayerControllers[i] = _pads[i];
+        var panels = (LoadoutPanel[])typeof(CoopLobbyUI).GetField("_loadouts", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(lobby);
+        panels[1].Root.gameObject.SetActive(true); panels[1].ShowCards(false);
+        yield return new WaitForSecondsRealtime(.4f);
+        var paneControls = (UnityEngine.UI.Button[])typeof(LoadoutPanel).GetField("_controls", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(panels[1]);
+        typeof(LoadoutPanel).GetField("_focus", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).SetValue(panels[1], Array.FindIndex(paneControls, b => b.name == "Item 6"));
+        panels[1].ControllerInput(Vector2.zero, false, false);
+        var origin = panels[1].Focused.name; var p1Focus = panels[0].Focused;
+        yield return Press(_pads[1], GamepadButton.East);
+        Check(panels[1].HasModal, "P2 opens its own item actions");
+        yield return Press(_pads[1], GamepadButton.East);
+        Check(!panels[1].HasModal && panels[1].Focused.name == origin, "P2 item equip restores its own button");
+        Check(panels[0].Focused == p1Focus, "P2 equipment change does not move P1 focus");
+        lobby.Close(); LocalCoopSession.RequestedPlayers = 1; menu.OpenMenu();
     }
     IEnumerator RunUI()
     {
@@ -271,9 +495,11 @@ public class ShopUpdatePlayProbe : MonoBehaviour
             Check(menu.CardRevealCenter.GetComponentsInChildren<CardDisplay>().Length == count * 3, "all cards revealed for " + count);
             foreach (var card in menu.CardRevealCenter.GetComponentsInChildren<CardDisplay>())
             {
-                var rect = (RectTransform)card.transform; var slot = (RectTransform)rect.parent;
+                var rect = (RectTransform)card.transform;
+                // Three-pack reveals center the four-card second row between grid columns.
+                var slot = count == 3 ? (RectTransform)menu.CardRevealCenter : (RectTransform)rect.parent;
                 var corners = new Vector3[4]; rect.GetWorldCorners(corners);
-                Check(corners.All(c => { Vector3 p = slot.InverseTransformPoint(c); return p.x >= slot.rect.xMin - 1 && p.x <= slot.rect.xMax + 1 && p.y >= slot.rect.yMin - 1 && p.y <= slot.rect.yMax + 1; }), "revealed card fits its grid cell");
+                Check(corners.All(c => { Vector3 p = slot.InverseTransformPoint(c); return p.x >= slot.rect.xMin - 1 && p.x <= slot.rect.xMax + 1 && p.y >= slot.rect.yMin - 1 && p.y <= slot.rect.yMax + 1; }), "revealed card fits its reveal area");
             }
             Check(menu.RevealGrid.spacing.y >= 0, "reveal rows have no negative spacing");
             Visible("revealed cards " + count);

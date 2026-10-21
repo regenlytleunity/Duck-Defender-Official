@@ -22,8 +22,8 @@ public class SettingsMenuUI : MonoBehaviour
     public TextMeshProUGUI KeyCaptureText;
     public TextMeshProUGUI[] KeybindLabels;
     public TextMeshProUGUI KeybindStatus;
-    public static readonly string[] BindingActions = { "moveleft", "moveright", "jump", "crouch", "dash", "shoot", "moveleftalt", "moverightalt", "jumpalt", "crouchalt" };
-    public static readonly string[] BindingNames = { "Move left", "Move right", "Jump / fly up", "Crouch / fly down", "Dash / blink", "Shoot", "Left (alternate)", "Right (alternate)", "Jump (alternate)", "Crouch (alternate)" };
+    public static readonly string[] BindingActions = { "moveleft", "moveright", "jump", "crouch", "dash", "shoot", "moveleftalt", "moverightalt", "jumpalt", "crouchalt", "useitem", "item1", "item2", "item3", "item4" };
+    public static readonly string[] BindingNames = { "Move left", "Move right", "Jump / fly up", "Crouch / fly down", "Dash / blink", "Shoot", "Left (alternate)", "Right (alternate)", "Jump (alternate)", "Crouch (alternate)", "Use item (hold bomb)", "Item slot 1", "Item slot 2", "Item slot 3", "Item slot 4" };
     static readonly KeyCode[] Keys = (KeyCode[])System.Enum.GetValues(typeof(KeyCode));
     int _bindingIndex = -1;
     float _captureAfter;
@@ -139,8 +139,6 @@ public class SettingsMenuUI : MonoBehaviour
     {
         var input = InputManager.Instance;
         if (input == null || index < 0 || index >= BindingActions.Length || key == KeyCode.None || key == KeyCode.Escape) return false;
-        if (InputManager.ReservedForItems(key))
-        { if (KeybindStatus != null) KeybindStatus.text = "1 / 2 / 3 / 4 and right-click are reserved for items."; return false; }
         for (int i = 0; i < BindingActions.Length; i++)
             if (i != index && input.GetKeybind(BindingActions[i]) == key)
             {

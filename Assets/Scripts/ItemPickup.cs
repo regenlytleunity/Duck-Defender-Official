@@ -18,7 +18,12 @@ public class ItemPickup : MonoBehaviour
         var pickup = go.AddComponent<ItemPickup>(); pickup.ItemID = id; pickup._collectAfter = Time.time + .4f;
         var sprite = go.AddComponent<SpriteRenderer>(); sprite.sprite = ItemCatalog.Icon(id); sprite.sortingOrder = 25;
         go.transform.localScale = Vector3.one * .65f;
-        var collider = go.AddComponent<CircleCollider2D>(); collider.radius = .4f; collider.isTrigger = true;
+        var collider = go.AddComponent<CircleCollider2D>(); collider.radius = .4f;
+        var body = go.AddComponent<Rigidbody2D>();
+        body.gravityScale = 2;
+        body.constraints = RigidbodyConstraints2D.FreezeRotation;
+        body.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+        body.excludeLayers = ~LayerMask.GetMask("Ground");
         return pickup;
     }
     void Update()
@@ -27,15 +32,17 @@ public class ItemPickup : MonoBehaviour
         foreach (var player in LocalCoopSession.Instance.Players)
         {
             if (!player.Alive || (player.transform.position - transform.position).sqrMagnitude > 1) continue;
-            Collect(); break;
+            Collect(player); break;
         }
     }
-    public void Collect()
+    public void Collect(LocalPlayer player = null)
     {
         if (!enabled || !ItemCatalog.Valid(ItemID)) return;
         enabled = false;
         var data = SaveSystem.LoadData();
         data.ItemInventory[ItemID] = (int)System.Math.Min(int.MaxValue, (long)data.ItemInventory[ItemID] + 1);
-        SaveSystem.SaveData(data); Destroy(gameObject);
+        SaveSystem.SaveData(data);
+        if (player != null) player.GetComponent<ItemWheelUI>()?.ShowPickup(ItemID);
+        Destroy(gameObject);
     }
 }

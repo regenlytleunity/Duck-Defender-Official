@@ -23,6 +23,9 @@ public class InputManager : MonoBehaviour
     [Header("Action Keys")]
     public KeyCode DashKey = KeyCode.LeftShift;
     public KeyCode ShootKey = KeyCode.Mouse0;
+    [Header("Item Keys")]
+    public KeyCode UseItemKey = KeyCode.Mouse1;
+    public KeyCode Item1Key = KeyCode.Alpha1, Item2Key = KeyCode.Alpha2, Item3Key = KeyCode.Alpha3, Item4Key = KeyCode.Alpha4;
     
     [Header("UI Keys")]
     public KeyCode PauseKey = KeyCode.Escape;
@@ -130,7 +133,6 @@ public class InputManager : MonoBehaviour
 
     public void SetKeybind(string action, KeyCode newKey)
     {
-        if (ReservedForItems(newKey)) return;
         switch (action.ToLower())
         {
             case "moveleft": MoveLeftKey = newKey; break;
@@ -144,6 +146,11 @@ public class InputManager : MonoBehaviour
             case "jumpalt": JumpAlt = newKey; break;
             case "crouchalt": CrouchAlt = newKey; break;
             case "pause": PauseKey = newKey; break;
+            case "useitem": UseItemKey = newKey; break;
+            case "item1": Item1Key = newKey; break;
+            case "item2": Item2Key = newKey; break;
+            case "item3": Item3Key = newKey; break;
+            case "item4": Item4Key = newKey; break;
         }
         SaveKeybinds();
     }
@@ -163,6 +170,11 @@ public class InputManager : MonoBehaviour
             case "jumpalt": return JumpAlt;
             case "crouchalt": return CrouchAlt;
             case "pause": return PauseKey;
+            case "useitem": return UseItemKey;
+            case "item1": return Item1Key;
+            case "item2": return Item2Key;
+            case "item3": return Item3Key;
+            case "item4": return Item4Key;
             default: return KeyCode.None;
         }
     }
@@ -180,6 +192,10 @@ public class InputManager : MonoBehaviour
         PlayerPrefs.SetInt("Key_JumpAlt", (int)JumpAlt);
         PlayerPrefs.SetInt("Key_CrouchAlt", (int)CrouchAlt);
         PlayerPrefs.SetInt("Key_Pause", (int)PauseKey);
+        PlayerPrefs.SetInt("Key_UseItem", (int)UseItemKey);
+        PlayerPrefs.SetInt("Key_Item1", (int)Item1Key); PlayerPrefs.SetInt("Key_Item2", (int)Item2Key);
+        PlayerPrefs.SetInt("Key_Item3", (int)Item3Key); PlayerPrefs.SetInt("Key_Item4", (int)Item4Key);
+        PlayerPrefs.SetInt("Key_ItemBindingsVersion", 1);
         PlayerPrefs.Save();
     }
 
@@ -207,7 +223,13 @@ public class InputManager : MonoBehaviour
             CrouchAlt = (KeyCode)PlayerPrefs.GetInt("Key_CrouchAlt");
         if (PlayerPrefs.HasKey("Key_Pause"))
             PauseKey = (KeyCode)PlayerPrefs.GetInt("Key_Pause");
-        // Old mappings remain saved, but fixed item controls must not trigger two actions.
+        UseItemKey = (KeyCode)PlayerPrefs.GetInt("Key_UseItem", (int)KeyCode.Mouse1);
+        Item1Key = (KeyCode)PlayerPrefs.GetInt("Key_Item1", (int)KeyCode.Alpha1);
+        Item2Key = (KeyCode)PlayerPrefs.GetInt("Key_Item2", (int)KeyCode.Alpha2);
+        Item3Key = (KeyCode)PlayerPrefs.GetInt("Key_Item3", (int)KeyCode.Alpha3);
+        Item4Key = (KeyCode)PlayerPrefs.GetInt("Key_Item4", (int)KeyCode.Alpha4);
+        if (PlayerPrefs.HasKey("Key_ItemBindingsVersion")) return;
+        // One-time migration from the old reserved-item controls.
         if (ReservedForItems(MoveLeftKey)) MoveLeftKey = KeyCode.A;
         if (ReservedForItems(MoveRightKey)) MoveRightKey = KeyCode.D;
         if (ReservedForItems(JumpKey)) JumpKey = KeyCode.Space;
@@ -219,6 +241,7 @@ public class InputManager : MonoBehaviour
         if (ReservedForItems(JumpAlt)) JumpAlt = KeyCode.W;
         if (ReservedForItems(CrouchAlt)) CrouchAlt = KeyCode.DownArrow;
         if (ReservedForItems(PauseKey)) PauseKey = KeyCode.Escape;
+        SaveKeybinds();
     }
 
     public static bool ReservedForItems(KeyCode key) => key == KeyCode.Mouse1 || key >= KeyCode.Alpha1 && key <= KeyCode.Alpha4;
@@ -236,6 +259,7 @@ public class InputManager : MonoBehaviour
         DashKey = KeyCode.LeftShift;
         ShootKey = KeyCode.Mouse0;
         PauseKey = KeyCode.Escape;
+        UseItemKey = KeyCode.Mouse1; Item1Key = KeyCode.Alpha1; Item2Key = KeyCode.Alpha2; Item3Key = KeyCode.Alpha3; Item4Key = KeyCode.Alpha4;
         SaveKeybinds();
     }
 }

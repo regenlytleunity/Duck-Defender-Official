@@ -3,6 +3,7 @@ using UnityEngine;
 [RequireComponent(typeof(CircleCollider2D), typeof(Rigidbody2D))]
 public class HealingOrb : MonoBehaviour
 {
+    [System.NonSerialized] public PlayerStats Source;
     public float Lifetime = 20;
     public float PickupRadius = .6f;
     public float AttractionRadius = 4;
@@ -53,7 +54,7 @@ public class HealingOrb : MonoBehaviour
     }
     void Collect()
     {
-        if (_health == null || _collected) return;
+        if (_health == null || _collected || Source != null && Source.CardsSuppressed) return;
         _collected = true;
         _health.Heal(Mathf.Max(1, Mathf.CeilToInt(_health.MaxHealth * .1f)));
         Destroy(gameObject);

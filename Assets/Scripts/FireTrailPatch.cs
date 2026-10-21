@@ -194,6 +194,7 @@ public class FireTrailPatch : MonoBehaviour
     /// </summary>
     void TickDamage(float seconds)
     {
+        if (OwnerStats != null && OwnerStats.CardsSuppressed) return;
         EnemyBase.CopyActiveEnemies(_damageTargets);
         foreach (var enemy in _damageTargets)
         {

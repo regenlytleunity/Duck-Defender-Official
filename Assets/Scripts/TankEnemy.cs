@@ -19,15 +19,16 @@ public class TankEnemy : SwarmerEnemy
     [Range(0, 1)] public float GroundSpeedMultiplier = .85f;
     public LineRenderer ChainPrefab;
     public Color ChainColor = new Color(.5f, .8f, 1);
-    readonly List<EnemyBase> _protected = new List<EnemyBase>(4);
-    readonly List<LineRenderer> _chains = new List<LineRenderer>(4);
+    public const int MaximumLifetimeLinks = 3;
+    readonly List<EnemyBase> _protected = new List<EnemyBase>(MaximumLifetimeLinks);
+    readonly List<LineRenderer> _chains = new List<LineRenderer>(MaximumLifetimeLinks);
     int _lifetimeLinks, _defeatedLinks;
     float _nextChainSearch, _maxShield;
     public float ShieldHealth { get; private set; }
     public int LifetimeLinks => _lifetimeLinks;
     public int DefeatedLinks => _defeatedLinks;
     protected override float EliteHealthMultiplier => 1;
-    protected override float HealthAtWave(int wave) => 4 * (WaveManager.Instance != null ? WaveManager.Instance.BasicGroundHealth(wave) : Mathf.Floor(2 + WaveManager.HealthIncreaseAtWave(wave)));
+    protected override float HealthAtWave(int wave) => 3 * (WaveManager.Instance != null ? WaveManager.Instance.BasicGroundHealth(wave) : Mathf.Floor(2 + WaveManager.HealthIncreaseAtWave(wave)));
     protected override float SpeedAtSpawn => (WaveManager.Instance != null ? WaveManager.Instance.BasicGroundSpeed() : 4) * GroundSpeedMultiplier;
     protected override float RuntimeSpeedMultiplier => 1 + (IsElite ? .1f * _defeatedLinks : 0);
     protected override float StrikeDamage => DamageOnHit + (IsElite ? .25f * _defeatedLinks : 0);
@@ -56,7 +57,7 @@ public class TankEnemy : SwarmerEnemy
     public void AcquireChains()
     {
         if (!IsAlive) return;
-        while (_lifetimeLinks < 4)
+        while (_lifetimeLinks < MaximumLifetimeLinks)
         {
             EnemyBase nearest = null;
             float distance = ChainRange * ChainRange;
@@ -76,10 +77,16 @@ public class TankEnemy : SwarmerEnemy
                 line = ChainPrefab != null ? Instantiate(ChainPrefab, transform) : new GameObject("Protection Chain").AddComponent<LineRenderer>();
                 line.transform.SetParent(transform, false);
                 line.useWorldSpace = true; line.positionCount = 2;
+                // Apply to authored chain prefabs too, without changing their colors.
+                var gradient = line.colorGradient;
+                var alpha = gradient.alphaKeys;
+                for (int i = 0; i < alpha.Length; i++) alpha[i].alpha *= .4f;
+                gradient.alphaKeys = alpha; line.colorGradient = gradient;
                 if (ChainPrefab == null)
                 {
                     line.startWidth = line.endWidth = .06f;
-                    line.startColor = line.endColor = ChainColor;
+                    var color = ChainColor; color.a *= .4f;
+                    line.startColor = line.endColor = color;
                     if (SpriteRen != null) { line.sharedMaterial = SpriteRen.sharedMaterial; line.sortingLayerID = SpriteRen.sortingLayerID; line.sortingOrder = SpriteRen.sortingOrder + 1; }
                 }
             }
@@ -113,7 +120,7 @@ public class TankEnemy : SwarmerEnemy
     {
         if (enemy == null || enemy.Protector != this || !_protected.Contains(enemy)) return;
         enemy.Protector = null;
-        _defeatedLinks = Mathf.Min(4, _defeatedLinks + 1);
+        _defeatedLinks = Mathf.Min(MaximumLifetimeLinks, _defeatedLinks + 1);
     }
 
     void ReleaseChains()

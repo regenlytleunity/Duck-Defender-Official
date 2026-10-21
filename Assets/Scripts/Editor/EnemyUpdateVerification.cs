@@ -49,6 +49,7 @@ public static class EnemyUpdateVerification
         enemy.IsElite = elite; enemy.SpawnProtectionSeconds = 0; enemy.BaseHealth = 100;
         enemy.gameObject.AddComponent<Rigidbody2D>();
         enemy.gameObject.AddComponent<BoxCollider2D>();
+        enemy.gameObject.AddComponent<SpriteRenderer>();
         enemy.Initialize(1);
         EnemyBase.ActiveEnemies.Add(enemy);
         return enemy;
@@ -79,42 +80,44 @@ public static class EnemyUpdateVerification
             var elite = Enemy(false, true);
             Near(elite.MaxHealth, normal.MaxHealth * 1.5f, "elite ground health");
             var tank = (TankEnemy)Enemy(true);
-            Near(tank.MaxHealth, 8, "tank uses four times basic ground health");
+            Near(tank.MaxHealth, 6, "tank uses three times basic ground health");
             tank.transform.position = new Vector3(20, 0);
             normal.transform.position = tank.transform.position + Vector3.right;
             elite.transform.position = tank.transform.position + Vector3.right * 2;
             tank.AcquireChains();
             Check(normal.Protector == tank && elite.Protector == tank, "tank acquires nearest non-tanks");
+            Check(normal.GetComponent<SpriteRenderer>().color.b > normal.GetComponent<SpriteRenderer>().color.r, "protected allies have a blue tint");
             var tank2 = (TankEnemy)Enemy(true, true);
             tank2.transform.position = tank.transform.position;
             tank2.AcquireChains();
             Check(tank2.LifetimeLinks == 0 && tank.Protector == null, "exclusive ownership and tanks excluded");
             normal.TakeDamage(1);
             Near(normal.HealthRemaining, 99.5f, "half-damage protection");
-            Near(tank.HealthRemaining, 7.5f, "normal tank absorbs half damage exactly");
+            Near(tank.HealthRemaining, 5.5f, "normal tank absorbs half damage exactly");
 
             tank.enabled = false;
             typeof(TankEnemy).GetMethod("OnDisable", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(tank, null);
+            Check(normal.GetComponent<SpriteRenderer>().color == Color.white, "releasing a chain restores the normal tint");
             tank2.AcquireChains();
             elite.TakeDamage(3);
             Near(tank2.ShieldHealth, 1.5f, "elite converts redirected damage to shield");
-            Near(tank2.HealthRemaining, 8, "elite shield gain does not cost health");
+            Near(tank2.HealthRemaining, 6, "elite shield gain does not cost health");
             tank2.TakeDamage(2);
             Near(tank2.ShieldHealth, 0, "shield depleted first");
-            Near(tank2.HealthRemaining, 7.5f, "shield overflow reaches health");
+            Near(tank2.HealthRemaining, 5.5f, "shield overflow reaches health");
             tank2.OnProtectedEnemyKilled(normal);
             tank2.OnProtectedEnemyKilled(normal);
             Check(tank2.DefeatedLinks == 1, "ally death cannot grant duplicate stacks");
 
             EnemyBase.ActiveEnemies.Clear();
-            var fourTank = (TankEnemy)Enemy(true, true);
+            var threeTank = (TankEnemy)Enemy(true, true);
             for (int i = 0; i < 5; i++) { var ally = Enemy(false); ally.transform.position = Vector3.right * (i + 1); }
-            fourTank.AcquireChains();
-            Check(fourTank.LifetimeLinks == 4, "four lifetime links");
-            var linked = EnemyBase.ActiveEnemies.Find(e => e.Protector == fourTank);
-            fourTank.OnProtectedEnemyKilled(linked);
-            fourTank.AcquireChains();
-            Check(fourTank.LifetimeLinks == 4, "no replacement after linked ally dies");
+            threeTank.AcquireChains();
+            Check(threeTank.LifetimeLinks == 3, "three lifetime links");
+            var linked = EnemyBase.ActiveEnemies.Find(e => e.Protector == threeTank);
+            threeTank.OnProtectedEnemyKilled(linked);
+            threeTank.AcquireChains();
+            Check(threeTank.LifetimeLinks == 3, "no replacement after linked ally dies");
 
             var manager = Make<WaveManager>();
             manager.SpawnPoints = new[] { manager.transform };
@@ -129,6 +132,7 @@ public static class EnemyUpdateVerification
             {
                 Check(manager.TryBuildWave(wave, null, plan, out string error), "intro wave valid: " + error);
                 Check(plan.Count == 2 + wave * 2, "exact default enemy count");
+                Check(plan[0].Prefab.GetComponent<TankEnemy>() == null, "tanks never spawn first");
                 foreach (var spawn in plan)
                 {
                     string kind = spawn.Prefab.GetComponent<EnemyBase>().EnemyKind;
@@ -143,12 +147,15 @@ public static class EnemyUpdateVerification
             def.RandomEnemies.Add(new WaveEnemyOption { Prefab = manager.EnemyPrefabs[0], Weight = 100 });
             def.RandomEnemies.Add(new WaveEnemyOption { Prefab = manager.EnemyPrefabs[1], Weight = 0 });
             Check(manager.TryBuildWave(99, def, plan, out _), "mixed wave valid");
-            Check(plan.Count == 8 && plan[0].Elite && plan[1].Elite && plan[0].DelayBefore == 2 && plan[1].DelayBefore == 0, "ordered count, variant, timing");
-            for (int i = 2; i < plan.Count; i++) Check(plan[i].Prefab == manager.EnemyPrefabs[0], "zero weight excluded");
+            Check(plan.Count == 8 && plan[0].Prefab == manager.EnemyPrefabs[0] && plan[1].Elite && plan[2].Elite && plan[1].DelayBefore == 2 && plan[2].DelayBefore == 0, "ordered count, variant, timing");
+            for (int i = 3; i < plan.Count; i++) Check(plan[i].Prefab == manager.EnemyPrefabs[0], "zero weight excluded");
             def.ExcludedEnemies.Add(manager.EnemyPrefabs[0]);
             Check(!manager.TryBuildWave(99, def, plan, out _), "empty random pool is an explicit error");
             def.Mode = WaveSpawnMode.Scripted;
-            Check(manager.TryBuildWave(99, def, plan, out _) && plan.Count == 2, "scripted uses exact group count");
+            Check(!manager.TryBuildWave(99, def, plan, out _), "tank-only scripted wave needs a lead enemy");
+            def.ExcludedEnemies.Clear();
+            def.OrderedSpawns.Add(new WaveSpawnGroup { Prefab = manager.EnemyPrefabs[0], Count = 1 });
+            Check(manager.TryBuildWave(99, def, plan, out _) && plan.Count == 3 && plan[0].Prefab == manager.EnemyPrefabs[0], "scripted tanks follow a non-tank while preserving counts");
             def.OrderedSpawns[0].SpawnPointIndex = 2;
             Check(!manager.TryBuildWave(99, def, plan, out _), "invalid spawn point rejected");
 

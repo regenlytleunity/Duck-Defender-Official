@@ -125,6 +125,9 @@ public class CardDisplay : MonoBehaviour, IPointerEnterHandler
 
     public void Setup(CardDefinition card)
     {
+        var events = EventSystem.current;
+        var focused = _indexContext && events != null ? events.currentSelectedGameObject : null;
+        bool restoreFocus = focused != null && focused.transform.IsChildOf(transform);
         _assignedCard = card;
         if (LevelGroup) LevelGroup.SetActive(false);
         if (_subscribedShop != ShopManager.Instance)
@@ -209,8 +212,16 @@ public class CardDisplay : MonoBehaviour, IPointerEnterHandler
 
         bool locked = !card.IsBasic && ShopManager.Instance != null && ShopManager.Instance.GetCardData(card.ID)?.IsUnlocked != true;
         SetLockedState(locked);
+        AscendedCardTint.Apply(BackgroundImage, ascended && !locked && !(_hostFilter && LocalCoopSession.DisabledCards.Contains(card.ID)));
         if (_indexContext) ConfigureIndexNavigation();
         if (_hideShopControls) HideShopControls();
+        if (restoreFocus)
+        {
+            var control = focused.GetComponent<Selectable>();
+            if (control == null || !control.IsActive() || !control.IsInteractable())
+                control = AscendButton != null && AscendButton.IsActive() && AscendButton.IsInteractable() ? AscendButton : ClickButton;
+            if (control != null && control.IsActive() && control.IsInteractable()) events.SetSelectedGameObject(control.gameObject);
+        }
     }
 
     public void SetupHostFilter(CardDefinition card)
@@ -310,7 +321,7 @@ public class CardDisplay : MonoBehaviour, IPointerEnterHandler
         {
             if (AudioManager.Instance != null)
                 AudioManager.Instance.PlaySFX("UI_button_Click");
-            Setup(_assignedCard);
+            // OnCollectionChanged already refreshes the card and navigation.
         }
         else
         {

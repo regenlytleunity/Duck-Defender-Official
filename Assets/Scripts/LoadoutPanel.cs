@@ -28,10 +28,12 @@ public sealed class LoadoutPanel
     public string LayoutLabel => _layoutIndex == 2 ? "LAYOUT: ALL" : "LAYOUT: " + Columns + " x " + Rows;
     UnityEngine.UI.Button _returnFocus;
     string _returnFocusName;
+    Vector3 _returnFocusPosition;
     CanvasGroup _indexGroup;
     bool _modalOnly;
     UnityEngine.UI.Button[] _controls = new UnityEngine.UI.Button[0];
     readonly List<CardDefinition> _cards = new List<CardDefinition>();
+    readonly Dictionary<int, TMP_Text> _itemAvailability = new Dictionary<int, TMP_Text>();
     public LoadoutPanel(Transform parent, int seat, bool lobby, Action close, object context = null)
     {
         Seat = seat; _lobby = lobby; _shop = ShopManager.Instance; _close = close; _context = context ?? this;
@@ -54,6 +56,7 @@ public sealed class LoadoutPanel
         if (restoreFocus) focusedName = selected.name;
         if (_modal != null) focusedName = _returnFocusName;
         CloseModal();
+        _itemAvailability.Clear();
         if (_body != null) { _body.gameObject.SetActive(false); UnityEngine.Object.Destroy(_body.gameObject); }
         _body = CoopUIElements.Panel(Root, "Equipment content", Vector2.zero, Vector2.one, Color.clear);
         _body.GetComponent<UnityEngine.UI.Image>().raycastTarget = false;
@@ -98,7 +101,7 @@ public sealed class LoadoutPanel
         CoopUIElements.Text(_body, (_page + 1) + " / " + Mathf.Max(1, Mathf.CeilToInt(EntryCount / (float)PerPage)), new Vector2(middle - .055f, .02f), new Vector2(middle + .055f, .13f), _lobby ? 20 : 28);
         CoopUIElements.Button(_body, ">", new Vector2(middle + .055f, .02f), new Vector2(middle + .14f, .13f), () => { _page++; Rebuild(); }).interactable = (_page + 1) * PerPage < EntryCount;
         RefreshControls();
-        RestoreFocus(focusedName, restoreFocus);
+        RestoreFocus(focusedName, restoreFocus && Root.gameObject.activeInHierarchy);
         (_context as IndexLoadoutUI)?.EquipmentRebuilt();
     }
     void ItemButton(Transform parent, int id, Vector2 min, Vector2 max, int slot)
@@ -107,10 +110,16 @@ public sealed class LoadoutPanel
         button.name = slot >= 0 ? "Item slot " + (slot + 1) : "Item " + id;
         var text = button.GetComponentInChildren<TMP_Text>(); text.fontSizeMax = 21; text.fontSizeMin = 12;
         text.text = slot >= 0 ? "Slot " + (slot + 1) + (id == 0 ? "\nEmpty" : "\n" + ItemCatalog.Names[id]) : ItemCatalog.Names[id] + "\nOwned: " + _shop.Progress.ItemInventory[id] + "\nAvailable: " + Mathf.Max(0, _shop.Progress.ItemInventory[id] - _shop.ReservedItems(id, Seat));
+        if (slot < 0) _itemAvailability[id] = text;
         CoopUIElements.Stretch(text.rectTransform, new Vector2(.02f, 0), new Vector2(.98f, .38f));
         var icon = CoopUIElements.Panel(button.transform, "Icon", new Vector2(.24f, .39f), new Vector2(.76f, .96f), Color.white).GetComponent<UnityEngine.UI.Image>();
         icon.sprite = ItemCatalog.Icon(id); icon.enabled = icon.sprite != null; icon.preserveAspect = true; icon.raycastTarget = false;
         BindDrag(button.gameObject, false, slot, icon.sprite, () => OpenItem(id, slot), destination => slot >= 0 ? _shop.MoveEquipment(false, slot, destination, Seat) : _shop.EquipItem(id, destination, Seat), () => _shop.EquipItem(0, slot, Seat));
+    }
+    public void RefreshItemAvailability()
+    {
+        foreach (var pair in _itemAvailability)
+            if (pair.Value != null) pair.Value.text = ItemCatalog.Names[pair.Key] + "\nOwned: " + _shop.Progress.ItemInventory[pair.Key] + "\nAvailable: " + Mathf.Max(0, _shop.Progress.ItemInventory[pair.Key] - _shop.ReservedItems(pair.Key, Seat));
     }
     public UnityEngine.UI.Button MiniCard(Transform parent, string id, Vector2 min, Vector2 max, int slot, bool equipped)
     {
@@ -128,6 +137,7 @@ public sealed class LoadoutPanel
             background.color = definition == null ? new Color(.4f, .4f, .4f) : definition.Rarity == CardRarity.Legendary ? new Color(1, .8f, .2f) : definition.Rarity == CardRarity.Rare ? new Color(.3f, .5f, 1) : new Color(.6f, .6f, .6f);
         }
         var fitter = face.gameObject.AddComponent<UnityEngine.UI.AspectRatioFitter>(); fitter.aspectMode = UnityEngine.UI.AspectRatioFitter.AspectMode.FitInParent; fitter.aspectRatio = 5f / 7f;
+        AscendedCardTint.Apply(face.GetComponent<UnityEngine.UI.Image>(), saved?.IsAscended == true);
         face.GetComponent<UnityEngine.UI.Image>().raycastTarget = false;
         var text = button.GetComponentInChildren<TMP_Text>(); text.transform.SetParent(face, false);
         CoopUIElements.Stretch(text.rectTransform, new Vector2(.04f, .03f), new Vector2(.96f, .4f)); text.fontSizeMax = _lobby ? 20 : 24; text.fontSizeMin = 10;
@@ -190,6 +200,7 @@ public sealed class LoadoutPanel
         CloseModal(); _modalButtons = 0;
         _returnFocus = _lobby ? Focused != null ? Focused.GetComponent<UnityEngine.UI.Button>() : null : UnityEngine.EventSystems.EventSystem.current?.currentSelectedGameObject?.GetComponent<UnityEngine.UI.Button>();
         _returnFocusName = _returnFocus != null ? _returnFocus.name : null;
+        if (_returnFocus != null) _returnFocusPosition = _returnFocus.transform.position;
         _modalOnly = !Root.gameObject.activeSelf;
         if (_modalOnly) { Root.gameObject.SetActive(true); _body.gameObject.SetActive(false); }
         _modal = CoopUIElements.Panel(Root, "Equip menu", new Vector2(.04f, .04f), new Vector2(.96f, .96f), new Color(.03f, .045f, .07f));
@@ -231,9 +242,20 @@ public sealed class LoadoutPanel
         RefreshControls();
         if (hadModal)
         {
-            RestoreFocus(_returnFocusName, !_lobby);
-            if (!_lobby && _returnFocus != null && _returnFocus.IsActive() && _returnFocus.IsInteractable())
-                UnityEngine.EventSystems.EventSystem.current?.SetSelectedGameObject(_returnFocus.gameObject);
+            RestoreFocus(_returnFocusName, false);
+            if (!_lobby)
+            {
+                var target = _returnFocus;
+                if (target == null || !target.IsActive() || !target.IsInteractable())
+                {
+                    // Starting slots live outside Root and are replaced by a
+                    // collection refresh. Recover the same slot by its stable name.
+                    var scope = (_context as IndexLoadoutUI)?.gameObject ?? Root.gameObject;
+                    var controls = scope.GetComponentsInChildren<UnityEngine.UI.Button>().Where(b => b.IsActive() && b.IsInteractable()).ToArray();
+                    target = controls.FirstOrDefault(b => b.name == _returnFocusName) ?? controls.OrderBy(b => (b.transform.position - _returnFocusPosition).sqrMagnitude).FirstOrDefault();
+                }
+                if (target != null) UnityEngine.EventSystems.EventSystem.current?.SetSelectedGameObject(target.gameObject);
+            }
             (_context as IndexLoadoutUI)?.EquipmentRebuilt();
         }
     }
@@ -248,7 +270,7 @@ public sealed class LoadoutPanel
     void RefreshControls()
     {
         if (Root == null) return;
-        _controls = NavigationScope.GetComponentsInChildren<UnityEngine.UI.Button>().Where(b => b.IsInteractable()).ToArray();
+        _controls = NavigationScope.GetComponentsInChildren<UnityEngine.UI.Button>().Where(b => b.IsActive() && b.IsInteractable()).ToArray();
         ControllerMenuNavigation.ConfigureNavigation(NavigationScope);
         _focus = Mathf.Clamp(_focus, 0, Mathf.Max(0, _controls.Length - 1));
         Focused = _controls.Length > 0 ? (RectTransform)_controls[_focus].transform : null;

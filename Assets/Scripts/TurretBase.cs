@@ -72,7 +72,7 @@ public abstract class TurretBase : MonoBehaviour
 
     void Update()
     {
-        if (PlayerTransform == null || OwnerHealth != null && OwnerHealth.IsDead) return;
+        if (PlayerTransform == null || OwnerHealth != null && OwnerHealth.IsDead || OwnerStats != null && OwnerStats.CardsSuppressed) return;
 
         FollowPlayer();
         TickAction();

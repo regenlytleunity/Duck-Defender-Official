@@ -10,36 +10,47 @@ public class ItemClone : MonoBehaviour
     public Vector2 Aim { get; private set; } = Vector2.right;
     public bool Shooting { get; private set; }
     public bool Jump { get; private set; }
+    public bool JumpHeld => Time.time < _jumpHoldUntil;
+    public float SpawnMoveSpeed { get; private set; }
+    public float SpawnAcceleration { get; private set; }
     PlayerStats _stats;
     PlayerController _movement;
     PlayerHealth _health;
     EnemyBase _target;
     int _side, _expiresWave;
-    float _retarget, _jumpAfter;
+    float _retarget, _jumpAfter, _jumpHoldUntil;
+    float _moveDirection;
+    Rigidbody2D _body, _sourceBody;
     public static ItemClone Create(LocalPlayer player, int side)
     {
         var holder = new GameObject("Clone initialization"); holder.SetActive(false);
         var body = Instantiate(player.gameObject, holder.transform);
         body.name = side < 0 ? "Left clone" : "Right clone"; body.tag = "Untagged";
         var clone = body.AddComponent<ItemClone>(); clone.Source = player.Stats; clone._side = side;
+        clone.SpawnMoveSpeed = player.Movement.EffectiveMaxSpeed;
+        clone.SpawnAcceleration = player.Movement.EffectiveAcceleration;
+        clone._body = body.GetComponent<Rigidbody2D>(); clone._sourceBody = player.GetComponent<Rigidbody2D>();
         clone._stats = body.GetComponent<PlayerStats>(); clone._movement = body.GetComponent<PlayerController>(); clone._health = body.GetComponent<PlayerHealth>();
-        clone._expiresWave = PlayerItems.CompletedWaves + 2;
+        clone._expiresWave = PlayerItems.CompletedWaves + 5;
         // These are real player-only components. The AI supplies input through InputHelper.
         foreach (var component in body.GetComponents<LocalPlayer>()) { component.enabled = false; Destroy(component); }
         foreach (var component in body.GetComponents<PlayerItems>()) { component.enabled = false; Destroy(component); }
         foreach (var component in body.GetComponents<ItemWheelUI>()) { component.enabled = false; Destroy(component); }
         var arrow = body.transform.Find("Aim direction"); if (arrow != null) Destroy(arrow.gameObject);
+        var trajectory = body.transform.Find("Item throw path"); if (trajectory != null) Destroy(trajectory.gameObject);
         clone._stats.CopyCloneRuntime(player.Stats);
         body.transform.position = player.transform.position + Vector3.right * side * 1.5f;
         body.GetComponent<Rigidbody2D>().linearVelocity = Vector2.zero;
         body.GetComponent<SpriteRenderer>().color = new Color(.55f, .85f, 1, .65f);
+        // IgnoreCollision only persists for active colliders. Configure after
+        // leaving the inactive initialization holder so clones cannot block each other.
+        body.transform.SetParent(null, true); body.SetActive(true); Destroy(holder);
         foreach (var own in body.GetComponentsInChildren<Collider2D>())
         {
             if (LocalCoopSession.Instance != null) foreach (var other in LocalCoopSession.Instance.Players)
                 foreach (var collider in other.GetComponentsInChildren<Collider2D>()) Physics2D.IgnoreCollision(own, collider);
-            foreach (var other in _clones) if (other != null) foreach (var collider in other.GetComponentsInChildren<Collider2D>()) Physics2D.IgnoreCollision(own, collider);
+            foreach (var other in _clones) if (other != null && other != clone) foreach (var collider in other.GetComponentsInChildren<Collider2D>()) Physics2D.IgnoreCollision(own, collider);
         }
-        body.transform.SetParent(null, true); body.SetActive(true); Destroy(holder);
         var template = TurretManager.Instance;
         if (template != null)
         {
@@ -81,9 +92,14 @@ public class ItemClone : MonoBehaviour
         }
         Shooting = _target != null;
         if (_target != null) Aim = (_target.transform.position - transform.position).normalized;
-        float desiredX = Source.transform.position.x + _side * 3;
+        float sourceVelocity = _sourceBody != null ? _sourceBody.linearVelocity.x : 0;
+        float desiredX = Source.transform.position.x + _side * 3 + sourceVelocity * .2f;
         float delta = desiredX - transform.position.x;
-        float x = Mathf.Abs(delta) > .5f ? Mathf.Sign(delta) : 0;
+        // Full-strength movement with a stopping band avoids rapid direction
+        // changes that keep the shared player controller from accelerating.
+        if (Mathf.Abs(delta) > 1.1f) _moveDirection = Mathf.Sign(delta);
+        else if (Mathf.Abs(delta) < .35f || _moveDirection * delta < 0) _moveDirection = 0;
+        float x = _moveDirection;
         if (_target != null && Vector2.Distance(_target.transform.position, transform.position) < 2 && Mathf.Abs(delta) < 4)
             x = Mathf.Sign(transform.position.x - _target.transform.position.x);
         // Keep the AI in its owner's neighborhood and out of the owner's body.
@@ -91,9 +107,9 @@ public class ItemClone : MonoBehaviour
         Move = new Vector2(x, 0);
         var hit = Physics2D.Raycast(transform.position, Vector2.right * x, 1.2f, _movement.GroundLayer);
         if (_movement.IsGrounded && Time.time >= _jumpAfter && (hit.collider != null || Source.transform.position.y > transform.position.y + 1.5f))
-        { Jump = true; _jumpAfter = Time.time + .65f; }
+        { Jump = true; _jumpHoldUntil = Time.time + .25f; _jumpAfter = Time.time + .65f; }
         if (Vector2.Distance(transform.position, Source.transform.position) > 6)
-        { transform.position = Source.transform.position + Vector3.right * _side * 1.5f; GetComponent<Rigidbody2D>().linearVelocity = Vector2.zero; }
+        { transform.position = Source.transform.position + Vector3.right * _side * 1.5f; _body.linearVelocity = Vector2.zero; }
     }
     public Vector3 AimScreenPosition()
     {

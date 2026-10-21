@@ -27,10 +27,17 @@ public class CoopLobbyUI : MonoBehaviour
     readonly ControllerSelectionFrame[] _frames = new ControllerSelectionFrame[4];
     float _inputAfter, _launchAt;
     bool _navigationEvents;
+    ShopManager _subscribedShop;
 
     public void Open(HostMenuUI host)
     {
         Instance = this; _host = host; _launchAt = 0; _inputAfter = Time.unscaledTime + .35f;
+        if (_subscribedShop != ShopManager.Instance)
+        {
+            if (_subscribedShop != null) _subscribedShop.OnCollectionChanged -= RefreshItemAvailability;
+            _subscribedShop = ShopManager.Instance;
+            if (_subscribedShop != null) _subscribedShop.OnCollectionChanged += RefreshItemAvailability;
+        }
         if (_root != null) Destroy(_root.gameObject);
         _root = CoopUIElements.Panel(transform, "Player customization", Vector2.zero, Vector2.one, new Color(.025f, .04f, .07f));
         if (EventSystem.current != null) { _navigationEvents = EventSystem.current.sendNavigationEvents; EventSystem.current.sendNavigationEvents = false; EventSystem.current.SetSelectedGameObject(null); }
@@ -212,8 +219,14 @@ public class CoopLobbyUI : MonoBehaviour
         foreach (var frame in _frames) frame?.Hide();
         if (EventSystem.current != null) EventSystem.current.sendNavigationEvents = _navigationEvents;
     }
+    void RefreshItemAvailability()
+    {
+        // Update labels in place so another player's open menu and focus survive.
+        foreach (var panel in _loadouts) panel?.RefreshItemAvailability();
+    }
     void OnDestroy()
     {
+        if (_subscribedShop != null) _subscribedShop.OnCollectionChanged -= RefreshItemAvailability;
         if (IsOpen) Close();
         foreach (var frame in _frames) frame?.Dispose();
         foreach (var material in _previewMaterials) if (material != null) Destroy(material);

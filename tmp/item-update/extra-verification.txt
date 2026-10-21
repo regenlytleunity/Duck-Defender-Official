@@ -1,0 +1,12 @@
+PASS: 11 focused checks
+all four real enemy prefabs resolve
+four-player introduction remains unique at wave 1
+four-player introduction remains unique at wave 3
+four-player introduction remains unique at wave 6
+four-player introduction remains unique at wave 9
+four-player introduction remains unique at wave 12
+four-player introduction remains unique at wave 16
+four-player introduction remains unique at wave 20
+four-player introduction remains unique at wave 25
+translucent fallback tank chain
+translucent authored tank chain

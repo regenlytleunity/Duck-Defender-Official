@@ -73,6 +73,12 @@ public class AscensionArea : MonoBehaviour
         if (dt <= 0) return;
         if (_rotatingVisual != null) _rotatingVisual.Rotate(0, 0, 20 * dt);
         _remaining -= dt;
+        if (_owner != null && _owner.CardsSuppressed)
+        {
+            _tick = 0;
+            if (_remaining <= 0) Destroy(gameObject);
+            return;
+        }
         _tick += dt;
         if (_tick >= .1f || _remaining <= 0)
         {

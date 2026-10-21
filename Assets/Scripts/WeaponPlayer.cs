@@ -91,7 +91,8 @@ public class WeaponPlayer : MonoBehaviour
     float _fireReduction;
     public Vector2 AimDirection => ComputeAimDir();
     float RebirthMultiplier => OwnerStats != null ? OwnerStats.RebirthStatMultiplier : 1f;
-    public float EffectiveFireInterval => Mathf.Max(.005f, FireRate / RebirthMultiplier / (OwnerStats != null ? Mathf.Max(.01f, OwnerStats.ItemFireRateMultiplier) : 1));
+    public float EffectiveFireInterval => OwnerStats != null && OwnerStats.Items != null && OwnerStats.Items.DivineActive
+        ? OwnerStats.Items.DivineShotDelay : Mathf.Max(.005f, FireRate / RebirthMultiplier / (OwnerStats != null ? Mathf.Max(.01f, OwnerStats.ItemFireRateMultiplier) : 1));
     public int EffectiveParallelProjectiles => Mathf.Max(0, Mathf.RoundToInt(ParallelProjectiles * RebirthMultiplier));
     // Temporary Triple or Nothing projectiles are an upgrade effect, not a core-stat increase.
     public int EffectiveSpreadProjectiles => Mathf.Max(0, Mathf.RoundToInt(SpreadProjectiles * RebirthMultiplier) + BonusSpreadProjectiles);
@@ -356,6 +357,8 @@ public class WeaponPlayer : MonoBehaviour
 
     void ShootNormal()
     {
+        if (OwnerStats != null && OwnerStats.Items != null && OwnerStats.Items.DivineActive)
+        { OwnerStats.Items.FireDivineLightning(); return; }
         // 1.4.13: Play player shoot SFX. Hooked here (the entry point for the normal 
         // fire path) so it plays once per volley regardless of how many parallel/spread 
         // projectiles get spawned. AudioManager handles random slice selection if the 
@@ -717,15 +720,31 @@ public class WeaponPlayer : MonoBehaviour
         Emit(position, Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg, stats, color);
     }
 
+    public void StopCardAttacks()
+    {
+        // Existing timed buffs keep their expiry routines, so they cannot become permanent.
+        _nextNormalFireTime = _nextMiniGunFireTime = Time.time;
+    }
+
+    static Material _fallbackLightningMaterial;
     public void ShowElectricChain(Vector3 from, Vector3 to)
     {
-        if (ElectricChainEffectPrefab == null || !isActiveAndEnabled) return;
+        if (!isActiveAndEnabled) return;
 
         int index = 0;
         while (index < _electricChainLines.Count && _electricChainLines[index].enabled) index++;
         if (index == _electricChainLines.Count)
         {
-            LineRenderer line = Instantiate(ElectricChainEffectPrefab, transform);
+            LineRenderer line;
+            if (ElectricChainEffectPrefab != null) line = Instantiate(ElectricChainEffectPrefab, transform);
+            else
+            {
+                line = new GameObject("Lightning").AddComponent<LineRenderer>(); line.transform.SetParent(transform, false);
+                if (_fallbackLightningMaterial == null) _fallbackLightningMaterial = new Material(Shader.Find("Sprites/Default"));
+                line.sharedMaterial = _fallbackLightningMaterial;
+                line.startWidth = line.endWidth = .06f; line.startColor = line.endColor = new Color(.65f, .85f, 1, .8f);
+                line.sortingOrder = 105;
+            }
             line.gameObject.SetActive(true);
             _electricChainLines.Add(line);
             _electricChainExpirations.Add(0f);

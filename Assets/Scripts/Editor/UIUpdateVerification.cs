@@ -43,6 +43,7 @@ public static class UIUpdateVerification
         if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().isDirty) throw new InvalidOperationException("Save scene changes first.");
         string[] floats={"DuckDefender_MasterVolume","DuckDefender_SFXVolume","DuckDefender_MusicVolume",WorldCamera.ZoomPreference};
         string[] ints={GameDifficulty.PreferenceKey,ParticleVisibility.PreferenceKey,"Key_MoveLeft","Key_MoveRight","Key_Jump","Key_Crouch","Key_Dash","Key_Shoot","Key_Pause","Key_MoveLeftAlt","Key_MoveRightAlt","Key_JumpAlt","Key_CrouchAlt"};
+        ints = ints.Concat(new[] { "Key_UseItem", "Key_Item1", "Key_Item2", "Key_Item3", "Key_Item4", "Key_ItemBindingsVersion", ControllerBindings.Prefix + "ItemBindingsVersion" }).ToArray();
         var strings=ControllerBindings.Actions.Select(a=>ControllerBindings.Prefix+a).ToArray();
         var entries=floats.Concat(ints).Concat(new[]{ControllerBindings.Prefix+"RightMoveStick"}).Concat(strings).Select(k=>new Entry{key=k,exists=PlayerPrefs.HasKey(k),floating=floats.Contains(k),isString=strings.Contains(k),text=PlayerPrefs.GetString(k),integer=PlayerPrefs.GetInt(k),number=PlayerPrefs.GetFloat(k)}).ToArray();
         SessionState.SetString(SnapshotKey,JsonUtility.ToJson(new PreferenceSnapshot{entries=entries}));

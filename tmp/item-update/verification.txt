@@ -1,0 +1,209 @@
+PASS: 208 update 6 checks
+Play Mode advances frames
+old inventories expand without losing items or coins
+updated item prices
+controller item and gameplay controls can trade formerly reserved buttons
+Start can be assigned to an item slot
+duplicate gameplay bindings are rejected
+P1 equips shared item
+both lobby availability counters refresh immediately
+another player's open equip menu survives inventory refresh
+P1 unequips shared item
+both lobby counters refresh on unequip
+settings includes all keyboard item controls
+keyboard item use and shooting can trade former reserved key
+controller settings includes every item slot
+controller text fits with original white font: KEYBINDS
+controller text fits with original white font: BACK
+controller text fits with original white font: Mappings apply to every controller. Menu movement uses D-pad / left stick.
+controller text fits with original white font: Move: LEFT stick | Aim: RIGHT stick
+controller text fits with original white font: Jump / fly up
+controller text fits with original white font: Move up
+controller text fits with original white font: Dash / blink
+controller text fits with original white font: LB
+controller text fits with original white font: Shoot
+controller text fits with original white font: RT
+controller text fits with original white font: Interact
+controller text fits with original white font: B / Right
+controller text fits with original white font: Back
+controller text fits with original white font: A / Bottom
+controller text fits with original white font: Use item
+controller text fits with original white font: RB
+controller text fits with original white font: Item slot 1
+controller text fits with original white font: D-pad up
+controller text fits with original white font: Item slot 2
+controller text fits with original white font: D-pad right
+controller text fits with original white font: Item slot 3
+controller text fits with original white font: D-pad down
+controller text fits with original white font: Item slot 4
+controller text fits with original white font: D-pad left
+controller text fits with original white font: Restore controller defaults
+controller text fits with original white font: Keyboard
+controller text fits with original white font: Controller
+browsing past a slider does not change its value
+Interact locks slider focus and thumbstick adjusts smoothly
+second Interact exits slider editing
+three packs use their own larger pack size
+all cards revealed for 3 packs
+three-pack reveal uses five columns and two rows
+all cards revealed for 6 packs
+three-pack cards are substantially larger than six-pack cards
+ascended background changes chromatically while text remains white
+build introduction wave 1
+exactly one introduced variant on wave 1
+build introduction wave 1
+exactly one introduced variant on wave 1
+build introduction wave 1
+exactly one introduced variant on wave 1
+build introduction wave 1
+exactly one introduced variant on wave 1
+build introduction wave 1
+exactly one introduced variant on wave 1
+build introduction wave 1
+exactly one introduced variant on wave 1
+build introduction wave 12
+exactly one introduced variant on wave 12
+build introduction wave 12
+exactly one introduced variant on wave 12
+build introduction wave 12
+exactly one introduced variant on wave 12
+build introduction wave 12
+exactly one introduced variant on wave 12
+build introduction wave 12
+exactly one introduced variant on wave 12
+build introduction wave 12
+exactly one introduced variant on wave 12
+build introduction wave 3
+exactly one introduced variant on wave 3
+build introduction wave 3
+exactly one introduced variant on wave 3
+build introduction wave 3
+exactly one introduced variant on wave 3
+build introduction wave 3
+exactly one introduced variant on wave 3
+build introduction wave 3
+exactly one introduced variant on wave 3
+build introduction wave 3
+exactly one introduced variant on wave 3
+build introduction wave 16
+exactly one introduced variant on wave 16
+build introduction wave 16
+exactly one introduced variant on wave 16
+build introduction wave 16
+exactly one introduced variant on wave 16
+build introduction wave 16
+exactly one introduced variant on wave 16
+build introduction wave 16
+exactly one introduced variant on wave 16
+build introduction wave 16
+exactly one introduced variant on wave 16
+build introduction wave 6
+exactly one introduced variant on wave 6
+build introduction wave 6
+exactly one introduced variant on wave 6
+build introduction wave 6
+exactly one introduced variant on wave 6
+build introduction wave 6
+exactly one introduced variant on wave 6
+build introduction wave 6
+exactly one introduced variant on wave 6
+build introduction wave 6
+exactly one introduced variant on wave 6
+build introduction wave 20
+exactly one introduced variant on wave 20
+build introduction wave 20
+exactly one introduced variant on wave 20
+build introduction wave 20
+exactly one introduced variant on wave 20
+build introduction wave 20
+exactly one introduced variant on wave 20
+build introduction wave 20
+exactly one introduced variant on wave 20
+build introduction wave 20
+exactly one introduced variant on wave 20
+build introduction wave 9
+exactly one introduced variant on wave 9
+build introduction wave 9
+exactly one introduced variant on wave 9
+build introduction wave 9
+exactly one introduced variant on wave 9
+build introduction wave 9
+exactly one introduced variant on wave 9
+build introduction wave 9
+exactly one introduced variant on wave 9
+build introduction wave 9
+exactly one introduced variant on wave 9
+build introduction wave 25
+exactly one introduced variant on wave 25
+build introduction wave 25
+exactly one introduced variant on wave 25
+build introduction wave 25
+exactly one introduced variant on wave 25
+build introduction wave 25
+exactly one introduced variant on wave 25
+build introduction wave 25
+exactly one introduced variant on wave 25
+build introduction wave 25
+exactly one introduced variant on wave 25
+bomb arc depends only on left/right aim
+activate Bomb
+consume exactly one Bomb
+bomb detonates on enemy contact before landing
+activate Shock
+consume exactly one Shock
+Shock stuns and removes exactly half maximum health
+Shock remains active before ten seconds
+Shock ends after ten seconds
+activate Shield
+consume exactly one Shield
+shield ignores the former seconds timer
+shield survives one wave
+shield expires after two waves
+positive casino effect lasts ten waves
+negative casino effect lasts two waves
+activate CloneProjector
+consume exactly one CloneProjector
+one clone copies full damage and fire rate
+later player upgrades do not alter clone stats
+clone survives four waves
+clone expires after five waves
+activate Flamethrower
+consume exactly one Flamethrower
+flamethrower applies ten percent maximum health per second to different health pools
+flames survive two waves
+flames expire after three waves
+activate DivineIntervention
+consume exactly one DivineIntervention
+Divine suspends card stats and ascensions
+Divine grants flight and reduced base shot delay with card health suspended
+cards selected during Divine are recorded once and deferred
+Divine regenerates ten health per second
+Divine lightning chain damage hop 0
+Divine lightning chain damage hop 1
+Divine lightning chain damage hop 2
+Divine lightning chain damage hop 3
+Divine lightning chain damage hop 4
+Divine lightning chain damage hop 5
+Divine survives one completed wave
+Divine restores original card stats at two waves
+deferred card applies exactly once and run counters survive restoration
+activate Nuke
+consume exactly one Nuke
+falling nuke defeats off-screen enemies
+radiation reuses fire particles tinted green
+radiation slows newly spawned enemies by fifty percent
+radiation survives nine waves
+radiation expires after ten waves
+activate Sawblade
+consume exactly one Sawblade
+activate Sawblade
+consume exactly one Sawblade
+activate Sawblade
+consume exactly one Sawblade
+activate Sawblade
+consume exactly one Sawblade
+four sawblades each deal one contact damage
+each sawblade hits an enemy only once during an orbit
+sawblades hit again after a full orbit
+four sawblades remain evenly spaced around the cursor
+sawblades are removed on player death

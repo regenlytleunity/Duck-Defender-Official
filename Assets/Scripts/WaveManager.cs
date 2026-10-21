@@ -27,6 +27,7 @@ public class WaveManager : MonoBehaviour
     {
         public GameObject Prefab;
         public bool Elite;
+        public bool Introduction;
         public int SpawnPointIndex;
         public float DelayBefore, Interval;
     }
@@ -144,7 +145,7 @@ public class WaveManager : MonoBehaviour
         }
         int baseCount = _spawnPlan.Count;
         for (int player = 1; player < LocalCoopSession.PlayerCount; player++)
-            for (int i = 0; i < baseCount; i++) _spawnPlan.Add(_spawnPlan[i]);
+            for (int i = 0; i < baseCount; i++) if (!_spawnPlan[i].Introduction) _spawnPlan.Add(_spawnPlan[i]);
         _spawnIndex = 0;
         int enemiesThisWave = _spawnPlan.Count;
         
@@ -225,7 +226,7 @@ public class WaveManager : MonoBehaviour
         GameObject prefabToSpawn = request.Prefab;
         if (spawnPoint == null || prefabToSpawn == null || prefabToSpawn.GetComponent<EnemyBase>() == null) return false;
         Vector3 position = spawnPoint.position;
-        if (WorldCamera.Instance != null && !WorldCamera.Instance.TrySpawnPosition(prefabToSpawn, out position)) return false;
+        if (WorldCamera.Instance != null && !WorldCamera.Instance.TrySpawnPosition(prefabToSpawn, out position, request.Elite)) return false;
         GameObject newEnemy = Instantiate(prefabToSpawn, position, Quaternion.identity);
 
         EnemyBase enemyScript = newEnemy.GetComponent<EnemyBase>();
@@ -258,11 +259,11 @@ public class WaveManager : MonoBehaviour
         if (definition != null && definition.Mode == WaveSpawnMode.Scripted)
         {
             if (plan.Count == 0) { error = "Scripted wave " + wave + " is empty."; return false; }
-            return true;
+            return EnsureTankPredecessor(plan, definition, out error);
         }
         int total = definition != null && definition.EnemyCount > 0 ? definition.EnemyCount : 2 + wave * 2;
         if (plan.Count > total) { error = "Ordered group count exceeds wave " + wave + " total."; return false; }
-        if (plan.Count == total) return true;
+        if (plan.Count == total) return EnsureTankPredecessor(plan, definition, out error);
         var options = new List<WaveEnemyOption>();
         if (definition != null && definition.RandomEnemies.Count > 0)
         {
@@ -281,16 +282,23 @@ public class WaveManager : MonoBehaviour
                 string kind = prefab.GetComponent<EnemyBase>().EnemyKind;
                 int kindIndex = kind == "ground" ? 0 : kind == "flying" ? 1 : kind == "tank" ? 2 : 3;
                 if (UseIntroductoryWaves && wave < NormalUnlockWaves[kindIndex]) continue;
+                bool normalIntro = definition == null && UseIntroductoryWaves && wave == NormalUnlockWaves[kindIndex];
+                bool eliteIntro = definition == null && UseIntroductoryWaves && wave == EliteUnlockWaves[kindIndex];
                 bool eliteUnlocked = !UseIntroductoryWaves || wave >= EliteUnlockWaves[kindIndex];
-                options.Add(new WaveEnemyOption { Prefab = prefab, Weight = 1, EliteChance = eliteUnlocked ? EliteChance : 0 });
+                if (!normalIntro) options.Add(new WaveEnemyOption { Prefab = prefab, Weight = 1, EliteChance = eliteUnlocked && !eliteIntro ? EliteChance : 0 });
                 // Guarantee the introduction is the first spawn; custom definitions control their own order.
-                if (definition == null && UseIntroductoryWaves && (wave == NormalUnlockWaves[kindIndex] || wave == EliteUnlockWaves[kindIndex]))
-                    plan.Add(new SpawnRequest { Prefab = prefab, Elite = wave == EliteUnlockWaves[kindIndex], SpawnPointIndex = -1, Interval = -1 });
+                if (normalIntro || eliteIntro)
+                    plan.Add(new SpawnRequest { Prefab = prefab, Elite = eliteIntro, Introduction = true, SpawnPointIndex = -1, Interval = -1 });
             }
         }
         float weight = 0;
         foreach (var option in options) weight += option.Weight;
-        if (weight <= 0) { error = "Wave " + wave + " has no eligible random enemies after exclusions."; return false; }
+        if (weight <= 0)
+        {
+            // The first ground-enemy wave has no previously introduced filler type.
+            if (plan.Count > 0) return EnsureTankPredecessor(plan, definition, out error);
+            error = "Wave " + wave + " has no eligible random enemies after exclusions."; return false;
+        }
         while (plan.Count < total)
         {
             float roll = Random.value * weight;
@@ -298,7 +306,35 @@ public class WaveManager : MonoBehaviour
             foreach (var option in options) { roll -= option.Weight; if (roll <= 0) { selected = option; break; } }
             plan.Add(new SpawnRequest { Prefab = selected.Prefab, Elite = Random.value < selected.EliteChance, SpawnPointIndex = -1, Interval = -1 });
         }
-        return true;
+        return EnsureTankPredecessor(plan, definition, out error);
+    }
+
+    bool EnsureTankPredecessor(List<SpawnRequest> plan, WaveDefinition definition, out string error)
+    {
+        error = null;
+        if (plan.Count == 0 || plan[0].Prefab.GetComponent<TankEnemy>() == null) return true;
+        for (int i = 1; i < plan.Count; i++)
+        {
+            if (plan[i].Prefab.GetComponent<TankEnemy>() != null) continue;
+            var first = plan[i]; plan.RemoveAt(i); plan.Insert(0, first);
+            return true;
+        }
+        // A random all-tank roll still needs a lead enemy without adding to the count.
+        GameObject lead = null;
+        if ((definition == null || definition.Mode != WaveSpawnMode.Scripted && definition.RandomEnemies.Count == 0) && EnemyPrefabs != null)
+            lead = System.Array.Find(EnemyPrefabs, p => p != null && p.GetComponent<EnemyBase>() != null && p.GetComponent<EnemyBase>().EnemyKind == "ground" &&
+                (definition == null || !definition.ExcludedEnemies.Contains(p)));
+        else if (definition != null && definition.Mode != WaveSpawnMode.Scripted)
+            foreach (var option in definition.RandomEnemies)
+                if (option != null && option.Weight > 0 && option.Prefab != null && option.Prefab.GetComponent<EnemyBase>() != null &&
+                    option.Prefab.GetComponent<TankEnemy>() == null && !definition.ExcludedEnemies.Contains(option.Prefab)) { lead = option.Prefab; break; }
+        if (lead != null)
+        {
+            var first = plan[0]; first.Prefab = lead; first.Elite = false; plan[0] = first;
+            return true;
+        }
+        error = "A wave containing tanks must include a non-tank enemy to spawn first.";
+        return false;
     }
 
     void OnDestroy() { if (Instance == this) Instance = null; }

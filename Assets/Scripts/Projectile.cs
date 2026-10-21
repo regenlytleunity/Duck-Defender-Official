@@ -245,6 +245,7 @@ public class Projectile : MonoBehaviour
 
     void Update()
     {
+        if (OwnerStats != null && OwnerStats.CardsSuppressed) { SilentDeactivate(); return; }
         if (_lingering) { _lifeTimer -= Time.deltaTime; if (_lifeTimer <= 0) Deactivate(); return; }
         if (Stats.HomingSpeed > 0 && _target != null && !Stats.IsBuckshotPellet)
         {
@@ -280,6 +281,7 @@ public class Projectile : MonoBehaviour
 
     void OnTriggerEnter2D(Collider2D collision)
     {
+        if (OwnerStats != null && OwnerStats.CardsSuppressed) { SilentDeactivate(); return; }
         if (collision.CompareTag("OutOfBounds"))
         {
             SilentDeactivate();

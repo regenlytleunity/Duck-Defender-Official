@@ -105,7 +105,7 @@ public partial class ShopManager
     }
     public static void SanitizeItems(PlayerData data, bool coop, int seats)
     {
-        var used = new int[9];
+        var used = new int[ItemCatalog.Count + 1];
         for (int p = 0; p < seats; p++)
         {
             var loadout = coop ? data.CoopLoadouts[p] : data.SoloLoadout;

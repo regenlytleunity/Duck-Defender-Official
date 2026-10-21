@@ -394,14 +394,15 @@ public static class UIUpdateSetup
         Label(panel.transform,"Title","KEYBINDS",48,.3f,.88f,.7f,.98f);
         Button(panel.transform,"BackButton","BACK",.035f,.87f,.20f,.95f,settings.CloseKeybinds);
         settings.KeybindLabels=new TextMeshProUGUI[SettingsMenuUI.BindingActions.Length];
+        int rows=Mathf.CeilToInt(SettingsMenuUI.BindingActions.Length/2f);
         for(int i=0;i<SettingsMenuUI.BindingActions.Length;i++)
         {
-            int col=i<6?0:1;int row=i<6?i:i-6;float x=.065f+col*.49f;float y=.74f-row*.095f;
-            Label(panel.transform,"Action"+i,SettingsMenuUI.BindingNames[i],30,x,y,x+.27f,y+.075f);
-            var button=Button(panel.transform,"Bind"+i,"KEY",x+.28f,y,x+.43f,y+.075f);
+            int col=i/rows;int row=i%rows;float x=.065f+col*.49f;float y=.77f-row*.075f;
+            Label(panel.transform,"Action"+i,SettingsMenuUI.BindingNames[i],30,x,y,x+.27f,y+.06f);
+            var button=Button(panel.transform,"Bind"+i,"KEY",x+.28f,y,x+.43f,y+.06f);
             IntAction(button,settings.BeginBinding,i);settings.KeybindLabels[i]=button.GetComponentInChildren<TextMeshProUGUI>();
         }
-        Button(panel.transform,"RestoreDefaults","RESTORE DEFAULTS",.60f,.23f,.91f,.32f,settings.RestoreKeybinds);
+        Button(panel.transform,"RestoreDefaults","RESTORE DEFAULTS",.60f,.16f,.91f,.22f,settings.RestoreKeybinds);
         settings.KeybindStatus=Label(panel.transform,"Status","Select a control to change it. Escape cancels binding.",26,.05f,.06f,.95f,.14f);
         var capture=Panel(panel.transform,"KeyCapture",new Color(.06f,.10f,.16f,.98f));settings.KeyCapturePanel=capture.gameObject;ModalGroup(capture.gameObject);
         settings.KeyCaptureText=Label(capture.transform,"Prompt","Press a key or mouse button\nEscape to cancel",46,.1f,.3f,.9f,.7f);settings.KeyCaptureText.color=Color.white;

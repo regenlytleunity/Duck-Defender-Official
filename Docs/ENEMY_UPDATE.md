@@ -13,13 +13,13 @@ Elite flyer slow refreshes a 50% movement reduction without stacking; its defaul
 | Enemy | Normal | Elite |
 |---|---|---|
 | Ground (`SwarmerEnemy`) | Collider-edge melee reach, 0.25s windup, one damage, 0.15s recovery, one-second cooldown | 50% more health before rounding, 15% slower, 50% more reach, two damage and a 0.5s stun on successful hits |
-| Flying (`BuzzerEnemy`) | Approaches a hover position at fixed speed, 0.35s windup targeting the player's position when windup begins, one damage, one-second cooldown | 25% larger shots apply the non-stacking slow. On death, becomes untargetable, drifts to terrain over three seconds, explodes for one damage within 1.5 units, then awards rewards |
-| Tank | Four times the basic ground enemy's rounded health, 85% of its speed, ground melee. Chains up to four nearest eligible enemies within eight units, each owned by only one tank; tanks cannot be protected | Redirected 50% damage builds a separate blue shield. Each linked ally's death grants +10% movement speed and +0.25 melee damage, up to four stacks |
+| Flying (`BuzzerEnemy`) | Approaches a hover position at fixed speed, seven-unit firing range, 0.35s windup targeting the player's position when windup begins, one damage, one-second cooldown | 25% larger shots apply the non-stacking slow. On death, becomes untargetable, drifts to terrain over three seconds, explodes for one damage within 1.5 units, then awards rewards |
+| Tank | Three times the basic ground enemy's rounded health, 85% of its speed, ground melee. Chains up to three nearest eligible enemies within eight units, each owned by only one tank; tanks cannot be protected | Redirected 50% damage builds a separate blue shield. Each linked ally's death grants +10% movement speed and +0.25 melee damage, up to three stacks |
 | Lobber | High arc toward the position sampled at windup. One damage, 50% poison chance. Poison refreshes for five seconds, up to five stacks at 0.2 damage/second each. Ground impacts become one-second clouds dealing one contact hit | 25% more health before rounding. After poison, fires a second non-poison ball with a 0.3s delay. It reflects twice, multiplying speed and size by 1.25 each time; the next terrain collision removes it |
 
 All normal enemy prefabs now drop 4–6 coins. Elite coins are doubled and XP is multiplied by 1.25; fractional XP carries forward. Elites reuse the normal prefab with a 1.15 size multiplier and darker tint, retained when facing changes and status colors expire.
 
-Tank links are lifetime slots, not refillable slots. Linked allies stay linked after moving out of acquisition range. Killing/disabling the tank immediately releases them. Intercepted damage uses floating point so one-point hits split into 0.5/0.5 rather than gaining or losing damage.
+Tank links are lifetime slots, not refillable slots. Protected allies have a slight blue tint; freeze/poison/slow colors retain priority. Linked allies stay linked after moving out of acquisition range. Killing/disabling the tank immediately releases them. Intercepted damage uses floating point so one-point hits split into 0.5/0.5 rather than gaining or losing damage.
 
 Player fractional damage accumulates against the existing integer health system. Poison ticks do not consume or respect ordinary post-hit invulnerability, so a fresh projectile hit cannot erase a poison tick. Blink invulnerability still blocks damage. Stun blocks movement, dash, jump, blink, and player feather firing; turrets, auras, thorns, and existing projectiles continue. Healing to full clears accumulated sub-point damage.
 
@@ -50,7 +50,7 @@ Create assets with **Assets → Create → Duck Defender → Wave Definition**, 
 - Explicit random entries and ordered groups can introduce any variant early. Empty custom pools use the default unlock schedule.
 - Missing prefabs, bad spawn-point indices, empty scripted waves, and empty eligible random pools stop the wave with a specific Console error and `HasWaveError = true`.
 
-For example, a mixed wave with total 12, an ordered group of two elite tanks, and ground/flying weights 70/30 always opens with those two tanks and fills the remaining ten slots using that distribution.
+Tanks cannot be the first spawn. If a plan starts with a tank, its first non-tank entry moves ahead of it, retaining each entry's timing and variant. For example, a mixed wave of 12 with two ordered elite tanks and ground/flying weights 70/30 starts with one of its random non-tanks, then the two tanks, then the remaining nine. An all-tank default roll replaces its first entry with a ground enemy without changing the count. Custom tank-only scripted waves are rejected; include a non-tank group. Custom random waves require an eligible non-tank opening option.
 
 ## Tutorials and UI
 
@@ -86,7 +86,7 @@ Manual balance/visual pass:
 1. Start a new run. Check the first-seen tip and full-view requirement; hold/spam click during its grace period, then release and click. Test touch input too.
 2. Stand still for ground/tank attacks, then dodge during windup. Check elite stun and passive attacks continuing.
 3. Watch all four normal and elite introductions. Verify elite size/tint, coins, XP, and wave completion after a flyer crash.
-4. Damage chained enemies with one-point attacks, poison, explosions, and auras. Check tank shield depletion, four-link lifetime limit, ally-death bonuses, and broken chains after tank death.
+4. Damage chained enemies with one-point attacks, poison, explosions, and auras. Check tank shield depletion, three-link lifetime limit, ally-death bonuses, and broken chains after tank death.
 5. Check poison refresh, five-stack cap, cloud contact/expiry, two growing elite bounces, and pooled reuse after both variants.
 6. Compare waves 10/11, 15/16, 20/21, 25/26, 30/31, 40/41, and 50/51. Movement speed should stay fixed.
 7. Configure scripted, random, and mixed waves with exclusions, zero weights, alternate spawn points, and custom delays. Verify counts/order and useful errors for invalid configurations.
@@ -113,7 +113,7 @@ Not verified: full 25-wave balance playthrough, device touch interaction, comple
 |---|---|
 | `Assets/Scripts/EnemyBase.cs` | Shared elite stats, additive health, spawn protection, collider-aware melee support, fractional tank redirection, delayed-death hooks, rewards and preserved facing scale/tint |
 | `Assets/Scripts/SwarmerEnemy.cs` | Readable windup/impact/cooldown melee, stationary-player hit correction, elite reach/stun, reusable tank melee |
-| `Assets/Scripts/TankEnemy.cs` | Replaces proximity armor with four exclusive lifetime chains, shields and ally-death bonuses; now derives from SwarmerEnemy while retaining serialized field names |
+| `Assets/Scripts/TankEnemy.cs` | Replaces proximity armor with three exclusive lifetime chains, shields and ally-death bonuses; now derives from SwarmerEnemy while retaining serialized field names |
 | `Assets/Scripts/BuzzerEnemy.cs` | Fixed-speed hover/windup firing, elite slow projectiles, crash and delayed rewards |
 | `Assets/Scripts/LobberEnemy.cs` | High-arc aimed poison and elite delayed second shot; removes firing-rate scaling |
 | `Assets/Scripts/BouncyEnemyProjectile.cs` | Poison/cloud and elite two-bounce modes with complete pooled reset |

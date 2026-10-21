@@ -19,6 +19,8 @@ are integrated with the existing gameplay and save owners.
 - PC: 1–4 select, right-click uses. Controller: D-pad up/right/down/left selects
   slots 1/2/3/4; RB uses. Mobile: tap a slot, then Use. Those controls are reserved
   against conflicting gameplay rebindings. D-pad remains available in menus.
+  Throwable items now preview their path while Use is held and launch on release.
+  Changing slots or pausing cancels a pending throw without consuming it.
 - Shields and banners stay where placed. Overlapping banners do not stack.
   Bomb radius is 4 world units; shield radius is 2.5 and banner radius is 5.
   Shield/flames last 30 game seconds. Casino/clones expire after two completed
@@ -84,8 +86,8 @@ Unity-generated `.meta` file of the same name; no GUIDs were authored manually.
 No additional Inspector, scene or prefab setup is required for this implementation.
 The runtime UI extends the existing MainMenu and gameplay scene references. New
 text uses the existing `DuckDefenderTestFontv2.asset` with white infill; mini cards
-reuse the authored card border. Item icons, banner, shield and flame visuals are
-placeholders as requested. Final artwork and visual tuning remain the user's work.
+reuse the authored card border. Item icons, banner and shield visuals are
+placeholders. Flamethrower now reuses the existing FireTrail prefab on the ground. Final artwork and visual tuning remain the user's work.
 
 No existing serialized fields were renamed, and no scene, prefab, ScriptableObject,
 ProjectSettings or package files were edited. New progression fields extend the
