@@ -166,6 +166,12 @@ public class LevelManager : MonoBehaviour
     }
 
     float _fractionalXP;
+    public void AddTutorialXP(int amount)
+    {
+        CurrentXP += Mathf.Max(0, amount);
+        while (TargetXP > 0 && CurrentXP >= TargetXP) LevelUp();
+        UpdateUI();
+    }
     public void AddXP(float amount)
     {
         float totalMultiplier = LocalCoopSession.TeamXPBonus() * PlayerItems.TeamXPFactor;

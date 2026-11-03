@@ -25,6 +25,7 @@ public class EnemyTipUI : MonoBehaviour
     bool _repeat, _released;
     string _currentID;
     float _shownAt, _resumeAfter, _previousScale = 1;
+    float _tutorialElapsed, _tutorialReadDelay;
 
     void Awake()
     {
@@ -36,6 +37,7 @@ public class EnemyTipUI : MonoBehaviour
 
     public void Observe(EnemyBase enemy)
     {
+        if (TutorialDirector.Practice) return;
         if (!isActiveAndEnabled || enemy == null || !enemy.IsAlive || !enemy.IsInView(true)) return;
         string id = enemy.TipID;
         if (_shownThisRun.Contains(id) || (!_repeat && _seen.Contains(id))) return;
@@ -61,6 +63,8 @@ public class EnemyTipUI : MonoBehaviour
         Illustration.gameObject.SetActive(illustration != null);
         Panel.SetActive(true);
         _shownAt = Time.unscaledTime;
+        _tutorialElapsed = 0;
+        _tutorialReadDelay = Mathf.Clamp(description.Length * .045f, 3, 9);
         _released = false;
         _previousScale = Time.timeScale;
         Time.timeScale = 0;
@@ -69,6 +73,14 @@ public class EnemyTipUI : MonoBehaviour
     void Update()
     {
         if (!IsShowing) return;
+        if (TutorialDirector.ProtectedRun)
+        {
+            ContinueText.text = "Continuing automatically...";
+            if (LocalCoopSession.Instance == null || !LocalCoopSession.Instance.DevicesMissing)
+                _tutorialElapsed += Mathf.Min(Time.unscaledDeltaTime, .1f);
+            if (_tutorialElapsed >= _tutorialReadDelay) Dismiss();
+            return;
+        }
         bool graceOver = Time.unscaledTime - _shownAt >= InputGraceSeconds;
         var pad = UnityEngine.InputSystem.Gamepad.all.Count > 0 ? UnityEngine.InputSystem.Gamepad.all[0] : null;
         bool held = Input.GetMouseButton(0) || Input.touchCount > 0 || ControllerBindings.Held(pad, "Confirm");
@@ -89,7 +101,7 @@ public class EnemyTipUI : MonoBehaviour
         _currentID = null;
         Panel.SetActive(false);
         _resumeAfter = Time.unscaledTime + .3f;
-        Time.timeScale = LevelUpUI.Instance != null && LevelUpUI.Instance.IsOffering ? 0 : _previousScale;
+        Time.timeScale = TutorialDirector.HoldsPause || LevelUpUI.Instance != null && LevelUpUI.Instance.IsOffering ? 0 : _previousScale;
     }
 
     void OnDestroy()

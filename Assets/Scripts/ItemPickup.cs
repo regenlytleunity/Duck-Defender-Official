@@ -6,6 +6,7 @@ public class ItemPickup : MonoBehaviour
     float _collectAfter;
     public static void TryDrop(Vector3 position)
     {
+        if (!TutorialDirector.AllowItems) return;
         if (LocalCoopSession.Instance == null || !LocalCoopSession.Instance.ItemDropsEnabled || Random.value >= .005f) return;
         var data = SaveSystem.LoadData();
         int id = data.FirstItemDropped ? Random.Range(1, ItemCatalog.Count + 1) : (int)ItemKind.Bomb;
@@ -41,7 +42,8 @@ public class ItemPickup : MonoBehaviour
         enabled = false;
         var data = SaveSystem.LoadData();
         data.ItemInventory[ItemID] = (int)System.Math.Min(int.MaxValue, (long)data.ItemInventory[ItemID] + 1);
-        SaveSystem.SaveData(data);
+        data.Tutorial.HasObtainedItem = true;
+        SaveSystem.SaveData(data, updateTutorial: true);
         if (player != null) player.GetComponent<ItemWheelUI>()?.ShowPickup(ItemID);
         Destroy(gameObject);
     }

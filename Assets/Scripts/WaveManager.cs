@@ -130,6 +130,7 @@ public class WaveManager : MonoBehaviour
 
     IEnumerator StartNextWave()
     {
+        while (TutorialDirector.HoldWaves) yield return null;
         yield return new WaitForSeconds(TimeBetweenWaves);
 
         if (LocalCoopSession.Instance != null && LocalCoopSession.Instance.GameOver) yield break;
@@ -143,6 +144,7 @@ public class WaveManager : MonoBehaviour
             Debug.LogError("[WaveManager] " + error);
             yield break;
         }
+        if (TutorialDirector.ProtectedRun && !TutorialDirector.Practice) ReduceTutorialWave(_spawnPlan);
         int baseCount = _spawnPlan.Count;
         for (int player = 1; player < LocalCoopSession.PlayerCount; player++)
             for (int i = 0; i < baseCount; i++) if (!_spawnPlan[i].Introduction) _spawnPlan.Add(_spawnPlan[i]);
@@ -167,6 +169,15 @@ public class WaveManager : MonoBehaviour
         Debug.Log($"[WaveManager] Starting Wave {_currentWave}: {enemiesThisWave} enemies, basic ground health {BasicGroundHealth(_currentWave)}.");
 
         StartCoroutine(SpawnRoutine());
+    }
+
+    // Reduce before counters are initialized so completion tracks exactly what spawns.
+    // Keep first-appearance enemies (and their tips); odd totals round upward.
+    static void ReduceTutorialWave(List<SpawnRequest> plan)
+    {
+        int target = (plan.Count + 1) / 2;
+        for (int i = plan.Count - 1; i >= 0 && plan.Count > target; i--)
+            if (!plan[i].Introduction) plan.RemoveAt(i);
     }
 
     IEnumerator SpawnRoutine()
@@ -358,6 +369,8 @@ public class WaveManager : MonoBehaviour
         _isWaveActive = false;
         
         if (LevelManager.Instance != null) LevelManager.Instance.OnWaveComplete();
+
+        if (TutorialDirector.CompleteWave(_currentWave)) return;
 
         StartCoroutine(StartNextWave());
     }

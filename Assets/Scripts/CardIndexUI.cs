@@ -21,6 +21,7 @@ public class CardIndexUI : MonoBehaviour
     int _layoutIndex; // 3x1, 4x2, ALL (the selected category).
     public int CurrentPage { get; private set; }
     public int PageCount => Mathf.Max(1, Mathf.CeilToInt(_cards.Count / (float)CardsPerPage));
+    public int PageForCard(string id) { int index = _cards.FindIndex(c => c.ID == id); return index < 0 ? -1 : index / CardsPerPage; }
     readonly List<CardDefinition> _cards = new List<CardDefinition>();
     readonly List<RectTransform> _displays = new List<RectTransform>();
     ShopManager _shop;
@@ -36,6 +37,7 @@ public class CardIndexUI : MonoBehaviour
 
     public void SelectPack(int pack)
     {
+        if (TutorialDirector.MenuLocked && (!TutorialDirector.CoreActive || pack != (int)TutorialDirector.Progress.Pack)) return;
         if (pack < 0 || pack > 3) return;
         SelectedPack = (CardPackType)pack;
         CurrentPage = 0;

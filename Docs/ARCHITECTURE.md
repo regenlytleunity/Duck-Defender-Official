@@ -1026,6 +1026,46 @@ closing another player's item menu.
 
 # Save Architecture
 
+## Guided tutorial
+
+`TutorialDirector` bootstraps a scene-local coordinator in MainMenu and SampleScene.
+Its practice and menu partials integrate with existing input, enemy, wave, card,
+shop and loadout owners. No tutorial component needs to be attached in the Editor.
+Runtime prompts use CoopUIElements and the original DuckDefenderTestFontv2 asset.
+Objectives advance automatically after completion and informational prompts have
+a reading delay; timers wait during modal offers/tips and device disconnection.
+Prompts are centered above gameplay and move below shop/index content.
+
+Fresh profiles opt into `TutorialProgress.Version = 1`: movement/jump/aim/shoot
+practice, two fixed-XP enemies and a required Basic Health choice; five protected
+waves at half the normal enemy counts (rounded up, retaining introductions); one
+guaranteed-duplicate pack and its index upgrade. The wave reward is
+200 coins once. The pack charge/cards/checkpoint and upgrade/checkpoint each save
+together. A saved unopened pack resumes its reveal without another charge.
+Practice uses fading green goals and dartboard targets. Its enemies enter from
+outside the camera and stop before combat. All three Basic cards remain focusable,
+but only Health can be activated. Falling out returns the player without losing
+completed objectives; there is no Restart step or manual Continue control.
+The protected wave stage can still restart.
+Interrupted waves resume from the Play menu checkpoint. Tutorial runs do not count
+toward the two completed normal runs needed for item drops.
+
+Existing current-schema profiles opt out of the core tutorial without losing
+progress. Both new and existing profiles can enter the item lesson after first
+acquisition; a pickup defers the lesson until returning to MainMenu. The index
+Items tab stays hidden until acquisition, and the item wheel requires an item
+equipped at the start of that run. Selling/unequipping cannot remove the required
+item during the lesson. Core tutorial menus and economy services enforce the
+same purchase/upgrade restrictions.
+
+`SaveSystem.SaveData(..., updateTutorial: true)` explicitly changes checkpoints;
+ordinary cached economy/tip writes preserve the latest saved tutorial state.
+The progression schema remains version 2. `GameUI` gives solo health the classic
+bar proportions and a numeric white-infill label above the existing XP bar.
+
+See [TUTORIAL_IMPLEMENTATION.md](TUTORIAL_IMPLEMENTATION.md) for recovery behavior,
+the file manifest, isolated verification and manual Play Mode checks.
+
 ## SaveSystem
 
 ```text
@@ -1053,6 +1093,7 @@ Saved information includes:
 * permanent stat levels, starting slots and bulk-pack unlock tier
 * item shop stock, sold flags and UTC refresh time
 * completed runs, first item-drop flag and discovered essence types
+* core/item tutorial checkpoints, acquisition flag and guaranteed pack card IDs
 
 Missing/corrupt data falls back to fresh player data.
 

@@ -27,7 +27,7 @@ public class IndexLoadoutUI : MonoBehaviour
     }
     void OnEnable() { if (_equipment != null) { ShowCards(); Refresh(); } }
     public bool HandleBack() => _equipment != null && _equipment.HandleBack();
-    public void ShowItems() { _equipment.CloseModal(); _itemsMode = true; ApplyVisibility(); _equipment.Rebuild(); }
+    public void ShowItems() { if (!TutorialDirector.AllowItemTab) return; _equipment.CloseModal(); _itemsMode = true; ApplyVisibility(); _equipment.Rebuild(); }
     public void ShowCards() { _equipment.CloseModal(); _itemsMode = false; ApplyVisibility(); BindCards(); }
     public void CycleItemsLayout() { _equipment.CycleLayout(); }
     public void EquipmentRebuilt()
@@ -59,7 +59,8 @@ public class IndexLoadoutUI : MonoBehaviour
         bool host = _index.HostFilterMode, starters = !host && _shop.Progress.StartingCardSlots > 0;
         if (host) _itemsMode = false;
         _slots.gameObject.SetActive(starters && !_itemsMode);
-        _itemsTab.gameObject.SetActive(!host);
+        bool showItems = !host && _shop.Progress.Tutorial.HasObtainedItem;
+        _itemsTab.gameObject.SetActive(showItems);
         _equipment.Root.gameObject.SetActive(_itemsMode || _equipment.HasModal);
         _index.ContentArea.gameObject.SetActive(!_itemsMode);
         _index.PreviousButton.gameObject.SetActive(!_itemsMode); _index.NextButton.gameObject.SetActive(!_itemsMode);
@@ -76,7 +77,8 @@ public class IndexLoadoutUI : MonoBehaviour
         for (int i = 0; i < 4; i++)
         {
             var rect = (RectTransform)_index.PackButtons[order[i]].transform;
-            CoopUIElements.Stretch(rect, new Vector2(.012f, .717f - i * .137f), new Vector2(.282f, .827f - i * .137f));
+            float spacing = showItems ? .137f : .171f;
+            CoopUIElements.Stretch(rect, new Vector2(.012f, .717f - i * spacing), new Vector2(.282f, .827f - i * spacing));
         }
         CoopUIElements.Stretch((RectTransform)_itemsTab.transform, new Vector2(.012f, .169f), new Vector2(.282f, .279f));
         CoopUIElements.Stretch((RectTransform)_index.LayoutButton.transform, new Vector2(.012f, .033f), new Vector2(.282f, .143f));

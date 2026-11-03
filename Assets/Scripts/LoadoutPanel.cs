@@ -108,6 +108,11 @@ public sealed class LoadoutPanel
     {
         var button = CoopUIElements.Button(parent, "", min, max, () => OpenItem(id, slot));
         button.name = slot >= 0 ? "Item slot " + (slot + 1) : "Item " + id;
+        if (slot < 0 && _shop.Progress.Tutorial.ItemActive && _shop.Progress.ItemInventory[id] > 0)
+        {
+            var outline = button.gameObject.AddComponent<UnityEngine.UI.Outline>();
+            outline.effectColor = new Color(1, .85f, .1f); outline.effectDistance = new Vector2(4, -4);
+        }
         var text = button.GetComponentInChildren<TMP_Text>(); text.fontSizeMax = 21; text.fontSizeMin = 12;
         text.text = slot >= 0 ? "Slot " + (slot + 1) + (id == 0 ? "\nEmpty" : "\n" + ItemCatalog.Names[id]) : ItemCatalog.Names[id] + "\nOwned: " + _shop.Progress.ItemInventory[id] + "\nAvailable: " + Mathf.Max(0, _shop.Progress.ItemInventory[id] - _shop.ReservedItems(id, Seat));
         if (slot < 0) _itemAvailability[id] = text;
@@ -167,15 +172,17 @@ public sealed class LoadoutPanel
     }
     public void OpenItem(int id, int slot = -1)
     {
+        if (!TutorialDirector.AllowItemMenu(id)) return;
         if (!ItemCatalog.Valid(id)) return;
         OpenModal(ItemCatalog.Names[id] + "\n" + ItemCatalog.Descriptions[id]);
         if (slot >= 0) ModalButton("Unequip", () => Change(() => _shop.EquipItem(0, slot, Seat)));
         else for (int i = 0; i < 4; i++) { int target = i; ModalButton("Equip to slot " + (i + 1), () => Change(() => _shop.EquipItem(id, target, Seat))); }
-        ModalButton("Sell - " + ItemCatalog.Prices[id] / 2 + " Coins", () => Change(() => _shop.SellItem(id, Seat, slot)));
+        ModalButton("Sell - " + ItemCatalog.Prices[id] / 2 + " Coins", () => Change(() => _shop.SellItem(id, Seat, slot))).interactable = !_shop.TutorialBlocksShopping;
         FinishModal();
     }
     public void OpenCard(string id, int slot = -1)
     {
+        if (!TutorialDirector.AllowCardMenu(id)) return;
         if (string.IsNullOrEmpty(id)) return;
         var card = _shop.AllCards.Find(c => c != null && c.ID == id); if (card == null) return;
         OpenModal(card.CardName + (slot >= 0 ? "\nStarting card" : "\nChoose an action"));

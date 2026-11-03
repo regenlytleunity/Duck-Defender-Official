@@ -1,0 +1,205 @@
+{
+    "ProgressionVersion": 2,
+    "TotalCoins": 0,
+    "MunitionsEssence": 0,
+    "MobilityEssence": 0,
+    "SurvivalEssence": 0,
+    "GadgetEssence": 0,
+    "InfiniteGoldAndEssence": false,
+    "InfiniteCopies": false,
+    "ShowTips": false,
+    "SeenTipIDs": [],
+    "CardCollection": [
+        {
+            "CardID": "mun_faster_firing",
+            "Level": 1,
+            "Duplicates": 0,
+            "IsUnlocked": true,
+            "IsAscended": false
+        },
+        {
+            "CardID": "mun_sharp_eye",
+            "Level": 1,
+            "Duplicates": 0,
+            "IsUnlocked": true,
+            "IsAscended": false
+        },
+        {
+            "CardID": "mob_strong_legs",
+            "Level": 1,
+            "Duplicates": 0,
+            "IsUnlocked": true,
+            "IsAscended": false
+        },
+        {
+            "CardID": "mob_swiftness",
+            "Level": 1,
+            "Duplicates": 0,
+            "IsUnlocked": true,
+            "IsAscended": false
+        },
+        {
+            "CardID": "sur_exp_booster",
+            "Level": 1,
+            "Duplicates": 0,
+            "IsUnlocked": true,
+            "IsAscended": false
+        },
+        {
+            "CardID": "sur_thorns",
+            "Level": 1,
+            "Duplicates": 0,
+            "IsUnlocked": true,
+            "IsAscended": false
+        },
+        {
+            "CardID": "gad_big_feathers",
+            "Level": 1,
+            "Duplicates": 0,
+            "IsUnlocked": true,
+            "IsAscended": false
+        },
+        {
+            "CardID": "gad_slow_aura",
+            "Level": 1,
+            "Duplicates": 0,
+            "IsUnlocked": true,
+            "IsAscended": false
+        }
+    ],
+    "StartingCardSlots": 0,
+    "PackOpeningTier": 0,
+    "PermanentUpgrades": [
+        0,
+        0,
+        0,
+        0,
+        0
+    ],
+    "ItemInventory": [
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+    ],
+    "SoloLoadout": {
+        "Items": [
+            0,
+            0,
+            0,
+            1
+        ],
+        "Cards": [
+            "",
+            "",
+            "",
+            "",
+            ""
+        ]
+    },
+    "CoopLoadouts": [
+        {
+            "Items": [
+                0,
+                0,
+                0,
+                0
+            ],
+            "Cards": [
+                "",
+                "",
+                "",
+                "",
+                ""
+            ]
+        },
+        {
+            "Items": [
+                0,
+                0,
+                0,
+                0
+            ],
+            "Cards": [
+                "",
+                "",
+                "",
+                "",
+                ""
+            ]
+        },
+        {
+            "Items": [
+                0,
+                0,
+                0,
+                0
+            ],
+            "Cards": [
+                "",
+                "",
+                "",
+                "",
+                ""
+            ]
+        },
+        {
+            "Items": [
+                0,
+                0,
+                0,
+                0
+            ],
+            "Cards": [
+                "",
+                "",
+                "",
+                "",
+                ""
+            ]
+        }
+    ],
+    "CompletedRuns": 0,
+    "FirstItemDropped": false,
+    "Tutorial": {
+        "Version": 1,
+        "Stage": 9,
+        "Items": 4,
+        "HasObtainedItem": true,
+        "UpgradeCardID": "",
+        "NewCardID": "",
+        "Pack": 0
+    },
+    "EssenceDiscovered": [
+        false,
+        false,
+        false,
+        false
+    ],
+    "ItemShopRefreshUtc": 0,
+    "ItemShopStock": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+    ],
+    "ItemShopSold": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+    ]
+}

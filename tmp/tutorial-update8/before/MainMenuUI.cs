@@ -1,0 +1,690 @@
+using UnityEngine;
+using UnityEngine.UI;
+using TMPro;
+using System.Collections;
+using System.Collections.Generic;
+
+public class MainMenuUI : MonoBehaviour
+{
+    public static MainMenuUI Instance;
+    public TMP_FontAsset UIFont;
+
+    [Header("Main Panels")]
+    public GameObject MenuPanel;
+    public GameObject ShopPanel;
+    public GameObject SettingsPanel;
+    public GameObject IndexPanel;
+    [Header("Difficulty")]
+    public UnityEngine.UI.Button[] DifficultyButtons;
+    public TextMeshProUGUI DifficultyDescription;
+    [Header("Shop Balances")]
+    public TextMeshProUGUI[] PackEssenceTexts; // Munitions, Mobility, Survival, Gadget.
+
+    [Header("Shop Components")]
+    public Transform PackContainer;
+    public GameObject PackButtonPrefab; 
+    public TextMeshProUGUI TotalCoinsText;
+
+    [Header("Confirmation Overlay")]
+    public GameObject ConfirmPanel;
+    public TextMeshProUGUI ConfirmText;
+    public Button YesButton;
+    private ShopPackDefinition _selectedPack;
+    [Header("Multiple packs")]
+    public UnityEngine.UI.Button BuyThreeButton;
+    [System.NonSerialized] public UnityEngine.UI.Button BuySixButton;
+    public TextMeshProUGUI BuyThreeText;
+    public UnityEngine.UI.Image[] AdditionalPackImages;
+    public UnityEngine.UI.GridLayoutGroup RevealGrid;
+    public Vector2 SingleCardSize = new Vector2(260, 360);
+    public Vector2 TripleCardSize = new Vector2(160, 220);
+    [Tooltip("Horizontal offset for revealed cards when opening three packs, in UI units. Positive moves right; negative moves left. Applied when the cards spawn; single-pack reveals are unaffected.")]
+    public float TripleRevealXShift = 0f;
+    [Tooltip("Full-size card canvas before fitting it into a reveal grid cell. Keeps fonts and fixed child artwork proportional.")]
+    public Vector2 CardReferenceSize = new Vector2(500, 700);
+    public TextMeshProUGUI EssenceBalancesText;
+    int _packCount = 1;
+    bool _purchaseInProgress;
+    List<CardDefinition> _purchasedCards;
+
+    [Header("Pack Opening Minigame")]
+    public GameObject OpeningOverlay;
+    public Image PackImage; 
+    public GameObject SliceZone; 
+    public Transform CardRevealCenter; 
+    public GameObject CardDisplayPrefab; 
+    
+    public GameObject SliceHelpText; 
+    public Button ContinueButton;    
+    
+    private bool _isSlicingMode = false;
+    private Vector2 _lastMousePos;
+    private float _sliceProgress = 0f;
+    int _sliceStartFrame;
+    bool _shopBlocked;
+    readonly System.Collections.Generic.Dictionary<GameObject, GameObject> _panelFocus = new System.Collections.Generic.Dictionary<GameObject, GameObject>();
+
+    void Awake()
+    {
+        Instance = this;
+        CoopUIElements.SetFont(UIFont);
+        GameDifficulty.Load();
+        RefreshDifficulty();
+    }
+
+    void Start()
+    {
+        // --- DEBUG: UI Safety Checks ---
+        if (CardDisplayPrefab == null) Debug.LogError("<color=red>MainMenuUI Error: 'Card Display Prefab' is missing in Inspector.</color>");
+        if (CardRevealCenter == null) Debug.LogError("<color=red>MainMenuUI Error: 'Card Reveal Center' is missing in Inspector.</color>");
+
+        ShowPanel(MenuPanel);
+        if (ShopManager.Instance != null)
+        {
+            UpdateCoinDisplay(ShopManager.Instance.CurrentCoins);
+            GenerateShopButtons();
+            (GetComponent<ShopUpdateUI>() ?? gameObject.AddComponent<ShopUpdateUI>()).Initialize(this);
+            ShopManager.Instance.OnCollectionChanged += RefreshBalances;
+        }
+    }
+
+    void Update()
+    {
+        RefreshShopModal();
+        if (_isSlicingMode && Input.GetMouseButton(0))
+        {
+            PerformSlice();
+        }
+        if (Input.GetMouseButtonUp(0))
+        {
+            _lastMousePos = Vector2.zero;
+        }
+    }
+
+    public void SelectDifficulty(int difficulty)
+    {
+        if (TutorialDirector.MenuLocked) return;
+        GameDifficulty.Select(difficulty);
+        RefreshDifficulty();
+    }
+
+    void RefreshDifficulty()
+    {
+        if (DifficultyButtons != null) for (int i = 0; i < DifficultyButtons.Length; i++)
+        {
+            var button = DifficultyButtons[i];
+            if (button == null) continue;
+            bool selected = i == (int)GameDifficulty.Selected;
+            var colors = button.colors;
+            colors.normalColor = selected ? new Color(1f, .82f, .28f) : Color.white;
+            colors.selectedColor = colors.normalColor;
+            button.colors = colors;
+            var border = button.GetComponent<UnityEngine.UI.Outline>();
+            if (border != null) { border.enabled = selected; border.effectDistance = new Vector2(4, -4); }
+        }
+        if (DifficultyDescription != null)
+            DifficultyDescription.text = GameDifficulty.Selected == RunDifficulty.Easy ? "1x coins  |  Standard experience" :
+                GameDifficulty.Selected == RunDifficulty.Medium ? "1.25x coins  |  1.5x enemy health  |  +10% speed" :
+                "1.5x coins  |  2x enemy health & damage  |  +10% speed\nDouble health growth per wave";
+    }
+
+    // --- NAVIGATION ---
+public void ShowPanel(GameObject panel)
+{
+    if (!TutorialDirector.AllowPanel(panel)) return;
+    RememberFocus();
+    GetComponent<HostMenuUI>()?.Hide();
+    StopAllCoroutines();
+    MenuPanel.SetActive(false);
+    ShopPanel.SetActive(false);
+    SettingsPanel.SetActive(false);
+    IndexPanel.SetActive(false);
+    ConfirmPanel.SetActive(false);
+    OpeningOverlay.SetActive(false);
+    _purchaseInProgress = false;
+    _isSlicingMode = false;
+
+    panel.SetActive(true);
+    RefreshShopModal();
+    // OnEnable runs before all child Selectables are enabled; connect the index
+    // once the full hierarchy is active, including the runtime Items tab.
+    panel.GetComponent<CardIndexUI>()?.ConfigureNavigation();
+    if (panel == ShopPanel) GetComponent<ShopUpdateUI>()?.Refresh();
+    RestoreFocus(panel);
+    
+    // Switch music to match the panel being shown.
+    // AudioManager.PlayMusic() crossfades smoothly and ignores duplicate calls 
+    // (won't restart if the same track is already playing).
+    if (AudioManager.Instance != null)
+    {
+        if (panel == MenuPanel)
+            AudioManager.Instance.PlayMusic("Main_Menu_Track_1");
+        else if (panel == ShopPanel)
+            AudioManager.Instance.PlayMusic("Shop_Menu_Track_1");
+        else if (panel == SettingsPanel)
+            AudioManager.Instance.PlayMusic("Settings_Menu_Track_1");
+        else if (panel == IndexPanel)
+            AudioManager.Instance.PlayMusic("Card_Index_Menu_Track_1");
+        // ConfirmPanel and OpeningOverlay don't trigger music changes - 
+        // they overlay on top of an existing panel and inherit its music.
+    }
+}
+
+    public void RememberFocus()
+    {
+        var selected = UnityEngine.EventSystems.EventSystem.current?.currentSelectedGameObject;
+        if (selected == null) return;
+        var scope = NavigationScope;
+        if (scope != null && selected.transform.IsChildOf(scope.transform)) _panelFocus[scope] = selected;
+    }
+
+    public void RestoreFocus(GameObject panel)
+    {
+        if (panel == null || !panel.activeInHierarchy) return;
+        ControllerMenuNavigation.ConfigureNavigation(panel);
+        if (_panelFocus.TryGetValue(panel, out var remembered) && remembered != null &&
+            remembered.TryGetComponent<UnityEngine.UI.Selectable>(out var control) && control.IsActive() && control.IsInteractable())
+            UnityEngine.EventSystems.EventSystem.current?.SetSelectedGameObject(remembered);
+        else FocusFirstControl(panel);
+    }
+
+    public void OpenMenu()
+    {
+        if (GetComponent<HostMenuUI>()?.ReturnFromCards() == true) return;
+        ShowPanel(MenuPanel);
+    }
+    
+    public void BackToMainMenu()
+    {
+        if (!TutorialDirector.AllowPanel(MenuPanel) && !ConfirmPanel.activeInHierarchy) return;
+        if (ConfirmPanel.activeInHierarchy) { CancelPurchase(); return; }
+        if (IndexPanel.activeInHierarchy && IndexPanel.GetComponent<IndexLoadoutUI>()?.HandleBack() == true) return;
+        if (SettingsPanel.activeInHierarchy && SettingsPanel.GetComponent<SettingsMenuUI>().HandleBack()) return;
+        if (GetComponent<HostMenuUI>()?.ReturnFromCards() == true) return;
+        ShowPanel(MenuPanel);
+    }
+
+public void OpenShop()
+{
+    ShowPanel(ShopPanel);
+}
+
+    public void OpenSettings()
+    {
+        ShowPanel(SettingsPanel);
+    }
+
+    public void OpenIndex()
+    {
+        ShowPanel(IndexPanel);
+    }
+
+    public void UpdateCoinDisplay(int coins)
+    {
+        if (TotalCoinsText != null) TotalCoinsText.text = ShopManager.Instance != null && ShopManager.Instance.InfiniteResources ? "Infinite Coins" : coins + " Coins";
+        RefreshEssence();
+    }
+
+    // --- SHOP GENERATION ---
+    void GenerateShopButtons()
+    {
+        foreach (Transform child in PackContainer) Destroy(child.gameObject);
+
+        if (ShopManager.Instance == null) return;
+
+        foreach (ShopPackDefinition pack in ShopManager.Instance.AvailablePacks)
+        {
+            if (pack == null) continue;
+
+            GameObject btnObj = Instantiate(PackButtonPrefab, PackContainer);
+            
+            var nameText = btnObj.transform.Find("Name")?.GetComponent<TextMeshProUGUI>();
+            var priceText = btnObj.transform.Find("Price")?.GetComponent<TextMeshProUGUI>();
+            if (nameText != null) nameText.text = pack.PackName;
+            if (priceText != null)
+            {
+                priceText.text = pack.Cost + " Coins";
+                priceText.rectTransform.anchoredPosition += Vector2.down * 18;
+                priceText.fontSize = priceText.fontSizeMax = 36;
+                priceText.fontSizeMin = 30;
+                CoopUIElements.WhiteInfill(priceText);
+            }
+
+            Transform iconTr = btnObj.transform.Find("PackIcon");
+            if (iconTr != null && iconTr.GetComponent<Image>())
+            {
+                iconTr.GetComponent<Image>().sprite = pack.ClosedPackIcon;
+            }
+            else
+            {
+                Image[] images = btnObj.GetComponentsInChildren<Image>();
+                foreach(var img in images)
+                {
+                    if (img.gameObject != btnObj)
+                    {
+                        img.sprite = pack.ClosedPackIcon;
+                        break; 
+                    }
+                }
+            }
+
+            Button btn = btnObj.GetComponent<Button>();
+            if (btn)
+            {
+                btn.onClick.AddListener(() => OnPackClicked(pack));
+            }
+        }
+    }
+
+void OnPackClicked(ShopPackDefinition pack)
+{
+    if (TutorialDirector.MenuLocked && (!TutorialDirector.CoreActive || TutorialDirector.Progress.Stage != TutorialStage.Shop)) return;
+    if (ConfirmPanel.activeInHierarchy || OpeningOverlay.activeInHierarchy || _purchaseInProgress) return;
+    RememberFocus();
+    if (AudioManager.Instance != null) AudioManager.Instance.PlaySFX("UI_button_Click");
+    
+    _selectedPack = pack;
+    ConfirmPanel.SetActive(true);
+    ConfirmText.text = $"Open {pack.PackName}?";
+    YesButton.GetComponentInChildren<TMP_Text>().text = "Open 1 - " + pack.Cost + " Coins";
+    
+    YesButton.onClick.RemoveAllListeners();
+    YesButton.onClick.AddListener(BuyPack);
+    YesButton.interactable = ShopManager.Instance.CanAfford(pack.Cost);
+    if (BuyThreeButton != null)
+    {
+        BuyThreeButton.onClick.RemoveAllListeners();
+        BuyThreeButton.onClick.AddListener(BuyThreePacks);
+        BuyThreeButton.interactable = ShopManager.Instance.CanOpenPackCount(3) && (long)pack.Cost * 3 <= int.MaxValue && ShopManager.Instance.CanAfford(pack.Cost * 3);
+    }
+    if (BuyThreeText != null) BuyThreeText.text = ShopManager.Instance.CanOpenPackCount(3) ? "Open 3 - " + ((long)pack.Cost * 3) + " Coins" : "Open 3 - Locked";
+    if (BuySixButton != null)
+    {
+        BuySixButton.interactable = ShopManager.Instance.CanOpenPackCount(6) && (long)pack.Cost * 6 <= int.MaxValue && ShopManager.Instance.CanAfford(pack.Cost * 6);
+        BuySixButton.GetComponentInChildren<TMP_Text>().text = ShopManager.Instance.CanOpenPackCount(6) ? "Open 6 - " + ((long)pack.Cost * 6) + " Coins" : "Open 6 - Locked";
+    }
+    RefreshShopModal();
+    ControllerMenuNavigation.ConfigureNavigation(ConfirmPanel);
+    FocusFirstControl(ConfirmPanel);
+}
+
+public void CancelPurchase()
+{
+    ConfirmPanel.SetActive(false); RefreshShopModal();
+    GetComponent<ShopUpdateUI>()?.Refresh();
+    int index = ShopManager.Instance.AvailablePacks.IndexOf(_selectedPack);
+    if (index >= 0 && index < PackContainer.childCount && UnityEngine.EventSystems.EventSystem.current != null)
+        UnityEngine.EventSystems.EventSystem.current.SetSelectedGameObject(PackContainer.GetChild(index).gameObject);
+    else FocusFirstControl(ShopPanel);
+}
+void RefreshShopModal()
+{
+    bool blocked = ConfirmPanel.activeInHierarchy || OpeningOverlay.activeInHierarchy;
+    if (blocked == _shopBlocked && ShopPanel.GetComponent<CanvasGroup>() != null) return;
+    _shopBlocked = blocked;
+    var group = ShopPanel.GetComponent<CanvasGroup>();
+    if (group == null) group = ShopPanel.AddComponent<CanvasGroup>();
+    group.interactable = !blocked; group.blocksRaycasts = !blocked;
+    foreach (var panel in new[] { ConfirmPanel, OpeningOverlay })
+    {
+        var modal = panel.GetComponent<CanvasGroup>();
+        if (modal == null) modal = panel.AddComponent<CanvasGroup>();
+        modal.ignoreParentGroups = true; modal.interactable = true; modal.blocksRaycasts = true;
+    }
+    if (!blocked) GetComponent<ShopUpdateUI>()?.Refresh();
+}
+public GameObject NavigationScope
+{
+    get
+    {
+        if (TutorialDirector.PromptNavigationScope != null) return TutorialDirector.PromptNavigationScope;
+        if (OpeningOverlay.activeInHierarchy) return OpeningOverlay;
+        if (ConfirmPanel.activeInHierarchy) return ConfirmPanel;
+        if (SettingsPanel.activeInHierarchy) return SettingsPanel.GetComponent<SettingsMenuUI>().NavigationScope;
+        var host = GetComponent<HostMenuUI>();
+        if (host != null && host.Panel != null && host.Panel.activeInHierarchy) return host.Panel;
+        if (IndexPanel.activeInHierarchy) return IndexPanel.GetComponent<IndexLoadoutUI>()?.NavigationScope ?? IndexPanel;
+        if (ShopPanel.activeInHierarchy) return ShopPanel;
+        return MenuPanel;
+    }
+}
+public static void FocusFirstControl(GameObject panel)
+{
+    if (panel == null || !panel.activeInHierarchy || UnityEngine.EventSystems.EventSystem.current == null) return;
+    foreach (var control in panel.GetComponentsInChildren<UnityEngine.UI.Selectable>())
+        if (control.IsActive() && control.IsInteractable() && control.navigation.mode != UnityEngine.UI.Navigation.Mode.None)
+        { UnityEngine.EventSystems.EventSystem.current.SetSelectedGameObject(control.gameObject); return; }
+    UnityEngine.EventSystems.EventSystem.current.SetSelectedGameObject(null);
+}
+
+public void BuyPack() { Purchase(1); }
+public void BuyThreePacks() { Purchase(3); }
+public void BuySixPacks() { Purchase(6); }
+void Purchase(int count)
+{
+    if (_purchaseInProgress || _selectedPack == null) return;
+    var cards = ShopManager.Instance.TryBuyPacks(_selectedPack, count);
+    if (cards == null) { ConfirmText.text = "Not enough coins or no cards assigned."; return; }
+    _purchaseInProgress = true;
+    _packCount = count;
+    _purchasedCards = cards;
+    UpdateCoinDisplay(ShopManager.Instance.CurrentCoins);
+    StartPackOpening(_selectedPack);
+    ConfirmPanel.SetActive(false);
+}
+
+    // --- MINIGAME LOGIC ---
+    void StartPackOpening(ShopPackDefinition pack)
+    {
+        if (AdditionalPackImages == null) AdditionalPackImages = new UnityEngine.UI.Image[0];
+        if (AdditionalPackImages.Length < _packCount - 1)
+        {
+            int previous = AdditionalPackImages.Length;
+            System.Array.Resize(ref AdditionalPackImages, _packCount - 1);
+            for (int i = previous; i < AdditionalPackImages.Length; i++) AdditionalPackImages[i] = Instantiate(PackImage, PackImage.transform.parent);
+        }
+        OpeningOverlay.SetActive(true);
+        ShopPanel.SetActive(false);
+
+        PackImage.sprite = pack.ClosedPackIcon;
+        PackImage.transform.rotation = Quaternion.identity;
+        PackImage.gameObject.SetActive(true);
+        if (AdditionalPackImages != null)
+            for (int i = 0; i < AdditionalPackImages.Length; i++)
+                if (AdditionalPackImages[i] != null)
+                {
+                    AdditionalPackImages[i].sprite = pack.ClosedPackIcon;
+                    AdditionalPackImages[i].gameObject.SetActive(i < _packCount - 1);
+                    AdditionalPackImages[i].transform.localRotation = Quaternion.identity;
+                }
+        CenterPackRow();
+        if (RevealGrid != null)
+        {
+            RevealGrid.constraint = UnityEngine.UI.GridLayoutGroup.Constraint.FixedColumnCount;
+            RevealGrid.constraintCount = _packCount == 6 ? 6 : _packCount == 3 ? 5 : 3;
+            RevealGrid.spacing = _packCount == 3 ? new Vector2(14, 14) : new Vector2(20, 20);
+            CoopUIElements.Stretch((RectTransform)CardRevealCenter, new Vector2(.06f, .14f), new Vector2(.94f, .90f));
+            Canvas.ForceUpdateCanvases();
+            var size = ((RectTransform)CardRevealCenter).rect.size;
+            int columns = RevealGrid.constraintCount, rows = _packCount == 1 ? 1 : _packCount == 3 ? 2 : 3;
+            float fit = Mathf.Min((size.x - RevealGrid.spacing.x * (columns - 1)) / columns / CardReferenceSize.x,
+                (size.y - RevealGrid.spacing.y * (rows - 1)) / rows / CardReferenceSize.y);
+            RevealGrid.cellSize = CardReferenceSize * fit;
+            RevealGrid.childAlignment = TextAnchor.MiddleCenter;
+        }
+        SliceZone.SetActive(true);
+        SliceHelpText.SetActive(true);
+        var sliceHint = SliceHelpText.GetComponent<TMP_Text>();
+        if (sliceHint != null)
+        {
+            sliceHint.text = "Swipe or press " + ControllerBindings.Label("Confirm") + " to open";
+            sliceHint.enableAutoSizing = true;
+        }
+        ContinueButton.gameObject.SetActive(false);
+
+        foreach (Transform child in CardRevealCenter) Destroy(child.gameObject);
+
+        _isSlicingMode = true;
+        _sliceStartFrame = Time.frameCount;
+        _sliceProgress = 0f;
+        _lastMousePos = Input.mousePosition;
+    }
+
+    Vector2 _normalPackSize;
+    Vector3 _normalPackScale;
+    void CenterPackRow()
+    {
+        var row = PackImage.transform.parent as RectTransform;
+        var layout = row != null ? row.GetComponent<HorizontalLayoutGroup>() : null;
+        if (layout == null) return;
+        if (_normalPackSize == Vector2.zero) { _normalPackSize = PackImage.rectTransform.sizeDelta; _normalPackScale = PackImage.transform.localScale; }
+        layout.enabled = _packCount != 6;
+        // Unity allows only one LayoutGroup per object. Position the six-pack grid
+        // directly while the authored horizontal layout is disabled.
+        for (int i = 0; i < _packCount; i++)
+        {
+            var rect = i == 0 ? PackImage.rectTransform : AdditionalPackImages[i - 1].rectTransform;
+            rect.sizeDelta = _packCount == 6 ? new Vector2(180, 263) : _packCount == 3 ? new Vector2(250, 365) : _normalPackSize;
+            rect.localScale = _packCount == 1 ? _normalPackScale : Vector3.one;
+            if (_packCount == 6)
+            {
+                rect.anchorMin = rect.anchorMax = rect.pivot = Vector2.one * .5f;
+                rect.anchoredPosition = new Vector2((i % 3 - 1) * 200, i < 3 ? 139.5f : -139.5f);
+            }
+        }
+        // Center the active children as a group; the old authored row was offset
+        // to the left to accommodate three packs, including when only one was active.
+        row.anchorMin = new Vector2(0, .5f);
+        row.anchorMax = new Vector2(1, .5f);
+        row.pivot = Vector2.one * .5f;
+        row.sizeDelta = new Vector2(0, row.sizeDelta.y);
+        row.anchoredPosition = Vector2.zero;
+        layout.childAlignment = TextAnchor.MiddleCenter;
+        layout.childForceExpandWidth = false;
+        layout.childControlWidth = layout.childControlHeight = false;
+        layout.spacing = _packCount == 3 ? 32 : 20;
+        layout.childScaleWidth = true;
+        LayoutRebuilder.ForceRebuildLayoutImmediate(row);
+    }
+
+    void PerformSlice()
+    {
+        Vector2 currentPos = Input.mousePosition;
+        
+        if (_lastMousePos == Vector2.zero)
+        {
+            _lastMousePos = currentPos;
+            return;
+        }
+
+        float dist = Vector2.Distance(currentPos, _lastMousePos);
+        _lastMousePos = currentPos;
+        if (!PointerOverPack(currentPos)) return;
+        _sliceProgress += dist;
+
+        PackImage.transform.rotation = Quaternion.Euler(0, 0, Mathf.Sin(Time.time * 50) * 5);
+
+        if (_sliceProgress > 500f) 
+        {
+            CompleteSlice();
+        }
+    }
+
+    bool PointerOverPack(Vector2 position)
+    {
+        Canvas canvas = PackImage.GetComponentInParent<Canvas>();
+        Camera camera = canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay ? canvas.worldCamera : null;
+        if (RectTransformUtility.RectangleContainsScreenPoint(PackImage.rectTransform, position, camera)) return true;
+        if (AdditionalPackImages != null)
+            foreach (var image in AdditionalPackImages)
+                if (image != null && image.gameObject.activeInHierarchy && RectTransformUtility.RectangleContainsScreenPoint(image.rectTransform, position, camera)) return true;
+        return false;
+    }
+
+    public bool HandlePackControllerInput(UnityEngine.InputSystem.Gamepad pad)
+    {
+        if (!_isSlicingMode || !OpeningOverlay.activeInHierarchy) return false;
+        // The purchase press must not also open the pack. Require a new press
+        // after entering the swipe screen, using the player's Interact binding.
+        if (Time.frameCount <= _sliceStartFrame || !ControllerBindings.Pressed(pad, "Confirm")) return false;
+        CompleteSlice();
+        return true;
+    }
+
+    void CompleteSlice()
+    {
+        if (!_isSlicingMode) return;
+        if (TutorialDirector.CoreActive && TutorialDirector.Progress.Stage == TutorialStage.PackPurchased) TutorialDirector.SaveStage(TutorialStage.ShopReturn);
+        _isSlicingMode = false;
+        SliceZone.SetActive(false);
+        SliceHelpText.SetActive(false);
+        
+        if (_selectedPack.OpenedPackIcon != null)
+        {
+            PackImage.sprite = _selectedPack.OpenedPackIcon;
+            if (AdditionalPackImages != null)
+                foreach (var image in AdditionalPackImages) if (image != null) image.sprite = _selectedPack.OpenedPackIcon;
+        }
+
+        StartCoroutine(RevealCardsRoutine());
+    }
+
+    public void ResumeTutorialPack()
+    {
+        var progress = ShopManager.Instance.Progress.Tutorial;
+        _selectedPack = ShopManager.Instance.AvailablePacks.Find(p => p != null && p.PackType == progress.Pack);
+        var starter = ShopManager.Instance.AllCards.Find(c => c != null && c.ID == progress.UpgradeCardID);
+        var extra = ShopManager.Instance.AllCards.Find(c => c != null && c.ID == progress.NewCardID);
+        if (_selectedPack == null || starter == null || extra == null)
+        {
+            Debug.LogError("[Tutorial] Saved pack references are missing from the shop database.");
+            TutorialDirector.SaveStage(TutorialStage.ShopReturn);
+            ShowPanel(ShopPanel); return;
+        }
+        ShowPanel(ShopPanel);
+        _packCount = 1; _purchasedCards = new List<CardDefinition> { starter, starter, extra }; _purchaseInProgress = true;
+        StartPackOpening(_selectedPack);
+    }
+
+    /// <summary>
+    /// Opens the pack using ShopManager's centralized, rarity-weighted logic.
+    /// ShopManager.OpenPack() handles:
+    ///   - Rarity rolling (5% Legendary, 35% Rare, 60% Common)
+    ///   - Filtering by PackCategory
+    ///   - Saving cards to the player's collection
+    ///   - Saving to disk
+    /// This method is now purely responsible for visual reveal + animation.
+    /// </summary>
+    IEnumerator RevealCardsRoutine()
+    {
+        float timingScale = _packCount == 6 ? .25f : _packCount == 3 ? .5f : 1f;
+        yield return new WaitForSeconds(0.5f * timingScale);
+        PackImage.gameObject.SetActive(false);
+        if (AdditionalPackImages != null) foreach (var image in AdditionalPackImages) if (image != null) image.gameObject.SetActive(false);
+
+        // --- 1. GET CARDS (uses proper rarity-weighted pull) ---
+        if (ShopManager.Instance == null)
+        {
+            Debug.LogError("<color=red>ShopManager.Instance is null - cannot open pack.</color>");
+            yield break;
+        }
+
+        List<CardDefinition> pulledCards = _purchasedCards;
+
+        if (pulledCards == null || pulledCards.Count == 0)
+        {
+            Debug.LogError($"<color=red>No cards returned from pack type: {_selectedPack.PackType}. Check ShopManager's card list.</color>");
+            
+            // Show continue button anyway so the player isn't stuck
+            if (ContinueButton != null)
+            {
+                ContinueButton.gameObject.SetActive(true);
+                ContinueButton.onClick.RemoveAllListeners();
+                ContinueButton.onClick.AddListener(() => ShowPanel(ShopPanel));
+            }
+            yield break;
+        }
+
+        // --- 2. SPAWN VISUALS ---
+        List<GameObject> spawnedCards = new List<GameObject>();
+
+        foreach (CardDefinition picked in pulledCards)
+        {
+            if (CardDisplayPrefab != null)
+            {
+                Transform parent = CardRevealCenter;
+                if (RevealGrid != null)
+                {
+                    var slot = new GameObject("RevealSlot", typeof(RectTransform));
+                    slot.transform.SetParent(CardRevealCenter, false);
+                    parent = slot.transform;
+                }
+                GameObject cardObj = Instantiate(CardDisplayPrefab, parent);
+                if (RevealGrid != null)
+                {
+                    var rect = cardObj.GetComponent<RectTransform>();
+                    rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(.5f, .5f);
+                    // Offset the card inside its slot so the grid cannot overwrite the shift.
+                    rect.anchoredPosition = Vector2.zero;
+                    if (_packCount == 3 && spawnedCards.Count >= 5)
+                        rect.anchoredPosition = Vector2.right * ((RevealGrid.cellSize.x + RevealGrid.spacing.x) * .5f);
+                    rect.sizeDelta = CardReferenceSize;
+                }
+                CardDisplay disp = cardObj.GetComponent<CardDisplay>();
+                if (disp != null)
+                {
+                    disp.Setup(picked);
+                    disp.HideShopControls();
+                    // Disable clicking during reveal animation
+                    Button cardButton = disp.GetComponent<Button>();
+                    if (cardButton != null) cardButton.interactable = false;
+                }
+
+                cardObj.transform.localScale = Vector3.zero;
+                spawnedCards.Add(cardObj);
+            }
+        }
+
+        // --- 3. REFRESH ECONOMY DISPLAY ---
+        // ShopManager.OpenPack() already saved the collection changes,
+        // but we reload to ensure the coin display and any cached data syncs.
+        ShopManager.Instance.LoadEconomy();
+        UpdateCoinDisplay(ShopManager.Instance.CurrentCoins);
+
+        yield return null; 
+
+        // --- 4. POP-IN ANIMATION ---
+        for (int i = 0; i < spawnedCards.Count; i++)
+        {
+            float fit = RevealGrid != null ? Mathf.Min(RevealGrid.cellSize.x / Mathf.Max(1, CardReferenceSize.x), RevealGrid.cellSize.y / Mathf.Max(1, CardReferenceSize.y)) : 1;
+            StartCoroutine(AnimatePop(spawnedCards[i].transform, fit, .3f * timingScale));
+            yield return new WaitForSeconds(0.5f * timingScale);
+        }
+
+        yield return new WaitForSeconds(1.0f * timingScale);
+        
+        if (ContinueButton != null)
+        {
+            ContinueButton.gameObject.SetActive(true);
+            ContinueButton.onClick.RemoveAllListeners();
+            ContinueButton.onClick.AddListener(() => ShowPanel(ShopPanel));
+        }
+    }
+    
+    IEnumerator AnimatePop(Transform target, float scale, float duration)
+    {
+        float timer = 0f;
+        while(timer < duration)
+        {
+            timer += Time.deltaTime;
+            float progress = timer / duration;
+            target.localScale = Vector3.Lerp(Vector3.zero, Vector3.one * scale, progress);
+            yield return null;
+        }
+        target.localScale = Vector3.one * scale;
+    }
+
+    public void ResetGameData()
+    {
+        var settings = SettingsPanel != null ? SettingsPanel.GetComponent<SettingsMenuUI>() : null;
+        if (settings != null) settings.ShowResetConfirmation();
+    }
+    void RefreshBalances() { if (ShopManager.Instance != null) UpdateCoinDisplay(ShopManager.Instance.CurrentCoins); }
+    void RefreshEssence()
+    {
+        if (ShopManager.Instance == null) return;
+        var shop = ShopManager.Instance;
+        if (PackEssenceTexts != null) for (int i = 0; i < Mathf.Min(4, PackEssenceTexts.Length); i++)
+            if (PackEssenceTexts[i] != null)
+            {
+                PackEssenceTexts[i].text = shop.InfiniteResources ? "Infinite" : shop.GetEssence((CardPackType)i).ToString("N0");
+                PackEssenceTexts[i].gameObject.SetActive(shop.Progress.EssenceDiscovered[i] || shop.AllCards.Exists(c => c != null && (int)c.PackCategory == i && shop.GetCardData(c.ID)?.Level >= c.MaxLevel));
+            }
+        if (EssenceBalancesText == null) return;
+        EssenceBalancesText.text = "Munitions " + (shop.InfiniteResources ? "Infinite" : shop.GetEssence(CardPackType.Munitions).ToString()) +
+            "  Mobility " + (shop.InfiniteResources ? "Infinite" : shop.GetEssence(CardPackType.Mobility).ToString()) +
+            "  Survival " + (shop.InfiniteResources ? "Infinite" : shop.GetEssence(CardPackType.Survival).ToString()) +
+            "  Gadget " + (shop.InfiniteResources ? "Infinite" : shop.GetEssence(CardPackType.Gadget).ToString());
+    }
+    void OnDestroy() { if (ShopManager.Instance != null) ShopManager.Instance.OnCollectionChanged -= RefreshBalances; }
+}

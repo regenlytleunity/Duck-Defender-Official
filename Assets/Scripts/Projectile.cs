@@ -281,6 +281,8 @@ public class Projectile : MonoBehaviour
 
     void OnTriggerEnter2D(Collider2D collision)
     {
+        if (collision.TryGetComponent<TutorialTarget>(out var practiceTarget))
+        { practiceTarget.Hit(); SilentDeactivate(); return; }
         if (OwnerStats != null && OwnerStats.CardsSuppressed) { SilentDeactivate(); return; }
         if (collision.CompareTag("OutOfBounds"))
         {

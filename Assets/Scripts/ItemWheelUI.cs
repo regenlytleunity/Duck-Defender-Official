@@ -66,11 +66,11 @@ public class ItemWheelUI : MonoBehaviour
     {
         if (_canvas == null || _items == null || _player == null) return;
         bool alive = _player.Alive;
-        _wheel.gameObject.SetActive(alive && Time.time < _items.SelectionUntil);
+        _wheel.gameObject.SetActive(alive && TutorialDirector.AllowItems && _items.HadEquippedItems && Time.time < _items.SelectionUntil);
         _spinRoot.gameObject.SetActive(alive && _items.SpinUntil > 0 && Time.time < _items.SpinUntil + .75f);
         _result.gameObject.SetActive(alive && Time.time < _items.ResultUntil);
         _pickup.gameObject.SetActive(alive && Time.time < _pickupUntil);
-        _mobile.gameObject.SetActive(alive && MobileInputController.Instance != null && MobileInputController.Instance.IsMobileEnabled);
+        _mobile.gameObject.SetActive(alive && TutorialDirector.AllowItems && _items.HadEquippedItems && MobileInputController.Instance != null && MobileInputController.Instance.IsMobileEnabled);
         if (Camera.main != null)
         {
             Vector2 screen = Camera.main.WorldToScreenPoint(transform.position + Vector3.up * 3);

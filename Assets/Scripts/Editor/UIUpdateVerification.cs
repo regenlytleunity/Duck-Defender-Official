@@ -39,6 +39,10 @@ public static class UIUpdateVerification
     [MenuItem("Duck Defender/UI/Start Isolated Play Verification")]
     public static void StartPlay()
     {
+        StartPlay(false);
+    }
+    public static void StartPlay(bool tutorial)
+    {
         if (EditorApplication.isPlaying) throw new InvalidOperationException("Exit Play Mode first.");
         if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().isDirty) throw new InvalidOperationException("Save scene changes first.");
         string[] floats={"DuckDefender_MasterVolume","DuckDefender_SFXVolume","DuckDefender_MusicVolume",WorldCamera.ZoomPreference};
@@ -47,7 +51,16 @@ public static class UIUpdateVerification
         var strings=ControllerBindings.Actions.Select(a=>ControllerBindings.Prefix+a).ToArray();
         var entries=floats.Concat(ints).Concat(new[]{ControllerBindings.Prefix+"RightMoveStick"}).Concat(strings).Select(k=>new Entry{key=k,exists=PlayerPrefs.HasKey(k),floating=floats.Contains(k),isString=strings.Contains(k),text=PlayerPrefs.GetString(k),integer=PlayerPrefs.GetInt(k),number=PlayerPrefs.GetFloat(k)}).ToArray();
         SessionState.SetString(SnapshotKey,JsonUtility.ToJson(new PreferenceSnapshot{entries=entries}));
-        SessionState.SetString(UIUpdatePlayProbe.SessionKey,Path.Combine(Path.GetTempPath(),"duck-ui-"+Guid.NewGuid().ToString("N")+".json"));
+        string path = Path.Combine(Path.GetTempPath(),"duck-ui-"+Guid.NewGuid().ToString("N")+".json");
+        if (!tutorial)
+        {
+            var data = PlayerData.CreateNew();
+            data.Tutorial.Stage = TutorialStage.Complete;
+            data.Tutorial.Items = ItemTutorialStage.Complete;
+            data.Tutorial.HasObtainedItem = true;
+            File.WriteAllText(path, JsonUtility.ToJson(data));
+        }
+        SessionState.SetString(UIUpdatePlayProbe.SessionKey,path);
         UnityEditor.SceneManagement.EditorSceneManager.OpenScene("Assets/Scenes/MainMenu.unity");
         EditorApplication.isPlaying=true;
     }

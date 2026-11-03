@@ -44,7 +44,7 @@ public static class SaveSystem
     /// Saves player data to disk. On WebGL, additionally syncs to IndexedDB 
     /// so the data survives page closure.
     /// </summary>
-    public static void SaveData(PlayerData data, bool updateTips = false)
+    public static void SaveData(PlayerData data, bool updateTips = false, bool updateTutorial = false)
     {
         if (data == null)
         {
@@ -55,19 +55,24 @@ public static class SaveSystem
         try
         {
             // Shop/run owners cache PlayerData. Preserve independently updated tutorial progress.
-            if (!updateTips && File.Exists(SavePath))
+            if (File.Exists(SavePath))
             {
                 PlayerData latest = null;
                 try { latest = JsonUtility.FromJson<PlayerData>(File.ReadAllText(SavePath)); }
                 catch (System.ArgumentException) { /* A new valid save can replace malformed JSON. */ }
                 if (latest != null && latest.ProgressionVersion == data.ProgressionVersion)
                 {
-                    data.ShowTips = latest.ShowTips;
-                    data.SeenTipIDs = latest.SeenTipIDs ?? new System.Collections.Generic.List<string>();
+                    if (!updateTips)
+                    {
+                        data.ShowTips = latest.ShowTips;
+                        data.SeenTipIDs = latest.SeenTipIDs ?? new System.Collections.Generic.List<string>();
+                    }
+                    if (!updateTutorial) data.Tutorial = latest.Tutorial ?? new TutorialProgress();
                 }
             }
             string json = JsonUtility.ToJson(data, true);
             File.WriteAllText(SavePath, json);
+            TutorialDirector.RefreshProgress(data);
             
             // CRITICAL FOR WEBGL: without this, writes are lost when the tab closes.
             // No-op on other platforms.
@@ -118,7 +123,7 @@ public static class SaveSystem
             if (data.ProgressionVersion < PlayerData.CurrentVersion)
             {
                 data = PlayerData.CreateNew();
-                SaveData(data);
+                SaveData(data, true, true);
             }
 
             // Defensive: ensure card list isn't null if save was made by an older version

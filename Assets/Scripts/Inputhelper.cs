@@ -16,6 +16,7 @@ public static class InputHelper
 
     public static float GetHorizontal(Component owner = null)
     {
+        if (!TutorialDirector.AllowMovement) return 0;
         var clone = owner != null ? owner.GetComponent<ItemClone>() : null; if (clone != null) return clone.Move.x;
         var player = Player(owner);
         if (player != null && player.UsesGamepad) return player.Move.x;
@@ -26,6 +27,7 @@ public static class InputHelper
 
     public static float GetVertical(Component owner = null)
     {
+        if (!TutorialDirector.AllowMovement) return 0;
         var clone = owner != null ? owner.GetComponent<ItemClone>() : null; if (clone != null) return clone.Move.y;
         var player = Player(owner);
         if (player != null && player.UsesGamepad) return player.Move.y;
@@ -36,6 +38,7 @@ public static class InputHelper
 
     public static bool GetJumpDown(Component owner = null)
     {
+        if (!TutorialDirector.AllowJump) return false;
         var clone = owner != null ? owner.GetComponent<ItemClone>() : null; if (clone != null) return clone.Jump;
         var player = Player(owner);
         if (player != null && player.UsesGamepad) return player.JumpDown;
@@ -46,6 +49,7 @@ public static class InputHelper
 
     public static bool GetJumpHeld(Component owner = null)
     {
+        if (!TutorialDirector.AllowJump) return false;
         var clone = owner != null ? owner.GetComponent<ItemClone>() : null; if (clone != null) return clone.JumpHeld;
         var player = Player(owner);
         if (player != null && player.UsesGamepad) return player.JumpHeld;
@@ -56,6 +60,7 @@ public static class InputHelper
 
     public static bool GetDashDown(Component owner = null)
     {
+        if (TutorialDirector.Practice) return false;
         if (owner != null && owner.GetComponent<ItemClone>() != null) return false;
         var player = Player(owner);
         if (player != null && player.UsesGamepad) return ControllerBindings.Pressed(player.Controller, "Dash");
@@ -68,6 +73,7 @@ public static class InputHelper
 
     public static bool GetShootHeld(Component owner = null)
     {
+        if (!TutorialDirector.AllowShooting) return false;
         var clone = owner != null ? owner.GetComponent<ItemClone>() : null; if (clone != null) return clone.Shooting;
         var player = Player(owner);
         if (player != null && player.UsesGamepad) return ControllerBindings.Held(player.Controller, "Shoot");
@@ -88,6 +94,7 @@ public static class InputHelper
 
     public static int GetItemSelection(Component owner)
     {
+        if (!TutorialDirector.AllowItems) return -1;
         var player = Player(owner);
         if (player != null && player.UsesGamepad)
         {
@@ -101,12 +108,14 @@ public static class InputHelper
     }
     public static bool GetUseItemDown(Component owner)
     {
+        if (!TutorialDirector.AllowItems) return false;
         var player = Player(owner);
         if (player != null && player.UsesGamepad) return player.Connected && ControllerBindings.Pressed(player.Controller, "UseItem");
         return !IsMobile && Input.GetKeyDown(InputManager.Instance != null ? InputManager.Instance.UseItemKey : KeyCode.Mouse1);
     }
     public static bool GetUseItemHeld(Component owner)
     {
+        if (!TutorialDirector.AllowItems) return false;
         var player = Player(owner);
         if (player != null && player.UsesGamepad) return player.Connected && ControllerBindings.Held(player.Controller, "UseItem");
         return !IsMobile && Input.GetKey(InputManager.Instance != null ? InputManager.Instance.UseItemKey : KeyCode.Mouse1);

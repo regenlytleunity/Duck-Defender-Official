@@ -19,6 +19,7 @@ public class PlayerData
     public PlayerLoadout[] CoopLoadouts = new PlayerLoadout[4];
     public int CompletedRuns;
     public bool FirstItemDropped;
+    public TutorialProgress Tutorial = new TutorialProgress();
     public bool[] EssenceDiscovered = new bool[4];
     public long ItemShopRefreshUtc;
     public int[] ItemShopStock = new int[6];
@@ -40,6 +41,8 @@ public class PlayerData
         for (int i = 0; i < CoopLoadouts.Length; i++) { CoopLoadouts[i] ??= new PlayerLoadout(); CoopLoadouts[i].Normalize(); }
         CompletedRuns = UnityEngine.Mathf.Max(0, CompletedRuns);
         for (int i = 0; i < 4; i++) if (GetEssence((CardPackType)i) > 0) EssenceDiscovered[i] = true;
+        Tutorial ??= new TutorialProgress();
+        Tutorial.Normalize(this);
     }
     static void NormalizeArray<T>(ref T[] array, int count)
     { if (array == null) array = new T[count]; else if (array.Length != count) System.Array.Resize(ref array, count); }
@@ -57,7 +60,7 @@ public class PlayerData
 
     public static PlayerData CreateNew()
     {
-        var data = new PlayerData { ProgressionVersion = CurrentVersion };
+        var data = new PlayerData { ProgressionVersion = CurrentVersion, Tutorial = new TutorialProgress { Version = 1 } };
         foreach (string id in StarterIDs) data.CardCollection.Add(new CardSaveData(id));
         return data;
     }

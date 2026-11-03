@@ -129,6 +129,7 @@ public partial class ShopManager : MonoBehaviour
 
     public bool TryUpgradeCard(string cardID)
     {
+        if (!TutorialCanUpgrade(cardID) || _playerData.Tutorial.ItemActive) return false;
         CardSaveData savedCard = _playerData.CardCollection.Find(c => c.CardID == cardID);
         CardDefinition def = AllCards.Find(c => c != null && c.ID == cardID);
 
@@ -151,7 +152,8 @@ public partial class ShopManager : MonoBehaviour
                 }
 
                 _playerData.TotalCoins = CurrentCoins;
-                SaveSystem.SaveData(_playerData);
+                if (_playerData.Tutorial.CoreActive) _playerData.Tutorial.Stage = TutorialStage.IndexReturn;
+                SaveSystem.SaveData(_playerData, updateTutorial: true);
                 if (MainMenuUI.Instance != null) MainMenuUI.Instance.UpdateCoinDisplay(CurrentCoins);
                 OnCollectionChanged?.Invoke();
 
@@ -170,7 +172,7 @@ public partial class ShopManager : MonoBehaviour
     public void ResetProgress()
     {
         _playerData = PlayerData.CreateNew();
-        SaveSystem.SaveData(_playerData, true);
+        SaveSystem.SaveData(_playerData, true, true);
         LoadEconomy();
         if (MainMenuUI.Instance != null) MainMenuUI.Instance.UpdateCoinDisplay(CurrentCoins);
         OnCollectionChanged?.Invoke();
@@ -178,6 +180,7 @@ public partial class ShopManager : MonoBehaviour
 
     public bool TryAscendCard(string id)
     {
+        if (TutorialBlocksShopping) return false;
         var card = AllCards.Find(c => c != null && c.ID == id);
         var saved = GetCardData(id);
         if (card == null || saved == null || !saved.IsUnlocked || saved.IsAscended ||
@@ -192,6 +195,8 @@ public partial class ShopManager : MonoBehaviour
 
     public List<CardDefinition> TryBuyPacks(ShopPackDefinition pack, int count)
     {
+        if (_playerData.Tutorial.CoreActive) return BuyTutorialPack(pack, count);
+        if (_playerData.Tutorial.ItemActive) return null;
         if (pack == null || !CanOpenPackCount(count) || pack.Cost < 0 ||
             (long)pack.Cost * count > int.MaxValue ||
             AllCards == null || !AllCards.Any(c => c != null && !c.IsBasic && c.PackCategory == pack.PackType)) return null;
@@ -209,6 +214,7 @@ public partial class ShopManager : MonoBehaviour
 
     public bool ExecuteDeveloperCode(string code)
     {
+        if (TutorialBlocksShopping) return false;
         bool max = code == "3619" || code == "5942";
         bool unlock = code == "8672";
         bool items = code == "1111";

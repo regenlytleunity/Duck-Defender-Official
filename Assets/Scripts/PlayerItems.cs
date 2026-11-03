@@ -47,7 +47,8 @@ public class PlayerItems : MonoBehaviour
     LineRenderer _trajectory;
     static Material _trajectoryMaterial;
     public bool IsAimingThrowable => _aimingSlot >= 0;
-    bool CanUse => _initialized && _loadoutsEnabled && _player != null && _player.Alive && _player.Connected &&
+    public bool HadEquippedItems { get; private set; }
+    bool CanUse => TutorialDirector.AllowItems && _initialized && _loadoutsEnabled && _player != null && _player.Alive && _player.Connected &&
         !_player.Health.IsStunned && Time.timeScale > 0 && Time.time >= SpinUntil;
     public static bool SuppressEnemyCoins => TeamHasEffect(6);
     public static float TeamXPFactor => TeamHasEffect(7) ? .75f : 1;
@@ -74,6 +75,7 @@ public class PlayerItems : MonoBehaviour
         if (loadoutsEnabled)
         {
             System.Array.Copy(loadout.Items, Slots, 4);
+            HadEquippedItems = System.Array.Exists(Slots, ItemCatalog.Valid);
             var manager = CardManager.Instance;
             if (manager != null) for (int i = 0; i < data.StartingCardSlots; i++)
             {
@@ -112,6 +114,7 @@ public class PlayerItems : MonoBehaviour
     }
     public void Select(int slot)
     {
+        if (!TutorialDirector.AllowItems || !HadEquippedItems) return;
         if (!_initialized || slot < 0 || slot >= 4 || !_player.Alive || Time.timeScale == 0) return;
         if (SelectedSlot != slot) CancelUse();
         SelectedSlot = slot; SelectionUntil = Time.time + 2;

@@ -155,6 +155,7 @@ public class PlayerHealth : MonoBehaviour
         int wholeDamage = Mathf.FloorToInt(_fractionalIncomingDamage + .00001f);
         _fractionalIncomingDamage -= wholeDamage;
         _currentHealth -= wholeDamage;
+        if (TutorialDirector.ProtectedRun) _currentHealth = Mathf.Max(1, _currentHealth);
         if (OwnerStats != null && OwnerStats.HasAscension(CardAscension.Pincushion))
             GetComponent<AscensionEffects>()?.ReleaseNeedles();
         UpdateUI();

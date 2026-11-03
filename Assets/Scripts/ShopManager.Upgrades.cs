@@ -17,6 +17,7 @@ public partial class ShopManager
     }
     bool ChargeUpgrade(int price)
     {
+        if (TutorialBlocksShopping) return false;
         if (price <= 0 || !CanAfford(price)) return false;
         if (!InfiniteResources) CurrentCoins -= price;
         return true;
@@ -50,7 +51,10 @@ public partial class ShopManager
         RefreshItemShop();
         if (slot < 0 || slot >= 6 || expectedRefresh != _playerData.ItemShopRefreshUtc || _playerData.ItemShopStock[slot] != expectedItem || _playerData.ItemShopSold[slot] || !ItemCatalog.Valid(expectedItem)) return false;
         if (_playerData.ItemInventory[expectedItem] == int.MaxValue || !ChargeUpgrade(ItemCatalog.Prices[expectedItem])) return false;
-        _playerData.ItemInventory[expectedItem]++; _playerData.ItemShopSold[slot] = true; SaveShopChange(); return true;
+        _playerData.ItemInventory[expectedItem]++; _playerData.ItemShopSold[slot] = true;
+        _playerData.Tutorial.HasObtainedItem = true;
+        _playerData.TotalCoins = CurrentCoins;
+        SaveSystem.SaveData(_playerData, updateTutorial: true); OnCollectionChanged?.Invoke(); return true;
     }
     public int ReservedItems(int id, int seat = -1, int ignoreSlot = -1)
     {
@@ -66,11 +70,20 @@ public partial class ShopManager
     }
     public bool EquipItem(int id, int slot, int seat = -1)
     {
+        if (_playerData.Tutorial.CoreActive || _playerData.Tutorial.ItemActive && (id == 0 || seat >= 0 || _playerData.Tutorial.Items != ItemTutorialStage.Equip)) return false;
         if (slot < 0 || slot >= 4 || id != 0 && (!ItemCatalog.Valid(id) || ReservedItems(id, seat, slot) >= _playerData.ItemInventory[id])) return false;
-        Loadout(seat).Items[slot] = id; SaveShopChange(); return true;
+        Loadout(seat).Items[slot] = id;
+        if (_playerData.Tutorial.ItemActive)
+        {
+            _playerData.Tutorial.Items = ItemTutorialStage.Controls;
+            SaveSystem.SaveData(_playerData, updateTutorial: true); OnCollectionChanged?.Invoke();
+        }
+        else SaveShopChange();
+        return true;
     }
     public bool SellItem(int id, int seat = -1, int equippedSlot = -1)
     {
+        if (TutorialBlocksShopping) return false;
         if (!ItemCatalog.Valid(id) || _playerData.ItemInventory[id] <= ReservedItems(id, seat, equippedSlot)) return false;
         if (equippedSlot >= 0) { if (equippedSlot >= 4 || Loadout(seat).Items[equippedSlot] != id) return false; Loadout(seat).Items[equippedSlot] = 0; }
         _playerData.ItemInventory[id]--;
@@ -79,6 +92,7 @@ public partial class ShopManager
     }
     public bool EquipStartingCard(string id, int slot, int seat = -1)
     {
+        if (TutorialBlocksShopping) return false;
         if (slot < 0 || slot >= _playerData.StartingCardSlots) return false;
         var loadout = Loadout(seat);
         if (!string.IsNullOrEmpty(id))
@@ -96,6 +110,7 @@ public partial class ShopManager
     }
     public bool MoveEquipment(bool card, int from, int to, int seat = -1)
     {
+        if (TutorialBlocksShopping) return false;
         int count = card ? _playerData.StartingCardSlots : 4;
         if (from < 0 || to < 0 || from >= count || to >= count) return false;
         var loadout = Loadout(seat);

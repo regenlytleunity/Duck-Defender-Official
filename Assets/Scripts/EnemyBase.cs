@@ -85,7 +85,26 @@ public abstract class EnemyBase : MonoBehaviour
     [Tooltip("Off-screen spawns are protected until their sprite first enters the gameplay camera. No-camera fallback in seconds.")]
     [Min(0)] public float SpawnProtectionSeconds = 3f;
     public bool IsSpawnProtected { get; private set; }
-    public bool CanTakeDamage => IsAlive && (!IsSpawnProtected || _itemDamage);
+    public bool CanTakeDamage => IsAlive && (!TutorialEnemy || _tutorialFrozen) && (!IsSpawnProtected || _itemDamage);
+    public bool TutorialEnemy { get; private set; }
+    public bool TutorialStopped => _tutorialFrozen;
+    bool _tutorialFrozen;
+    Vector2 _tutorialStop;
+    public void ConfigureTutorial(Vector2 stop)
+    {
+        TutorialEnemy = true; MaxHealth = CurrentHealth = 2; XPValue = 0; CoinPrefab = null;
+        _tutorialStop = stop;
+        // This short scripted approach must not overshoot or get stuck on terrain.
+        // Kinematic movement ignores static ledges; player collision is ignored by the lesson.
+        if (Rb != null) { Rb.bodyType = RigidbodyType2D.Kinematic; Rb.linearVelocity = Vector2.zero; }
+        if (HealthBarInstance != null) { HealthBarInstance.transform.SetParent(transform, true); HealthBarInstance.Initialize(transform, 2); HealthBarInstance.UpdateHealth(2); }
+    }
+    public void FreezeTutorial()
+    {
+        _tutorialFrozen = true; IsSpawnProtected = false;
+        if (Rb != null) { Rb.linearVelocity = Vector2.zero; Rb.constraints = RigidbodyConstraints2D.FreezeAll; }
+        var animator = GetComponent<Animator>(); if (animator != null) animator.speed = 0;
+    }
     TankEnemy _protector;
     public TankEnemy Protector
     {
@@ -255,7 +274,17 @@ public abstract class EnemyBase : MonoBehaviour
 
     void FixedUpdate()
     {
+        if (_tutorialFrozen) return;
         if (_isDead || IsKnockedBack) return;
+        if (TutorialEnemy)
+        {
+            Vector2 position = Rb != null ? Rb.position : (Vector2)transform.position;
+            if (Vector2.Distance(position, _tutorialStop) < .015f) { FreezeTutorial(); return; }
+            Vector2 next = Vector2.MoveTowards(position, _tutorialStop, Mathf.Max(2, CurrentSpeed) * Time.fixedDeltaTime);
+            if (Rb != null) Rb.MovePosition(next); else transform.position = next;
+            FacePlayer();
+            return;
+        }
 
         if (IsFrozen)
         {
@@ -545,6 +574,11 @@ public abstract class EnemyBase : MonoBehaviour
 
     protected void CompleteDeath()
     {
+        if (TutorialEnemy)
+        {
+            TutorialDirector.Instance?.PracticeEnemyDefeated();
+            Destroy(gameObject); return;
+        }
         ItemPickup.TryDrop(transform.position);
 
         if (DamageOwner != null && DamageOwner.HasAscension(CardAscension.Vampire))

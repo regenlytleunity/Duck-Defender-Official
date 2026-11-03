@@ -22,6 +22,7 @@ public class HostMenuUI : MonoBehaviour
     }
     public void Open()
     {
+        if (TutorialDirector.MenuLocked) return;
         if (_menu == null) _menu = GetComponent<MainMenuUI>();
         _menu.ShowPanel(_menu.MenuPanel); _menu.MenuPanel.SetActive(false);
         EnsurePanel(); Panel.SetActive(true); Refresh();
@@ -82,6 +83,7 @@ public class HostMenuUI : MonoBehaviour
     }
     public void StartGame()
     {
+        if (TutorialDirector.MenuLocked) return;
         int required = LocalCoopSession.KeyboardTest && _count == 2 ? 1 : _count;
         if (Gamepad.all.Count < required) { Refresh(); return; }
         LocalCoopSession.RequestedPlayers = _count; GameDifficulty.Select(_difficultyIndex);

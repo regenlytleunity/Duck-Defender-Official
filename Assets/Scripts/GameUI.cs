@@ -34,11 +34,57 @@ public class GameUI : MonoBehaviour
     [Header("Visual FX")]
     public GameObject DamagePopupPrefab; 
     public Transform PopupCanvas;
+    TMP_Text _soloHealthText;
+    int _healthCurrent, _healthMax;
+    Transform _heartDecor, _xpDecor, _coinDecor;
 
     void Awake()
     {
         Instance = this;
         CoopUIElements.SetFont(UIFont);
+        _heartDecor = PlayerHealthBar != null ? PlayerHealthBar.transform.parent.Find("HeartDecor") : null;
+        _xpDecor = XPBar != null ? XPBar.transform.parent.Find("ExpDecor") : null;
+        _coinDecor = CoinText != null ? CoinText.transform.parent.Find("CoinDecor") : null;
+        // Hide the authored HUD before the first rendered practice frame, including
+        // its sibling decorations rather than only the bar/text GameObjects.
+        if (TutorialDirector.CoreActive && TutorialDirector.Progress.Stage == TutorialStage.Basics)
+        {
+            ShowTutorialDecor(false, false);
+            if (PlayerHealthBar != null) PlayerHealthBar.gameObject.SetActive(false);
+            if (XPBar != null) XPBar.gameObject.SetActive(false);
+            if (LevelText != null) LevelText.gameObject.SetActive(false);
+            if (CoinText != null) CoinText.gameObject.SetActive(false);
+            if (WaveText != null) WaveText.gameObject.SetActive(false);
+            if (EnemiesLeftText != null) EnemiesLeftText.gameObject.SetActive(false);
+        }
+    }
+
+    void Start()
+    {
+        if (LocalCoopSession.Multiplayer || PlayerHealthBar == null) return;
+        var bar = (RectTransform)PlayerHealthBar.transform;
+        if (_heartDecor != null) _heartDecor.gameObject.SetActive(false);
+        // Use the classic bar dimensions above the existing solo XP bar.
+        CoopUIElements.Stretch(bar, new Vector2(.02f, .92f), new Vector2(.19f, .96f));
+        if (PlayerHealthBar.Background != null) { CoopUIElements.Stretch(PlayerHealthBar.Background.rectTransform, Vector2.zero, Vector2.one); PlayerHealthBar.Background.preserveAspect = false; }
+        if (PlayerHealthBar.Overlay != null)
+        {
+            CoopUIElements.Stretch(PlayerHealthBar.Overlay.rectTransform, Vector2.zero, Vector2.one);
+            PlayerHealthBar.Overlay.preserveAspect = false;
+            PlayerHealthBar.Overlay.rectTransform.offsetMin = new Vector2(5, 5);
+            PlayerHealthBar.Overlay.rectTransform.offsetMax = new Vector2(-5, -5);
+        }
+        var label = CoopUIElements.Panel(bar, "Health label", new Vector2(0, 1.05f), new Vector2(1, 1.85f), new Color(.04f, .06f, .09f, .88f));
+        label.GetComponent<UnityEngine.UI.Image>().raycastTarget = false;
+        _soloHealthText = CoopUIElements.Text(label, _healthCurrent + " / " + _healthMax, Vector2.zero, Vector2.one, 22);
+    }
+
+    public void ShowTutorialDecor(bool xp, bool coins)
+    {
+        // The classic numeric health bar replaces the standalone heart decoration.
+        if (_heartDecor != null) _heartDecor.gameObject.SetActive(false);
+        if (_xpDecor != null) _xpDecor.gameObject.SetActive(xp);
+        if (_coinDecor != null) _coinDecor.gameObject.SetActive(coins);
     }
 
     public void ShowDamagePopup(Vector3 worldPos, int amount, bool isCrit)
@@ -62,6 +108,8 @@ public class GameUI : MonoBehaviour
 
     public void UpdatePlayerHealth(int current, int max)
     {
+        _healthCurrent = current; _healthMax = max;
+        if (_soloHealthText != null) _soloHealthText.text = current + " / " + max;
         if (PlayerHealthBar != null)
         {
             PlayerHealthBar.UpdateHealth(current, max);
@@ -82,7 +130,7 @@ public class GameUI : MonoBehaviour
         if (GameOverScreen != null) GameOverScreen.SetActive(true);
     }
 
-    public void UpdateWaveText(int wave) => WaveText.text = "WAVE: " + wave;
+    public void UpdateWaveText(int wave) => WaveText.text = "WAVE: " + wave + (TutorialDirector.ProtectedRun && !TutorialDirector.Practice ? "/5" : "");
     public void UpdateEnemiesLeft(int count) => EnemiesLeftText.text = "ENEMIES: " + count;
     public void ShowWaveBanner(int wave) => StartCoroutine(BannerRoutine(wave));
 

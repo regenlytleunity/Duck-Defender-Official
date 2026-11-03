@@ -1,0 +1,33 @@
+FAILED: System.InvalidOperationException: Enemies approach monotonically and stop at the designated points without rubberbanding.
+  at TutorialPlayProbe.Check (System.Boolean condition, System.String message) [0x00026] in C:\Users\regen\Duck Defender 2025-11-19_13-03-32\Duck Defender\Assets\Scripts\TutorialPlayProbe.cs:37 
+  at TutorialPlayProbe+<Run>d__23.MoveNext () [0x00b5f] in C:\Users\regen\Duck Defender 2025-11-19_13-03-32\Duck Defender\Assets\Scripts\TutorialPlayProbe.cs:173 
+  at TutorialPlayProbe+<Start>d__14.MoveNext () [0x00123] in C:\Users\regen\Duck Defender 2025-11-19_13-03-32\Duck Defender\Assets\Scripts\TutorialPlayProbe.cs:53 
+Fresh save automatically enters stage 1.
+Game frames advance in Play Mode.
+Practice suppresses normal waves.
+Welcome locks gameplay controls.
+No manual Continue or Restart step control exists.
+All HUD decorations are hidden before their lessons.
+Tutorial advances automatically: Welcome to Duck Defender! Let's run through the basics.
+Walking goals use the upward fading gradient.
+Controller movement reaches practice goal.
+One movement goal cannot skip the other.
+Falling out of practice returns the player to the lesson.
+Automatic fall recovery preserves completed objectives.
+Controller movement reaches practice goal.
+Controller movement reaches practice goal.
+Tutorial advances automatically: Move left and right with the left thumbstick. Touch both highlighted areas.
+Box landing goal also uses the gradient.
+Actual controller jump lands on the box.
+Tutorial advances automatically: Quickly move the movement thumbstick up to jump. Land on top of the box.
+Dartboards are farther away than the previous targets.
+Tutorial advances automatically: Use the right thumbstick to aim at all five targets.
+All five aim goals unlock shooting targets.
+A real feather destroys target 0
+A real feather destroys target 1
+A real feather destroys target 2
+A real feather destroys target 3
+A real feather destroys target 4
+Tutorial advances automatically: Press RT to fire feathers. Destroy all five targets.
+Practice enemies start outside the camera.
+Leftover feathers cannot kill an enemy during its approach.

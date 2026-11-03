@@ -48,7 +48,7 @@ public class LevelUpUI : MonoBehaviour
 
         ClearContainer();
 
-        List<CardDefinition> options = CardManager.Instance.GetRandomCards(CardsToOffer);
+        List<CardDefinition> options = TutorialDirector.PracticeCards() ?? CardManager.Instance.GetRandomCards(CardsToOffer);
 
         foreach (CardDefinition option in options)
         {
@@ -58,6 +58,7 @@ public class LevelUpUI : MonoBehaviour
             if (display != null)
             {
                 display.Setup(option);
+                // Keep all three cards focusable for inspection; SelectCard enforces the lesson.
             }
             else
             {
@@ -73,7 +74,7 @@ public class LevelUpUI : MonoBehaviour
     /// </summary>
     public void SelectCard(CardDefinition card)
     {
-        if (!_offering || card == null) return;
+        if (!_offering || card == null || !TutorialDirector.CanSelectCard(card)) return;
         _offering = false;
         // Play the level-up card-pick sound
         if (AudioManager.Instance != null)
@@ -82,7 +83,8 @@ public class LevelUpUI : MonoBehaviour
         CardManager.Instance.ApplyCardEffect(card);
         ClearContainer();
         Panel.SetActive(false);
-        Time.timeScale = EnemyTipUI.Instance != null && EnemyTipUI.Instance.IsShowing ? 0 : 1;
+        Time.timeScale = TutorialDirector.HoldsPause || EnemyTipUI.Instance != null && EnemyTipUI.Instance.IsShowing ? 0 : 1;
+        TutorialDirector.SelectedCard();
         if (_queuedOffers > 0) { _queuedOffers--; ShowLevelUpOptions(); }
     }
 

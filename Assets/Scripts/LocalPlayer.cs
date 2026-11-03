@@ -81,7 +81,7 @@ public class LocalPlayer : MonoBehaviour
     void LateUpdate()
     {
         if (_aimArrow == null) return;
-        _aimArrow.enabled = Alive && UsesGamepad && Connected;
+        _aimArrow.enabled = Alive && UsesGamepad && Connected && TutorialDirector.AllowAim;
         Vector3 start = transform.position + Vector3.up * .15f;
         Vector3 tip = start + (Vector3)Aim * 1.5f;
         Vector3 side = new Vector3(-Aim.y, Aim.x) * .18f;

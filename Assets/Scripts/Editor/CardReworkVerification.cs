@@ -26,6 +26,13 @@ public static class CardReworkVerification
     }
     static object Call(object target, string name, params object[] args) => target.GetType().GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic).Invoke(target, args);
     static T Field<T>(object target, string name) => (T)target.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic).GetValue(target);
+    static void ResetOrdinaryProfile(ShopManager shop)
+    {
+        shop.ResetProgress();
+        shop.Progress.Tutorial.Stage = TutorialStage.Complete;
+        shop.Progress.Tutorial.Items = ItemTutorialStage.Complete;
+        SaveSystem.SaveData(shop.Progress, updateTutorial: true);
+    }
 
     [MenuItem("Duck Defender/Card Rework/Verify Item And Level Two Codes")]
     public static string RunGrantCodes()
@@ -41,6 +48,7 @@ public static class CardReworkVerification
             var cards = AssetDatabase.FindAssets("t:CardDefinition", new[] { "Assets/Cards/Upgrades" })
                 .Select(g => AssetDatabase.LoadAssetAtPath<CardDefinition>(AssetDatabase.GUIDToAssetPath(g))).Where(c => !c.IsBasic).ToList();
             var data = PlayerData.CreateNew(); data.NormalizeShopData(); data.TotalCoins = 1234;
+            data.Tutorial.Stage = TutorialStage.Complete; data.Tutorial.Items = ItemTutorialStage.Complete;
             data.CardCollection[0].Level = 5; data.CardCollection[0].Duplicates = 7;
             string upgradedID = data.CardCollection[0].CardID;
             data.CardCollection[1].IsUnlocked = false;
@@ -134,9 +142,10 @@ public static class CardReworkVerification
             foreach (var card in cards.Where(c => !c.IsBasic))
             {
                 fresh = PlayerData.CreateNew(); fresh.TotalCoins = 100000;
+                fresh.Tutorial.Stage = TutorialStage.Complete; fresh.Tutorial.Items = ItemTutorialStage.Complete;
                 fresh.CardCollection.RemoveAll(c => c.CardID == card.ID);
                 fresh.CardCollection.Add(new CardSaveData(card.ID) { Duplicates = 100 });
-                SaveSystem.SaveData(fresh); shop.LoadEconomy();
+                SaveSystem.SaveData(fresh, updateTutorial: true); shop.LoadEconomy();
                 int rarity = (int)card.Rarity;
                 int spentCopies = 0, spentGold = 0;
                 for (int level = 1; level < 6; level++)
@@ -159,7 +168,7 @@ public static class CardReworkVerification
                 Check(shop.GetEssence(card.PackCategory) == before - (canAscend ? 1000 : 0), card.ID + " ascension spending");
                 Check(!shop.TryAscendCard(card.ID), card.ID + " cannot ascend twice");
             }
-            shop.ResetProgress();
+            ResetOrdinaryProfile(shop);
             Check(!shop.TryUpgradeCard("mun_faster_firing") && !shop.TryAscendCard("mun_faster_firing"), "cannot buy without resources");
             Check(!shop.ExecuteDeveloperCode("381") && !shop.ExecuteDeveloperCode("0000"), "invalid developer codes");
             Check(shop.ExecuteDeveloperCode("0381") && shop.InfiniteCopies, "leading-zero code grants infinite copies");
@@ -168,8 +177,9 @@ public static class CardReworkVerification
             Check(shop.TryUpgradeCard("mun_faster_firing") && shop.CurrentCoins == 0, "infinite resources do not overflow/subtract");
             Check(shop.ExecuteDeveloperCode("8672") && shop.GetCardData("mun_faster_firing").Level == 2, "unlock all preserves upgrades");
             Check(shop.ExecuteDeveloperCode("3619") && cards.Where(c => !c.IsBasic).All(c => shop.GetCardData(c.ID).Level == 6 && shop.GetCardData(c.ID).IsAscended == (c.Ascension != CardAscension.None)), "max-all code");
-            shop.ResetProgress(); Check(!shop.InfiniteCopies && !shop.InfiniteResources, "reset clears developer flags");
+            ResetOrdinaryProfile(shop); Check(!shop.InfiniteCopies && !shop.InfiniteResources, "reset clears developer flags");
             Check(shop.ExecuteDeveloperCode("5942") && shop.InfiniteResources, "combined code");
+            shop.Progress.PackOpeningTier = 1;
             var pack = ScriptableObject.CreateInstance<ShopPackDefinition>();
             try
             {
@@ -178,14 +188,14 @@ public static class CardReworkVerification
                 Check(shop.TryBuyPacks(pack, 2) == null, "unsupported pack counts rejected");
                 pack.PackType = CardPackType.BaseSet;
                 Check(shop.TryBuyPacks(pack, 3) == null, "Basics cannot be bought in packs");
-                shop.ResetProgress(); fresh = SaveSystem.LoadData(); fresh.TotalCoins = 300; SaveSystem.SaveData(fresh); shop.LoadEconomy();
+                ResetOrdinaryProfile(shop); fresh = SaveSystem.LoadData(); fresh.TotalCoins = 300; fresh.PackOpeningTier = 1; SaveSystem.SaveData(fresh); shop.LoadEconomy();
                 pack.PackType = CardPackType.Gadget;
                 Check(shop.TryBuyPacks(pack, 3).Count == 9 && shop.CurrentCoins == 0 && SaveSystem.LoadData().TotalCoins == 0, "paid triple purchase charges exactly once");
                 Check(shop.TryBuyPacks(pack, 1) == null, "insufficient funds rejects pack");
             }
             finally { UnityEngine.Object.DestroyImmediate(pack); }
 
-            shop.ResetProgress(); shop.ExecuteDeveloperCode("8672");
+            ResetOrdinaryProfile(shop); shop.ExecuteDeveloperCode("8672");
             UnityEngine.Random.InitState(90523);
             int[] rolls = new int[4];
             for (int i = 0; i < 10000; i++) { var c = manager.GetRandomCards(1)[0]; rolls[c.IsBasic ? 3 : (int)c.Rarity]++; }

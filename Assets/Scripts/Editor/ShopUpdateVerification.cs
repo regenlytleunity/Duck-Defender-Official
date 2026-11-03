@@ -66,12 +66,13 @@ public static class ShopUpdateVerification
     {
         RequireIsolation(); var shop = ShopManager.Instance;
         var data = PlayerData.CreateNew(); data.NormalizeShopData(); data.TotalCoins = 500000;
+        data.Tutorial.Stage = TutorialStage.Complete; data.Tutorial.Items = ItemTutorialStage.Complete;
         data.StartingCardSlots = 5; data.PackOpeningTier = 2; data.CompletedRuns = 2;
         data.PermanentUpgrades = new[] { 50, 50, 50, 50, 50 };
         data.CardCollection = shop.AllCards.Where(c => c != null && !c.IsBasic).Select(c => new CardSaveData(c.ID) { Level = 1 }).ToList();
         for (int i = 1; i <= ItemCatalog.Count; i++) data.ItemInventory[i] = 10;
         data.SoloLoadout.Items = new[] { 1, 2, 3, 4 }; data.SoloLoadout.Cards[0] = "mun_faster_firing";
-        SaveSystem.SaveData(data, true); shop.LoadEconomy(); shop.RefreshItemShop(); MainMenuUI.Instance.GetComponent<ShopUpdateUI>().Refresh();
+        SaveSystem.SaveData(data, true, true); shop.LoadEconomy(); shop.RefreshItemShop(); MainMenuUI.Instance.GetComponent<ShopUpdateUI>().Refresh();
         MainMenuUI.Instance.IndexPanel.GetComponent<IndexLoadoutUI>().Refresh();
     }
     public static string CheckVisibleUI()

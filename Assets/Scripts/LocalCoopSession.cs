@@ -32,6 +32,7 @@ public class LocalCoopSession : MonoBehaviour
         var primary = FindFirstObjectByType<PlayerStats>();
         if (primary == null) return;
         var turretTemplate = FindFirstObjectByType<TurretManager>();
+        if (TutorialDirector.CoreActive) RequestedPlayers = 1;
         int count = Mathf.Clamp(RequestedPlayers, 1, 4);
         PlayerStats.Instance = primary; PlayerController.Instance = primary.GetComponent<PlayerController>();
         var bodies = new List<GameObject> { primary.gameObject };
@@ -72,18 +73,19 @@ public class LocalCoopSession : MonoBehaviour
         // PlayerController/Health/Weapon initialize authored defaults in Start.
         yield return null;
         var data = SaveSystem.LoadData(); data.NormalizeShopData();
-        ItemDropsEnabled = data.CompletedRuns >= 2;
+        ItemDropsEnabled = data.CompletedRuns >= 2 && !TutorialDirector.CoreActive;
         ShopManager.SanitizeItems(data, Multiplayer, Players.Count);
         _runStarted = true;
         foreach (var player in Players)
         {
             var items = player.gameObject.AddComponent<PlayerItems>();
-            items.Initialize(player, data, !Multiplayer || AdvancedLoadouts);
+            items.Initialize(player, data, !TutorialDirector.CoreActive && (!Multiplayer || AdvancedLoadouts));
         }
     }
     public void CompleteWave() { CompletedWaves++; }
     public void CompleteRun()
     {
+        if (TutorialDirector.ProtectedRun || TutorialDirector.CoreActive) return;
         if (!_runStarted || _runCompleted) return;
         _runCompleted = true;
         LevelManager.Instance?.FlushCoinSave();
@@ -109,7 +111,7 @@ public class LocalCoopSession : MonoBehaviour
         else if (_devicePause)
         {
             _devicePause = false;
-            if ((LevelUpUI.Instance == null || !LevelUpUI.Instance.IsOffering) && (EnemyTipUI.Instance == null || !EnemyTipUI.Instance.IsShowing)) Time.timeScale = 1;
+            if (!TutorialDirector.HoldsPause && (LevelUpUI.Instance == null || !LevelUpUI.Instance.IsOffering) && (EnemyTipUI.Instance == null || !EnemyTipUI.Instance.IsShowing)) Time.timeScale = 1;
         }
     }
 

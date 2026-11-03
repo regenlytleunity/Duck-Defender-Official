@@ -103,6 +103,7 @@ public class MainMenuUI : MonoBehaviour
 
     public void SelectDifficulty(int difficulty)
     {
+        if (TutorialDirector.MenuLocked) return;
         GameDifficulty.Select(difficulty);
         RefreshDifficulty();
     }
@@ -130,6 +131,7 @@ public class MainMenuUI : MonoBehaviour
     // --- NAVIGATION ---
 public void ShowPanel(GameObject panel)
 {
+    if (!TutorialDirector.AllowPanel(panel)) return;
     RememberFocus();
     GetComponent<HostMenuUI>()?.Hide();
     StopAllCoroutines();
@@ -194,6 +196,7 @@ public void ShowPanel(GameObject panel)
     
     public void BackToMainMenu()
     {
+        if (!TutorialDirector.AllowPanel(MenuPanel) && !ConfirmPanel.activeInHierarchy) return;
         if (ConfirmPanel.activeInHierarchy) { CancelPurchase(); return; }
         if (IndexPanel.activeInHierarchy && IndexPanel.GetComponent<IndexLoadoutUI>()?.HandleBack() == true) return;
         if (SettingsPanel.activeInHierarchy && SettingsPanel.GetComponent<SettingsMenuUI>().HandleBack()) return;
@@ -275,6 +278,7 @@ public void OpenShop()
 
 void OnPackClicked(ShopPackDefinition pack)
 {
+    if (TutorialDirector.MenuLocked && (!TutorialDirector.CoreActive || TutorialDirector.Progress.Stage != TutorialStage.Shop)) return;
     if (ConfirmPanel.activeInHierarchy || OpeningOverlay.activeInHierarchy || _purchaseInProgress) return;
     RememberFocus();
     if (AudioManager.Instance != null) AudioManager.Instance.PlaySFX("UI_button_Click");
@@ -378,6 +382,7 @@ void Purchase(int count)
             System.Array.Resize(ref AdditionalPackImages, _packCount - 1);
             for (int i = previous; i < AdditionalPackImages.Length; i++) AdditionalPackImages[i] = Instantiate(PackImage, PackImage.transform.parent);
         }
+        TutorialPackRevealed = false;
         OpeningOverlay.SetActive(true);
         ShopPanel.SetActive(false);
 
@@ -509,6 +514,7 @@ void Purchase(int count)
     void CompleteSlice()
     {
         if (!_isSlicingMode) return;
+        if (TutorialDirector.CoreActive && TutorialDirector.Progress.Stage == TutorialStage.PackPurchased) TutorialDirector.SaveStage(TutorialStage.ShopReturn);
         _isSlicingMode = false;
         SliceZone.SetActive(false);
         SliceHelpText.SetActive(false);
@@ -521,6 +527,23 @@ void Purchase(int count)
         }
 
         StartCoroutine(RevealCardsRoutine());
+    }
+
+    public void ResumeTutorialPack()
+    {
+        var progress = ShopManager.Instance.Progress.Tutorial;
+        _selectedPack = ShopManager.Instance.AvailablePacks.Find(p => p != null && p.PackType == progress.Pack);
+        var starter = ShopManager.Instance.AllCards.Find(c => c != null && c.ID == progress.UpgradeCardID);
+        var extra = ShopManager.Instance.AllCards.Find(c => c != null && c.ID == progress.NewCardID);
+        if (_selectedPack == null || starter == null || extra == null)
+        {
+            Debug.LogError("[Tutorial] Saved pack references are missing from the shop database.");
+            TutorialDirector.SaveStage(TutorialStage.ShopReturn);
+            ShowPanel(ShopPanel); return;
+        }
+        ShowPanel(ShopPanel);
+        _packCount = 1; _purchasedCards = new List<CardDefinition> { starter, starter, extra }; _purchaseInProgress = true;
+        StartPackOpening(_selectedPack);
     }
 
     /// <summary>
@@ -552,13 +575,7 @@ void Purchase(int count)
         {
             Debug.LogError($"<color=red>No cards returned from pack type: {_selectedPack.PackType}. Check ShopManager's card list.</color>");
             
-            // Show continue button anyway so the player isn't stuck
-            if (ContinueButton != null)
-            {
-                ContinueButton.gameObject.SetActive(true);
-                ContinueButton.onClick.RemoveAllListeners();
-                ContinueButton.onClick.AddListener(() => ShowPanel(ShopPanel));
-            }
+            FinishPackReveal();
             yield break;
         }
 
@@ -620,9 +637,16 @@ void Purchase(int count)
 
         yield return new WaitForSeconds(1.0f * timingScale);
         
+        FinishPackReveal();
+    }
+
+    public bool TutorialPackRevealed { get; private set; }
+    void FinishPackReveal()
+    {
+        TutorialPackRevealed = true;
         if (ContinueButton != null)
         {
-            ContinueButton.gameObject.SetActive(true);
+            ContinueButton.gameObject.SetActive(!TutorialDirector.CoreActive);
             ContinueButton.onClick.RemoveAllListeners();
             ContinueButton.onClick.AddListener(() => ShowPanel(ShopPanel));
         }
