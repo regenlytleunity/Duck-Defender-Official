@@ -10,10 +10,10 @@ public class HostMenuUI : MonoBehaviour
     public Sprite DuckPreviewSprite;
     public bool CardFilterOpen { get; private set; }
     MainMenuUI _menu;
-    TMP_Text _players, _difficulty, _respawn, _colors, _status, _controls;
+    TMP_Text _players, _respawn, _colors, _status, _controls;
     TMP_Text _loadoutMode;
     UnityEngine.UI.Button _start;
-    int _count = 2, _difficultyIndex;
+    int _count = 2;
     void Start()
     {
         _menu = GetComponent<MainMenuUI>();
@@ -53,7 +53,7 @@ public class HostMenuUI : MonoBehaviour
         CoopUIElements.Text(panel, "HOST LOCAL CO-OP", new Vector2(.12f, .87f), new Vector2(.88f, .98f), 48);
         _controls = CoopUIElements.Text(panel, "", new Vector2(.1f, .71f), new Vector2(.9f, .87f), 26);
         _players = Row(panel, .615f, () => { _count = _count == 4 ? 2 : _count + 1; Refresh(); });
-        _difficulty = Row(panel, .525f, () => { _difficultyIndex = (_difficultyIndex + 1) % 3; Refresh(); });
+        CoopUIElements.Text(panel, "Difficulty adapts to the host's collection", new Vector2(.15f, .525f), new Vector2(.85f, .60f), 24);
         _respawn = Row(panel, .435f, () => { LocalCoopSession.Respawning = !LocalCoopSession.Respawning; Refresh(); });
         _colors = Row(panel, .345f, () => { LocalCoopSession.HealthStyle = LocalCoopSession.HealthStyle == LocalCoopSession.HealthBarStyle.Classic ? LocalCoopSession.HealthBarStyle.AbovePlayer : LocalCoopSession.HealthBarStyle.Classic; Refresh(); });
         _loadoutMode = Row(panel, .255f, () => { LocalCoopSession.AdvancedLoadouts = !LocalCoopSession.AdvancedLoadouts; Refresh(); });
@@ -74,7 +74,6 @@ public class HostMenuUI : MonoBehaviour
         bool test = LocalCoopSession.KeyboardTest && _count == 2;
         int required = test ? 1 : _count;
         _players.text = "Players: " + _count + "   >";
-        _difficulty.text = "Difficulty: " + ((RunDifficulty)_difficultyIndex) + "   >";
         _respawn.text = "Respawn next wave: " + (LocalCoopSession.Respawning ? "ON" : "OFF");
         _colors.text = "Health bar style: " + (LocalCoopSession.HealthStyle == LocalCoopSession.HealthBarStyle.Classic ? "Classic" : "Above player");
         _loadoutMode.text = "Loadouts style: " + (LocalCoopSession.AdvancedLoadouts ? "Advanced" : "Simple");
@@ -86,7 +85,7 @@ public class HostMenuUI : MonoBehaviour
         if (TutorialDirector.MenuLocked) return;
         int required = LocalCoopSession.KeyboardTest && _count == 2 ? 1 : _count;
         if (Gamepad.all.Count < required) { Refresh(); return; }
-        LocalCoopSession.RequestedPlayers = _count; GameDifficulty.Select(_difficultyIndex);
+        LocalCoopSession.RequestedPlayers = _count;
         Hide();
         (GetComponent<CoopLobbyUI>() ?? gameObject.AddComponent<CoopLobbyUI>()).Open(this);
     }

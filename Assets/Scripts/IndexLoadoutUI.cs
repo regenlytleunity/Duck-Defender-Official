@@ -66,8 +66,10 @@ public class IndexLoadoutUI : MonoBehaviour
         _index.PreviousButton.gameObject.SetActive(!_itemsMode); _index.NextButton.gameObject.SetActive(!_itemsMode);
         _index.PageText.gameObject.SetActive(!_itemsMode); _index.LayoutButton.gameObject.SetActive(true);
         _index.CoinsText.gameObject.SetActive(!_itemsMode && !host); _index.EssenceText.gameObject.SetActive(!_itemsMode && !host);
-        CoopUIElements.Stretch(_index.CoinsText.rectTransform, new Vector2(.305f, .866f), new Vector2(.78f, .976f));
-        CoopUIElements.Stretch(_index.EssenceText.rectTransform, new Vector2(.305f, .79f), new Vector2(.89f, .866f));
+        // The tutorial prompt occupies the top right; keep both balances beside it.
+        float balanceRight = TutorialDirector.MenuLocked ? .57f : .89f;
+        CoopUIElements.Stretch(_index.CoinsText.rectTransform, new Vector2(.305f, .866f), new Vector2(Mathf.Min(.78f, balanceRight), .976f));
+        CoopUIElements.Stretch(_index.EssenceText.rectTransform, new Vector2(.305f, .79f), new Vector2(balanceRight, .866f));
         _index.CoinsText.alignment = _index.EssenceText.alignment = TMPro.TextAlignmentOptions.Left;
         _index.CoinsText.enableAutoSizing = _index.EssenceText.enableAutoSizing = true;
         _index.CoinsText.fontSizeMin = _index.EssenceText.fontSizeMin = 14;

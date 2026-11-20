@@ -37,7 +37,7 @@ public class CardIndexUI : MonoBehaviour
 
     public void SelectPack(int pack)
     {
-        if (TutorialDirector.MenuLocked && (!TutorialDirector.CoreActive || pack != (int)TutorialDirector.Progress.Pack)) return;
+        if (TutorialDirector.CapturesContinue) return;
         if (pack < 0 || pack > 3) return;
         SelectedPack = (CardPackType)pack;
         CurrentPage = 0;

@@ -1,0 +1,162 @@
+PASS: 161 tutorial Play Mode checks.
+Fresh save automatically enters stage 1.
+Game frames advance in Play Mode.
+Practice suppresses normal waves.
+Welcome locks gameplay controls.
+No manual Continue or Restart step control exists.
+All HUD decorations are hidden before their lessons.
+Prompt waits for Interact: Welcome to Duck Defender! Let's run through the basics.
+Interact advances: Welcome to Duck Defender! Let's run through the basics.
+Walking goals use the upward fading gradient.
+Controller movement reaches practice goal.
+One movement goal cannot skip the other.
+Falling out of practice returns the player to the lesson.
+Automatic fall recovery preserves completed objectives.
+Controller movement reaches practice goal.
+Controller movement reaches practice goal.
+Prompt waits for Interact: Move left and right with the left thumbstick. Touch both highlighted areas.
+Interact advances: Move left and right with the left thumbstick. Touch both highlighted areas.
+Box landing goal also uses the gradient.
+Actual controller jump lands on the box.
+Box glow fades after landing, like the movement goals.
+Prompt waits for Interact: Quickly move the movement thumbstick up to jump. Land on top of the box.
+Interact advances: Quickly move the movement thumbstick up to jump. Land on top of the box.
+Dartboards are farther away than the previous targets.
+Prompt waits for Interact: Use the right thumbstick to aim at all five targets.
+Interact advances: Use the right thumbstick to aim at all five targets.
+All five aim goals unlock shooting targets.
+A real feather destroys target 0
+A real feather destroys target 1
+A real feather destroys target 2
+A real feather destroys target 3
+A real feather destroys target 4
+Prompt waits for Interact: Press RT to fire feathers. Destroy all five targets.
+Interact advances: Press RT to fire feathers. Destroy all five targets.
+Practice enemies start outside the camera.
+Leftover feathers cannot kill an enemy during its approach.
+Both enemies reach their stops and unlock combat.
+Enemies approach monotonically without overshooting or rubberbanding.
+Both enemies freeze at the designated points.
+Exactly two practice enemies have 2 HP.
+First enemy awards exactly half the XP bar.
+Second enemy opens the level-up offer.
+All three practice cards remain focusable.
+Required Health card uses green guidance distinct from controller focus.
+Controller navigation reaches the second card.
+Controller navigation reaches the third card.
+Hover inspection works for bas_damage
+Reachable menu control: LevelUpCard(Clone)
+Activating bas_damage cannot advance the lesson.
+Hover inspection works for bas_mobility
+Reachable menu control: LevelUpCard(Clone)
+Activating bas_mobility cannot advance the lesson.
+Direct selection cannot bypass the required health card.
+Health lesson reveals the numeric bar and releases card pause.
+Practice grants no coins.
+Prompt waits for Interact: Health is a valuable resource. Don't let it reach 0 or you lose!
+Interact advances: Health is a valuable resource. Don't let it reach 0 or you lose!
+Prompt waits for Interact: Tutorial stage 1 complete! Ready to return to the home menu.
+Interact advances: Tutorial stage 1 complete! Ready to return to the home menu.
+Stage 1 returns to menu.
+Collection browsing is available before stage 2.
+Reachable menu control: IndexButton
+Control belongs to current navigation scope: IndexButton
+Reachable menu control: GadgetTab
+Control belongs to current navigation scope: GadgetTab
+Browsing other packs preserves the tutorial checkpoint.
+Reachable menu control: BackButton
+Control belongs to current navigation scope: BackButton
+Reachable menu control: PlayButton
+Control belongs to current navigation scope: PlayButton
+Stage 2 opens.
+Prompt waits for Interact: Defeat enemies to level up and earn coins.
+Interact advances: Defeat enemies to level up and earn coins.
+Stage 2 has no restart button.
+Interrupted waves resume from the Play checkpoint.
+Reachable menu control: PlayButton
+Control belongs to current navigation scope: PlayButton
+Prompt waits for Interact: Defeat enemies to level up and earn coins.
+Interact advances: Defeat enemies to level up and earn coins.
+Stage 2 enemy explanation pauses the run.
+Enemy tip waits for Interact.
+Interact dismisses the enemy tip.
+Lethal tutorial damage stops at 1 health.
+Stage 2 blocks item drops and use.
+Stage 2 ends at wave 5, saves reward and pauses.
+Tutorial waves 1-5 spawn 2, 3, 4, 5, 6 enemies: half the normal totals.
+Halving waves preserves the flying enemy introduction.
+Prompt waits for Interact: Stage 2 complete! Let's spend those coins at the shop.
+Interact advances: Stage 2 complete! Let's spend those coins at the shop.
+Reward returns to shop lesson.
+Reachable menu control: ShopButton
+Control belongs to current navigation scope: ShopButton
+Controller can move away from the first pack.
+One green guidance follows the focused pack; no stuck tutorial focus frame remains.
+Reachable menu control: ShopPackButton(Clone)
+Control belongs to current navigation scope: ShopPackButton(Clone)
+Reachable menu control: YesButton
+Control belongs to current navigation scope: YesButton
+Back cannot escape an unopened tutorial pack.
+Reload restores purchased pack without charging again.
+Pack reveal completes.
+Tutorial pack reveal has no manual Continue button.
+Prompt waits for Interact: These cards are now saved in your collection.
+Interact advances: These cards are now saved in your collection.
+Interact closes the pack reveal without activating a pack.
+Reachable menu control: BackButton
+Control belongs to current navigation scope: BackButton
+Reachable menu control: IndexButton
+Control belongs to current navigation scope: IndexButton
+Browsing enters the upgrade lesson without an extra confirmation.
+Reachable menu control: MobilityTab
+Control belongs to current navigation scope: MobilityTab
+Pack browsing does not escape the upgrade lesson.
+Reachable menu control: MunitionsTab
+Control belongs to current navigation scope: MunitionsTab
+Reachable menu control: Prefab_UI_Card_Reward(Clone)
+Control belongs to current navigation scope: Prefab_UI_Card_Reward(Clone)
+Reachable menu control: Upgrade - 100 Coins
+Control belongs to current navigation scope: Upgrade - 100 Coins
+Guided index upgrade succeeds.
+Reachable menu control: BackButton
+Control belongs to current navigation scope: BackButton
+Core tutorial completes and unlocks normal menus.
+Prompt waits for Interact: TUTORIAL COMPLETE! Keep collecting coins and buying cards to reach higher waves!
+Interact advances: TUTORIAL COMPLETE! Keep collecting coins and buying cards to reach higher waves!
+Completion Interact does not start an unintended game.
+Reachable menu control: ShopButton
+Control belongs to current navigation scope: ShopButton
+First purchased item starts item lesson.
+Item tutorial restores the normal prompt color after chromatic completion.
+Reachable menu control: BackButton
+Control belongs to current navigation scope: BackButton
+Reachable menu control: IndexButton
+Control belongs to current navigation scope: IndexButton
+Reachable menu control: ItemsTab
+Control belongs to current navigation scope: ItemsTab
+Items tab opens equipment after the core lesson (mode=True, stage=Equip).
+Item lesson prevents selling.
+Reachable menu control: >
+Control belongs to current navigation scope: >
+Reachable menu control: Item 9
+Control belongs to current navigation scope: Item 9
+Reachable menu control: Equip to slot 1
+Control belongs to current navigation scope: Equip to slot 1
+Item lesson accepts equipping through its menu.
+Prompt waits for Interact: During a run, select items with D-pad up, D-pad right, D-pad down, D-pad left. Press RB to use the selected item. Throwable items use hold, aim, then release.
+Interact advances: During a run, select items with D-pad up, D-pad right, D-pad down, D-pad left. Press RB to use the selected item. Throwable items use hold, aim, then release.
+Item completion banner holds menu focus.
+Prompt waits for Interact: TUTORIAL COMPLETE!
+Interact advances: TUTORIAL COMPLETE!
+Dismissing item completion restores navigation.
+Reachable menu control: BackButton
+Control belongs to current navigation scope: BackButton
+Reachable menu control: PlayButton
+Control belongs to current navigation scope: PlayButton
+Normal runs restore item loadouts and remove tutorial protection.
+Equipping before a run enables its item wheel.
+Normal run lethal damage is no longer clamped.
+Normal eligible runs retain item drops.
+First pickup records the item lesson without interrupting gameplay.
+Picking up mid-run does not enable an unequipped item wheel.
+Pickup lesson starts on return to menu with Index reachable.

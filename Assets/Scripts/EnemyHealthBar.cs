@@ -12,13 +12,16 @@ public class EnemyHealthBar : MonoBehaviour
     public Vector2 BarSizeMultiplier = new Vector2(1.35f, 1.8f);
 
     private Transform _target;
+    Vector2 _baseSize;
+    bool _initialized;
 
     public void Initialize(Transform target, float maxHealth)
     {
         _target = target;
         if (HealthSlider == null) return;
         var rect = HealthSlider.GetComponent<RectTransform>();
-        rect.sizeDelta = Vector2.Scale(rect.sizeDelta, BarSizeMultiplier);
+        if (!_initialized) { _initialized = true; _baseSize = rect.sizeDelta; }
+        rect.sizeDelta = Vector2.Scale(_baseSize, BarSizeMultiplier);
         HealthSlider.interactable = false;
         if (HealthText == null) HealthText = CreateLabel(HealthSlider);
         HealthSlider.maxValue = maxHealth;

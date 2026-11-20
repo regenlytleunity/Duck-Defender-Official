@@ -43,11 +43,11 @@ public class CoopRunUI : MonoBehaviour
             if (coin != null) CoopUIElements.Stretch(coin, new Vector2(.012f, .937f), new Vector2(.03f, .979f));
             var xp = ui.XPBar;
             xp.Background.preserveAspect = xp.Overlay.preserveAspect = false;
-            CoopUIElements.Stretch((RectTransform)xp.transform, new Vector2(.2f, .945f), new Vector2(.8f, .99f));
+            CoopUIElements.Stretch((RectTransform)xp.transform, new Vector2(.2f, .92f), new Vector2(.8f, .965f));
             CoopUIElements.Stretch(xp.Background.rectTransform, Vector2.zero, Vector2.one);
             CoopUIElements.Stretch(xp.Overlay.rectTransform, Vector2.zero, Vector2.one);
             xp.Overlay.rectTransform.offsetMin = new Vector2(6, 6); xp.Overlay.rectTransform.offsetMax = new Vector2(-6, -6);
-            if (ui.LevelText != null) { CoopUIElements.Stretch(ui.LevelText.rectTransform, new Vector2(.43f, .9f), new Vector2(.57f, .945f)); CoopUIElements.WhiteInfill(ui.LevelText); }
+            if (ui.LevelText != null) { CoopUIElements.Stretch(ui.LevelText.rectTransform, new Vector2(.43f, .875f), new Vector2(.57f, .92f)); CoopUIElements.WhiteInfill(ui.LevelText); }
             if (ui.WaveText != null) CoopUIElements.Stretch(ui.WaveText.rectTransform, new Vector2(.81f, .93f), new Vector2(.99f, .99f));
             if (ui.EnemiesLeftText != null) CoopUIElements.Stretch(ui.EnemiesLeftText.rectTransform, new Vector2(.81f, .87f), new Vector2(.99f, .93f));
             if (ui.CoinText != null) CoopUIElements.Stretch(ui.CoinText.rectTransform, new Vector2(.035f, .925f), new Vector2(.18f, .98f));
@@ -65,7 +65,7 @@ public class CoopRunUI : MonoBehaviour
             {
                 var classic = Instantiate(ui.PlayerHealthBar, _canvas); classic.name = "Classic health P" + (player.Index + 1);
                 classic.gameObject.SetActive(true); bar = (RectTransform)classic.transform;
-                CoopUIElements.Stretch(bar, new Vector2(.02f, .81f - player.Index * .095f), new Vector2(.19f, .85f - player.Index * .095f));
+                CoopUIElements.Stretch(bar, new Vector2(.02f, .79f - player.Index * .095f), new Vector2(.23f, .83f - player.Index * .095f));
                 CoopUIElements.Stretch(classic.Background.rectTransform, Vector2.zero, Vector2.one);
                 fill = classic.Overlay; CoopUIElements.Stretch(fill.rectTransform, Vector2.zero, Vector2.one);
                 classic.Background.preserveAspect = fill.preserveAspect = false;

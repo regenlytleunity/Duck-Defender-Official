@@ -1,0 +1,1 @@
+PASS: isolated two-player classic co-op HUD uses two longer/lower health bars and a half-full blue shared XP bar without an orb. Screenshot: coop-hud.png.

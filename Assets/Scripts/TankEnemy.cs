@@ -28,7 +28,7 @@ public class TankEnemy : SwarmerEnemy
     public int LifetimeLinks => _lifetimeLinks;
     public int DefeatedLinks => _defeatedLinks;
     protected override float EliteHealthMultiplier => 1;
-    protected override float HealthAtWave(int wave) => 3 * (WaveManager.Instance != null ? WaveManager.Instance.BasicGroundHealth(wave) : Mathf.Floor(2 + WaveManager.HealthIncreaseAtWave(wave)));
+    protected override float HealthAtWave(int wave) => 3 * (WaveManager.Instance != null ? WaveManager.Instance.BasicGroundHealth(wave) : GameDifficulty.HealthAtWave(2, wave));
     protected override float SpeedAtSpawn => (WaveManager.Instance != null ? WaveManager.Instance.BasicGroundSpeed() : 4) * GroundSpeedMultiplier;
     protected override float RuntimeSpeedMultiplier => 1 + (IsElite ? .1f * _defeatedLinks : 0);
     protected override float StrikeDamage => DamageOnHit + (IsElite ? .25f * _defeatedLinks : 0);

@@ -260,7 +260,7 @@ public static class UIUpdateVerification
         var wave=WaveManager.Instance;var level=LevelManager.Instance;
         Check(wave!=null&&level!=null&&PlayerController.Instance!=null,"Play button loaded gameplay");
         Check(UnityEngine.Object.FindObjectsByType<InputManager>(FindObjectsSortMode.None).Count(i=>i.isActiveAndEnabled)==1,"input manager survives scene transition without duplicates");
-        Check(GameDifficulty.Selected==RunDifficulty.Hard,"selected difficulty survives scene transition");
+        Check(GameDifficulty.Current.UnlockedCards>0,"collection snapshot initialized on scene transition");
         var staging=new GameObject("UI verification enemies");staging.SetActive(false);
         var speedField=typeof(EnemyBase).GetField("CurrentSpeed",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic);
         var healthField=typeof(PlayerHealth).GetField("_currentHealth",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic);
@@ -272,14 +272,13 @@ public static class UIUpdateVerification
             for(int difficulty=0;difficulty<3;difficulty++)
             {
                 GameDifficulty.Select(difficulty,false);
-                float multiplier=GameDifficulty.HealthMultiplier;
                 foreach(int number in new[]{1,20}) foreach(var prefab in wave.EnemyPrefabs)
                 {
                     if(prefab==null)continue;
                     var enemy=UnityEngine.Object.Instantiate(prefab,staging.transform).GetComponent<EnemyBase>();enemy.HealthBarPrefab=null;
                     enemy.Initialize(number);
-                    float baseHealth=enemy is TankEnemy ? 4*wave.BasicGroundHealth(number) : Mathf.Floor(enemy.BaseHealth+WaveManager.HealthIncreaseAtWave(number));
-                    Check(Mathf.Approximately(enemy.MaxHealth,baseHealth*multiplier),"enemy health: "+enemy.EnemyKind+" difficulty "+difficulty+" wave "+number);
+                    float baseHealth=enemy is TankEnemy ? 3*wave.BasicGroundHealth(number) : GameDifficulty.HealthAtWave(enemy.BaseHealth,number);
+                    Check(Mathf.Approximately(enemy.MaxHealth,baseHealth),"enemy health: "+enemy.EnemyKind+" difficulty "+difficulty+" wave "+number);
                     float baseSpeed=enemy is TankEnemy ? wave.BasicGroundSpeed()*((TankEnemy)enemy).GroundSpeedMultiplier : enemy.BaseSpeed;
                     Check(Mathf.Approximately((float)speedField.GetValue(enemy),baseSpeed*GameDifficulty.SpeedMultiplier),"enemy speed: "+enemy.EnemyKind);
                 }
@@ -306,18 +305,18 @@ public static class UIUpdateVerification
         _checks=0;
         var menu=MainMenuUI.Instance;var shop=ShopManager.Instance;
         Check(menu!=null && shop!=null,"menu owners alive");
+        Check(GameObject.Find("Tutorial prompt")==null,"completed tutorial leaves ordinary menus unobscured");
         var settings=menu.SettingsPanel.GetComponent<SettingsMenuUI>();
         Check(UnityEngine.Object.FindObjectsByType<UnityEngine.EventSystems.EventSystem>(FindObjectsSortMode.None).Length==1,"one EventSystem");
         Check(menu.GetComponent<UnityEngine.UI.GraphicRaycaster>()!=null,"canvas raycaster");
         for(int i=0;i<3;i++)
         {
             menu.DifficultyButtons[i].onClick.Invoke();
-            Check((int)GameDifficulty.Selected==i,"difficulty button "+i);
-            for(int j=0;j<3;j++) Check(menu.DifficultyButtons[j].GetComponent<UnityEngine.UI.Outline>().enabled==(i==j),"exclusive difficulty border");
+            Check(GameDifficulty.Selected==RunDifficulty.Easy,"legacy difficulty callback has no effect");
+            for(int j=0;j<3;j++) Check(!menu.DifficultyButtons[j].gameObject.activeSelf,"difficulty choice is hidden");
         }
-        Check(GameDifficulty.HealthMultiplier==2 && GameDifficulty.DamageMultiplier==2 && GameDifficulty.SpeedMultiplier==1.1f,"Hard modifiers");
-        float hardGrowth=WaveManager.HealthIncreaseAtWave(20);menu.SelectDifficulty(0);
-        Check(Mathf.Approximately(hardGrowth,WaveManager.HealthIncreaseAtWave(20)*2),"Hard doubles health growth");
+        Check(GameDifficulty.DamageMultiplier==1 && GameDifficulty.SpeedMultiplier==1 && GameDifficulty.CoinMultiplier==1,"collection scaling preserves base combat and coins");
+        Check(Mathf.Approximately(WaveManager.HealthIncreaseAtWave(20),19.5f),"unscaled wave growth is independent of legacy choices");
         Check(menu.MenuPanel.transform.Find("HostButton").GetComponent<UnityEngine.UI.Button>().interactable,"host enabled");
         foreach(string name in new[]{"JoinButton","RankedButton","LeaderboardButton"})
             Check(!menu.MenuPanel.transform.Find(name).GetComponent<UnityEngine.UI.Button>().interactable,"disabled "+name);

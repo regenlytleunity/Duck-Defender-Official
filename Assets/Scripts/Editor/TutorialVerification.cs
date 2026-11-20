@@ -23,7 +23,7 @@ public static class TutorialVerification
     {
         if (EditorApplication.isPlaying) throw new InvalidOperationException("Run this check outside Play Mode.");
         string previous = SaveSystem.VerificationSavePath;
-        string path = Path.GetFullPath("tmp/tutorial/isolated-save.json");
+        string path = Path.GetFullPath("tmp/update9/isolated-save.json");
         Directory.CreateDirectory(Path.GetDirectoryName(path));
         var setup = EditorSceneManager.GetSceneManagerSetup();
         try
@@ -70,6 +70,8 @@ public static class TutorialVerification
                 Check(!shop.TryUpgradeCard(PlayerData.StarterIDs.First(s => s != id)), "Unrelated upgrade rejected.");
                 Check(shop.TryUpgradeCard(id) && shop.CurrentCoins == 57 && shop.GetCardData(id).Level == 2, "Pack and upgrade spend exactly the 200-coin grant.");
                 Check(!shop.TryUpgradeCard(id) && shop.Progress.Tutorial.Stage == TutorialStage.IndexReturn, "Upgrade cannot be applied twice.");
+                var collection = GameDifficulty.ReadCollection(shop.Progress, shop.AllCards);
+                Check(collection.UnlockedCards == 9 && collection.CombinedLevels == 10, "Actual post-tutorial collection has 9 cards / 10 levels: " + pack.PackName);
             }
             data = PlayerData.CreateNew(); data.Tutorial.Stage = TutorialStage.Complete;
             data.Tutorial.HasObtainedItem = true; data.Tutorial.Items = ItemTutorialStage.Equip;
@@ -99,7 +101,7 @@ public static class TutorialVerification
                 reduce.Invoke(null, new object[] { plan });
                 Check(plan.Count == (count + 1) / 2 && plan[0].Introduction, "Tutorial reduction retains the introduction and rounds up: " + count);
             }
-            File.WriteAllText(Path.GetFullPath("tmp/tutorial/verification.txt"), "PASS: " + _checks + " tutorial save, economy and serialized-reference checks.");
+            File.WriteAllText(Path.GetFullPath("tmp/update9/verification.txt"), "PASS: " + _checks + " tutorial save, economy and serialized-reference checks.");
             Debug.Log("PASS: " + _checks + " tutorial checks.");
         }
         finally

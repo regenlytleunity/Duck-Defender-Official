@@ -45,15 +45,15 @@ public class WaveManager : MonoBehaviour
             health += (double)steps * increments[i];
             previous = ends[i];
         }
-        return (float)health * GameDifficulty.GrowthMultiplier;
+        return (float)health;
     }
 
     public float BasicGroundHealth(int wave)
     {
         if (EnemyPrefabs != null) foreach (var prefab in EnemyPrefabs)
             if (prefab != null && prefab.TryGetComponent<EnemyBase>(out var enemy) && enemy.EnemyKind == "ground")
-                return Mathf.Max(1, Mathf.Floor(enemy.BaseHealth + HealthIncreaseAtWave(wave)));
-        return Mathf.Max(1, Mathf.Floor(2 + HealthIncreaseAtWave(wave)));
+                return GameDifficulty.HealthAtWave(enemy.BaseHealth, wave);
+        return GameDifficulty.HealthAtWave(2, wave);
     }
 
     public float BasicGroundSpeed()
@@ -117,6 +117,8 @@ public class WaveManager : MonoBehaviour
 
     void Start()
     {
+        // All scene Awakes have run, including the registered card database.
+        GameDifficulty.BeginRun(SaveSystem.LoadData(), CardManager.Instance != null ? CardManager.Instance.AllCards : null);
         // Start the random rotation of in-game music tracks.
         // The AudioManager handles picking tracks 1/2/3 randomly, never repeating 
         // the same track twice in a row, and crossfading between them.

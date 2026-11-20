@@ -25,7 +25,6 @@ public class EnemyTipUI : MonoBehaviour
     bool _repeat, _released;
     string _currentID;
     float _shownAt, _resumeAfter, _previousScale = 1;
-    float _tutorialElapsed, _tutorialReadDelay;
 
     void Awake()
     {
@@ -63,8 +62,6 @@ public class EnemyTipUI : MonoBehaviour
         Illustration.gameObject.SetActive(illustration != null);
         Panel.SetActive(true);
         _shownAt = Time.unscaledTime;
-        _tutorialElapsed = 0;
-        _tutorialReadDelay = Mathf.Clamp(description.Length * .045f, 3, 9);
         _released = false;
         _previousScale = Time.timeScale;
         Time.timeScale = 0;
@@ -75,10 +72,10 @@ public class EnemyTipUI : MonoBehaviour
         if (!IsShowing) return;
         if (TutorialDirector.ProtectedRun)
         {
-            ContinueText.text = "Continuing automatically...";
-            if (LocalCoopSession.Instance == null || !LocalCoopSession.Instance.DevicesMissing)
-                _tutorialElapsed += Mathf.Min(Time.unscaledDeltaTime, .1f);
-            if (_tutorialElapsed >= _tutorialReadDelay) Dismiss();
+            ContinueText.text = TutorialDirector.ContinueHint;
+            if (LocalCoopSession.Instance != null && LocalCoopSession.Instance.DevicesMissing) return;
+            if (Time.unscaledTime - _shownAt >= InputGraceSeconds && !TutorialDirector.ContinueHeld) _released = true;
+            if (_released && TutorialDirector.ContinuePressed) { TutorialDirector.ConsumeContinueInput(); Dismiss(); }
             return;
         }
         bool graceOver = Time.unscaledTime - _shownAt >= InputGraceSeconds;

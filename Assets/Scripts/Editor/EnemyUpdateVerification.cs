@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
@@ -55,6 +56,102 @@ public static class EnemyUpdateVerification
         return enemy;
     }
     static void Set(object target, Type type, string field, object value) => type.GetField(field, BindingFlags.Instance | BindingFlags.NonPublic).SetValue(target, value);
+
+    [MenuItem("Duck Defender/Enemies/Verify collection difficulty")]
+    public static string VerifyCollectionDifficulty()
+    {
+        if (EditorApplication.isPlaying) throw new InvalidOperationException("Run outside Play Mode.");
+        var setup = UnityEditor.SceneManagement.EditorSceneManager.GetSceneManagerSetup();
+        for (int i = 0; i < UnityEngine.SceneManagement.SceneManager.sceneCount; i++)
+            if (UnityEngine.SceneManagement.SceneManager.GetSceneAt(i).isDirty) throw new InvalidOperationException("Save scene changes first.");
+        var oldWave = WaveManager.Instance; var oldStats = PlayerStats.Instance;
+        var oldRegistry = new List<EnemyBase>(EnemyBase.ActiveEnemies);
+        _checks = 0;
+        try
+        {
+            UnityEditor.SceneManagement.EditorSceneManager.OpenScene("Assets/Scenes/SampleScene.unity");
+            var cards = UnityEngine.Object.FindFirstObjectByType<CardManager>().AllCards;
+            var waves = UnityEngine.Object.FindFirstObjectByType<WaveManager>();
+            WaveManager.Instance = waves; PlayerStats.Instance = null;
+            var eligible = cards.Where(c => c != null && !c.IsBasic).GroupBy(c => c.ID).Select(g => g.First()).ToList();
+            Check(eligible.Count == 47 && cards.Count(c => c != null && c.IsBasic) == 4, "Actual gameplay registry has 47 collection cards and four Basics (51 total).");
+            var fresh = PlayerData.CreateNew();
+            var scaling = GameDifficulty.ReadCollection(fresh, cards);
+            Check(scaling.UnlockedCards == 8 && scaling.CombinedLevels == 8 && scaling.Score == 0, "Fresh starter collection is below the tutorial baseline.");
+            fresh.CardCollection[0].Level = 2;
+            foreach (var card in cards.Where(c => c != null && c.IsBasic)) fresh.CardCollection.Add(new CardSaveData(card.ID) { Level = 6 });
+            fresh.CardCollection.Add(new CardSaveData("unregistered_card") { Level = 6 });
+            var locked = eligible.First(c => fresh.CardCollection.All(d => d.CardID != c.ID));
+            fresh.CardCollection.Add(new CardSaveData(locked.ID) { IsUnlocked = false, Level = 6 });
+            fresh.CardCollection.Add(new CardSaveData(fresh.CardCollection[0].CardID) { Level = 6 });
+            scaling = GameDifficulty.ReadCollection(fresh, cards.Concat(cards));
+            Check(scaling.UnlockedCards == 8 && scaling.CombinedLevels == 9 && scaling.Score == 0, "Basics, locked/unregistered and duplicate IDs cannot inflate the 8/9 baseline.");
+            GameDifficulty.BeginRun(fresh, cards);
+            fresh.CardCollection[0].Level = 6;
+            Near(GameDifficulty.HealthAtWave(2, 1), 2, "Changing saved levels after capture does not change the current run.");
+            int[] counts = { 8, 51, 51, 51, 30, 30, 30, 51 };
+            int[] totals = { 9, 51, 76, 102, 120, 135, 150, 204 };
+            float[] first = { 2, 4.86f, 6.31f, 7.81f, 5.99f, 6.50f, 7.01f, 13.70f };
+            float[] twentieth = { 21.50f, 42.97f, 53.80f, 65.06f, 51.45f, 55.28f, 59.10f, 109.22f };
+            for (int i = 0; i < counts.Length; i++)
+            {
+                scaling = new GameDifficulty.CollectionScaling(counts[i], totals[i]);
+                Check(Mathf.Abs(scaling.Health(2, 1) - first[i]) <= .0051f, "PDF wave 1 reference " + i);
+                Check(Mathf.Abs(scaling.Health(2, 20) - twentieth[i]) <= .0051f, "PDF wave 20 reference " + i);
+            }
+            Near(new GameDifficulty.CollectionScaling(20, 60).Health(2, 20), new GameDifficulty.CollectionScaling(30, 40).Health(2, 20), "Equal count-times-level products give equal difficulty.");
+            int[] boundary = { 1, 2, 10, 11, 15, 16, 20, 21, 25, 26, 30, 31, 40, 41, 50, 51, 100 };
+            float[] sum = { 0, .5f, 4.5f, 5.5f, 9.5f, 11.5f, 19.5f, 22.5f, 34.5f, 38.5f, 54.5f, 60.5f, 114.5f, 124.5f, 214.5f, 234.5f, 1214.5f };
+            var high = new PlayerData();
+            foreach (var card in eligible) high.CardCollection.Add(new CardSaveData(card.ID) { Level = 4 });
+            GameDifficulty.BeginRun(high, cards);
+            Check(GameDifficulty.Current.UnlockedCards == 47 && GameDifficulty.Current.CombinedLevels == 188, "Collection levels come from registered persistent data.");
+            for (int i = 0; i < boundary.Length; i++) Near(WaveManager.HealthIncreaseAtWave(boundary[i]), sum[i], "Unscaled boundary " + boundary[i]);
+            var parent = new GameObject("Collection verification"); parent.SetActive(false); _objects.Add(parent);
+            var stats = Make<PlayerStats>(); PlayerStats.Instance = stats;
+            foreach (var prefab in waves.EnemyPrefabs)
+            {
+                var enemy = UnityEngine.Object.Instantiate(prefab, parent.transform).GetComponent<EnemyBase>();
+                enemy.HealthBarPrefab = null; enemy.SpawnProtectionSeconds = 0;
+                float authoredHealth = enemy.BaseHealth;
+                foreach (int wave in new[] { 1, 2, 20, 51 })
+                {
+                    stats.EnemyHealthMissingPercent = 0;
+                    enemy.IsElite = false; enemy.Initialize(wave);
+                    float expected = enemy is TankEnemy ? 3 * GameDifficulty.HealthAtWave(2, wave) : GameDifficulty.HealthAtWave(enemy.EnemyKind == "ground" ? 2 : 1, wave);
+                    Near(enemy.MaxHealth, expected, "Spawn health " + enemy.EnemyKind + " wave " + wave);
+                    enemy.TakeItemDamage(.5f, null);
+                    Near(enemy.HealthRemaining, expected - .5f, "Fractional damage retained.");
+                    enemy.gameObject.SetActive(false); enemy.Initialize(wave);
+                    Near(enemy.HealthRemaining, expected, "Reinitialization uses unscaled values, not remaining HP.");
+                    stats.EnemyHealthMissingPercent = .37f; enemy.Initialize(wave);
+                    Near(enemy.MaxHealth, expected, "Sabotage does not change maximum HP.");
+                    Near(enemy.HealthRemaining, Mathf.Max(1, expected * .63f), "Sabotage applied once to fractional HP.");
+                    enemy.Initialize(wave);
+                    Near(enemy.HealthRemaining, Mathf.Max(1, expected * .63f), "Sabotage does not compound on reuse.");
+                    enemy.IsElite = true; enemy.Initialize(wave);
+                    float elite = enemy.EnemyKind == "ground" ? 1.5f : enemy.EnemyKind == "lobber" ? 1.25f : 1;
+                    Near(enemy.MaxHealth, expected * elite, "Elite modifier retained.");
+                    var size = enemy.transform.localScale; var color = enemy.GetComponent<SpriteRenderer>().color;
+                    enemy.Initialize(wave);
+                    Check(enemy.transform.localScale == size && enemy.GetComponent<SpriteRenderer>().color == color, "Repeated elite initialization preserves size and tint.");
+                    Near(enemy.BaseHealth, authoredHealth, "Authored base health never mutated.");
+                }
+            }
+            GameDifficulty.Select(2, false);
+            Check(GameDifficulty.DamageMultiplier == 1 && GameDifficulty.SpeedMultiplier == 1 && GameDifficulty.CoinMultiplier == 1, "Legacy Hard selection cannot change combat or economy.");
+            string result = "PASS: " + _checks + " collection difficulty checks.";
+            Directory.CreateDirectory("tmp/update9"); File.WriteAllText("tmp/update9/difficulty-verification.txt", result);
+            return result;
+        }
+        finally
+        {
+            foreach (var go in _objects) if (go != null) UnityEngine.Object.DestroyImmediate(go);
+            _objects.Clear(); EnemyBase.ActiveEnemies.Clear(); EnemyBase.ActiveEnemies.AddRange(oldRegistry);
+            GameDifficulty.Load(); WaveManager.Instance = oldWave; PlayerStats.Instance = oldStats;
+            UnityEditor.SceneManagement.EditorSceneManager.RestoreSceneManagerSetup(setup);
+        }
+    }
 
     [MenuItem("Duck Defender/Enemies/Run Isolated Verification")]
     public static string Run()

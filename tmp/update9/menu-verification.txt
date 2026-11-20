@@ -1,0 +1,2 @@
+130 Play Mode UI checks passed
+Fixture: completed tutorials and Open 3 unlock (PackOpeningTier=1).

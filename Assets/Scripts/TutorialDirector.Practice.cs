@@ -11,9 +11,13 @@ public partial class TutorialDirector
     readonly List<TutorialTarget> _targets = new List<TutorialTarget>();
     readonly bool[] _visited = new bool[5];
     BoxCollider2D _box;
+    SpriteRenderer _landingGoal;
     int _kills;
     bool _jumpLeftGround;
+    bool _aimEngaged;
+    Vector2 _initialAim;
     static Sprite _square, _goalGradient, _dartboard;
+    static Material _targetParticleMaterial;
     bool UsingPad => _player != null && _player.UsesGamepad;
     bool UsingTouch => !UsingPad && MobileInputController.Instance != null && MobileInputController.Instance.IsMobileEnabled;
     string Binding(string action, KeyCode fallback) => UsingPad ? ControllerBindings.Label(action) : InputManager.Instance != null ? InputManager.Instance.GetKeybind(action).ToString() : fallback.ToString();
@@ -47,7 +51,7 @@ public partial class TutorialDirector
                 var box = Marker("Practice box", GroundPosition(_origin.x + 2.5f) + Vector3.up * height * .5f, new Vector2(1.8f, height), new Color(.4f, .45f, .55f));
                 box.layer = LayerMask.NameToLayer("Ground"); box.tag = "Ground";
                 _box = box.AddComponent<BoxCollider2D>();
-                Goal("Land here", box.transform.position + Vector3.up * (height * .5f), 1.8f);
+                _landingGoal = Goal("Land here", box.transform.position + Vector3.up * (height * .5f), 1.8f);
                 Prompt(JumpPrompt(), () => BeginPractice(PracticeStep.Aim), false); break;
             case PracticeStep.Aim:
             case PracticeStep.Shoot:
@@ -77,7 +81,7 @@ public partial class TutorialDirector
             case PracticeStep.Health:
                 Prompt("Health is a valuable resource. Don't let it reach 0 or you lose!", () => BeginPractice(PracticeStep.Finished)); break;
             case PracticeStep.Finished:
-                Prompt("Tutorial stage 1 complete! Returning to the home menu...", () => { SaveStage(TutorialStage.Play); ReturnToMenu(); }); break;
+                Prompt("Tutorial stage 1 complete! Ready to return to the home menu.", () => { SaveStage(TutorialStage.Play); ReturnToMenu(); }); break;
         }
     }
     string MovePrompt() => UsingTouch ? "Use the movement stick to touch both highlighted areas." : UsingPad ?
@@ -100,23 +104,32 @@ public partial class TutorialDirector
         var renderer = go.AddComponent<SpriteRenderer>(); renderer.sprite = _square; renderer.color = color; renderer.sortingOrder = 100;
         _practiceObjects.Add(go); return go;
     }
-    void Goal(string name, Vector3 ground, float width)
+    public static Sprite GuidanceGradient
     {
-        if (_goalGradient == null)
+        get
         {
-            const int size = 64;
-            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { name = "Tutorial goal gradient", filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
-            var pixels = new Color[size * size];
-            for (int y = 0; y < size; y++) for (int x = 0; x < size; x++)
+            if (_goalGradient == null)
             {
-                float edge = Mathf.Clamp01(Mathf.Min(x, size - 1 - x) / 3f);
-                pixels[y * size + x] = new Color(1, 1, 1, edge * Mathf.Pow(1 - y / (float)(size - 1), 1.6f));
+                const int size = 64;
+                var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { name = "Tutorial goal gradient", filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
+                var pixels = new Color[size * size];
+                for (int y = 0; y < size; y++) for (int x = 0; x < size; x++)
+                {
+                    float edge = Mathf.Clamp01(Mathf.Min(x, size - 1 - x) / 3f);
+                    pixels[y * size + x] = new Color(1, 1, 1, edge * Mathf.Pow(1 - y / (float)(size - 1), 1.6f));
+                }
+                texture.SetPixels(pixels); texture.Apply(false, true);
+                _goalGradient = Sprite.Create(texture, new Rect(0, 0, size, size), Vector2.one * .5f, size);
             }
-            texture.SetPixels(pixels); texture.Apply(false, true);
-            _goalGradient = Sprite.Create(texture, new Rect(0, 0, size, size), Vector2.one * .5f, size);
+            return _goalGradient;
         }
+    }
+    SpriteRenderer Goal(string name, Vector3 ground, float width)
+    {
         var goal = Marker(name, ground + Vector3.up * .75f, new Vector2(width, 1.5f), new Color(.25f, 1, .12f, .9f));
-        goal.GetComponent<SpriteRenderer>().sprite = _goalGradient;
+        var renderer = goal.GetComponent<SpriteRenderer>();
+        renderer.sprite = GuidanceGradient;
+        return renderer;
     }
     static Sprite Dartboard()
     {
@@ -141,12 +154,13 @@ public partial class TutorialDirector
     }
     void SpawnTargets()
     {
-        float radius = Camera.main != null ? Mathf.Clamp(Camera.main.orthographicSize * .85f, 3.5f, 8) : 6;
+        float radius = Camera.main != null ? Mathf.Clamp(Camera.main.orthographicSize, 4, 8.5f) : 6.5f;
         Vector3 origin = _player.Weapon.FirePoint != null ? _player.Weapon.FirePoint.position : _origin;
+        _initialAim = _player.Weapon.AimDirection; _aimEngaged = false;
         for (int i = 0; i < 5; i++)
         {
             float angle = Mathf.PI * i / 4;
-            var go = Marker("Practice target", origin + new Vector3(Mathf.Cos(angle), Mathf.Sin(angle)) * radius, Vector2.one * .9f, Color.white);
+            var go = Marker("Practice target", origin + Vector3.up * 1.1f + new Vector3(Mathf.Cos(angle), Mathf.Sin(angle)) * radius, Vector2.one * .9f, Color.white);
             go.GetComponent<SpriteRenderer>().sprite = Dartboard();
             go.layer = LayerMask.NameToLayer("Enemy");
             var target = go.AddComponent<TutorialTarget>(); target.Index = i; _targets.Add(target);
@@ -160,8 +174,10 @@ public partial class TutorialDirector
         {
             for (int i = 0; i < 2 && i < _practiceObjects.Count; i++)
                 if (Mathf.Abs(_player.transform.position.x - _practiceObjects[i].transform.position.x) < .7f)
-                { _visited[i] = true; _practiceObjects[i].GetComponent<SpriteRenderer>().color = new Color(.25f, 1, .12f, .25f); }
-            _ready = _visited[0] && _visited[1]; _message.text = MovePrompt();
+                    _visited[i] = true;
+            for (int i = 0; i < 2 && i < _practiceObjects.Count; i++)
+                if (_visited[i]) FadeGoal(_practiceObjects[i].GetComponent<SpriteRenderer>());
+            _ready = _visited[0] && _visited[1]; SetPromptText(MovePrompt());
         }
         else if (_step == PracticeStep.Jump && _box != null)
         {
@@ -169,17 +185,19 @@ public partial class TutorialDirector
             _jumpLeftGround |= !_player.Movement.IsGrounded;
             _ready |= _jumpLeftGround && _player.Movement.IsGrounded && Mathf.Abs(bounds.min.y - _box.bounds.max.y) < .3f &&
                 bounds.center.x > _box.bounds.min.x && bounds.center.x < _box.bounds.max.x;
-            _message.text = JumpPrompt();
+            if (_ready) FadeGoal(_landingGoal);
+            SetPromptText(JumpPrompt());
         }
         else if (_step == PracticeStep.Aim)
         {
             Vector3 origin = _player.Weapon.FirePoint != null ? _player.Weapon.FirePoint.position : _player.transform.position;
+            _aimEngaged |= Vector2.Dot(_initialAim, _player.Weapon.AimDirection) < .995f;
             for (int i = 0; i < _targets.Count; i++)
-                if (Vector2.Dot(_player.Weapon.AimDirection, (_targets[i].transform.position - origin).normalized) > .986f)
+                if (_aimEngaged && Vector2.Dot(_player.Weapon.AimDirection, (_targets[i].transform.position - origin).normalized) > .986f)
                 { _visited[i] = true; _targets[i].GetComponent<SpriteRenderer>().color = Color.green; }
-            _ready = System.Array.TrueForAll(_visited, v => v); _message.text = AimPrompt();
+            _ready = System.Array.TrueForAll(_visited, v => v); SetPromptText(AimPrompt());
         }
-        else if (_step == PracticeStep.Shoot) { _ready = System.Array.TrueForAll(_visited, v => v); _message.text = ShootPrompt(); }
+        else if (_step == PracticeStep.Shoot) { _ready = System.Array.TrueForAll(_visited, v => v); SetPromptText(ShootPrompt()); }
         else if (_step == PracticeStep.Approach)
         {
             foreach (var enemy in _practiceEnemies)
@@ -191,11 +209,49 @@ public partial class TutorialDirector
             Prompt("Defeat enemies to earn experience. Earn enough experience to level up.");
         }
     }
+    static void FadeGoal(SpriteRenderer goal)
+    {
+        if (goal == null) return;
+        var color = goal.color;
+        color.a = Mathf.MoveTowards(color.a, .25f, Time.unscaledDeltaTime * 2.5f);
+        goal.color = color;
+    }
     public void HitTarget(int index)
     {
         if (_step != PracticeStep.Shoot || index < 0 || index >= _visited.Length || _visited[index]) return;
         _visited[index] = true;
+        TargetBurst(_targets[index].transform.position);
         _targets[index].gameObject.SetActive(false);
+    }
+    void TargetBurst(Vector3 position)
+    {
+        if (!ParticleVisibility.Enabled) return;
+        var go = new GameObject("Target burst"); go.transform.position = position;
+        _practiceObjects.Add(go);
+        var particles = go.AddComponent<ParticleSystem>();
+        particles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        var main = particles.main;
+        main.loop = false; main.playOnAwake = false; main.duration = .7f;
+        main.startLifetime = .55f; main.startSpeed = 0; main.gravityModifier = .3f;
+        main.maxParticles = 28; main.simulationSpace = ParticleSystemSimulationSpace.World;
+        main.stopAction = ParticleSystemStopAction.Destroy;
+        var emission = particles.emission; emission.enabled = false;
+        var shape = particles.shape; shape.enabled = false;
+        var size = particles.sizeOverLifetime; size.enabled = true;
+        size.size = new ParticleSystem.MinMaxCurve(1, AnimationCurve.Linear(0, 1, 1, 0));
+        if (_targetParticleMaterial == null) _targetParticleMaterial = new Material(Shader.Find("Sprites/Default"));
+        var renderer = particles.GetComponent<ParticleSystemRenderer>();
+        renderer.sharedMaterial = _targetParticleMaterial; renderer.sortingOrder = 110;
+        go.AddComponent<ParticleVisibility>();
+        particles.Play();
+        Color[] colors = { new Color(.9f, .1f, .14f), new Color(.08f, .55f, .3f), new Color(.94f, .92f, .83f), new Color(.055f, .065f, .08f) };
+        for (int i = 0; i < 28; i++)
+        {
+            float angle = i * Mathf.PI * 2 / 28;
+            particles.Emit(new ParticleSystem.EmitParams { position = position,
+                velocity = new Vector3(Mathf.Cos(angle), Mathf.Sin(angle)) * Random.Range(1.5f, 3.5f),
+                startColor = colors[i % colors.Length], startSize = Random.Range(.06f, .13f), startLifetime = Random.Range(.35f, .65f) }, 1);
+        }
     }
     public void PracticeEnemyDefeated()
     {
@@ -248,6 +304,6 @@ public partial class TutorialDirector
     void ClearPractice()
     {
         foreach (var go in _practiceObjects) if (go != null) { go.SetActive(false); Destroy(go); }
-        _practiceObjects.Clear(); _targets.Clear(); _practiceEnemies.Clear(); _box = null;
+        _practiceObjects.Clear(); _targets.Clear(); _practiceEnemies.Clear(); _box = null; _landingGoal = null;
     }
 }

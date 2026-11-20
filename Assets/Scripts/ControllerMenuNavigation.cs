@@ -80,6 +80,7 @@ public class ControllerMenuNavigation : MonoBehaviour
     }
     void Update()
     {
+        if (TutorialDirector.BlocksMenuSubmit || EnemyTipUI.Instance != null && EnemyTipUI.Instance.IsShowing) return;
         if (Gamepad.all.Count == 0 || EventSystem.current == null) { _editingSlider = null; return; }
         if (CoopLobbyUI.Instance != null && CoopLobbyUI.Instance.IsOpen) return;
         var menu = MainMenuUI.Instance;

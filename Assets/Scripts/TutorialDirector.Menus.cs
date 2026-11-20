@@ -7,19 +7,19 @@ public partial class TutorialDirector
     {
         if (!MenuLocked || Instance == null || Instance._menu == null) return true;
         var menu = Instance._menu;
+        if (CapturesContinue) return false;
+        if (menu.OpeningOverlay.activeSelf)
+            return Progress.Stage == TutorialStage.ShopReturn && panel == menu.ShopPanel && _continueConsumedFrame == Time.frameCount;
         if (Progress.CoreActive)
         {
-            if (panel == menu.MenuPanel) return !menu.OpeningOverlay.activeSelf &&
-                (menu.MenuPanel.activeSelf || Progress.Stage == TutorialStage.ShopReturn || Progress.Stage == TutorialStage.IndexReturn);
-            if (panel == menu.ShopPanel) return Progress.Stage == TutorialStage.Shop || Progress.Stage == TutorialStage.PackPurchased || Progress.Stage == TutorialStage.ShopReturn;
-            if (panel == menu.IndexPanel) return Progress.Stage == TutorialStage.Index || Progress.Stage == TutorialStage.Upgrade || Progress.Stage == TutorialStage.IndexReturn;
-            return false;
+            if (Progress.Stage == TutorialStage.Basics || Progress.Stage == TutorialStage.Waves) return panel == menu.MenuPanel;
+            if (Progress.Stage == TutorialStage.PackPurchased) return panel == menu.ShopPanel;
+            return panel == menu.MenuPanel || panel == menu.ShopPanel || panel == menu.IndexPanel;
         }
-        return panel == menu.MenuPanel && !menu.IndexPanel.activeSelf || panel == menu.IndexPanel;
+        return panel == menu.MenuPanel || panel == menu.IndexPanel;
     }
-    public static bool AllowItemTab => !CoreActive && Progress != null && Progress.HasObtainedItem &&
-        (!Progress.ItemActive || Progress.Items <= ItemTutorialStage.Equip);
-    public static bool AllowCardMenu(string id) => !MenuLocked || CoreActive && Progress.Stage == TutorialStage.Upgrade && id == Progress.UpgradeCardID;
+    public static bool AllowItemTab => !CoreActive && Progress != null && Progress.HasObtainedItem && !CapturesContinue;
+    public static bool AllowCardMenu(string id) => !CapturesContinue && (!MenuLocked || CoreActive || Progress != null && Progress.ItemActive);
     public static bool AllowItemMenu(int id) => !MenuLocked || Progress != null && Progress.ItemActive && Progress.Items == ItemTutorialStage.Equip &&
         ItemCatalog.Valid(id) && ShopManager.Instance.Progress.ItemInventory[id] > 0;
 
@@ -31,7 +31,7 @@ public partial class TutorialDirector
             switch (Progress.Stage)
             {
                 case TutorialStage.Basics: StartGame(); return;
-                case TutorialStage.Play: Prompt("Press Play to enter a game."); break;
+                case TutorialStage.Play: Prompt(_menu.MenuPanel.activeSelf ? "Press Play to enter a game. You can also browse your collection." : "Explore your collection, then return to the main menu and press Play."); break;
                 case TutorialStage.Shop:
                     Prompt(_menu.ShopPanel.activeSelf ? "Unlock new upgrades by purchasing card packs. Each pack gives 3 upgrades. Choose a pack to buy and open." : "Enter the shop."); break;
                 case TutorialStage.PackPurchased: Prompt("Open your card pack. Swipe across it or press " + ControllerBindings.Label("Confirm") + "."); break;
@@ -53,10 +53,10 @@ public partial class TutorialDirector
                     if (saved != null && saved.Level >= 2) { SaveStage(TutorialStage.IndexReturn); break; }
                     if (Progress.Stage == TutorialStage.Index)
                     {
-                        Prompt("The index shows each pack's cards. Duplicate copies let you upgrade them. Find your highlighted card using the page arrows.", () => SaveStage(TutorialStage.Upgrade), false);
-                        _ready = index.PageForCard(Progress.UpgradeCardID) == index.CurrentPage;
+                        SaveStage(TutorialStage.Upgrade);
+                        Prompt("Browse packs, pages and cards freely. Duplicate copies let you upgrade cards. Follow the green glow to upgrade your tutorial card.");
                     }
-                    else Prompt("Select the highlighted card and choose Upgrade. Upgrading cards improves their stats.");
+                    else Prompt("Browse packs, pages and cards freely. Follow the green glow to your tutorial card and choose Upgrade.");
                     break;
                 case TutorialStage.IndexReturn:
                     if (_menu.MenuPanel.activeSelf)
@@ -84,7 +84,6 @@ public partial class TutorialDirector
         }
         if (Progress.Items == ItemTutorialStage.Equip)
         {
-            if (!equipment.ItemsMode) equipment.ShowItems();
             bool owned = false, equipped = false;
             var data = ShopManager.Instance.Progress;
             for (int i = 1; i < data.ItemInventory.Length; i++) owned |= data.ItemInventory[i] > 0;
@@ -112,44 +111,74 @@ public partial class TutorialDirector
     }
     bool AllowedButton(UnityEngine.UI.Button button)
     {
-        if (CompletionPrompt) return false;
+        if (CapturesContinue) return false;
         if (!MenuLocked) return true;
-        if (CoreActive)
+        if (_menu.OpeningOverlay.activeSelf) return false;
+        if (_menu.ConfirmPanel.activeSelf)
+            return CoreActive && Progress.Stage == TutorialStage.Shop && (button == _menu.YesButton || button.name == "NoButton");
+        if (button.name == "Cancel" || button.name == "BackButton") return true;
+        if (_menu.MenuPanel.activeSelf)
+            return button.name == "IndexButton" || CoreActive && (button.name == "ShopButton" || button.name == "PlayButton" && Progress.Stage == TutorialStage.Play);
+        if (_menu.ShopPanel.activeSelf)
+            return CoreActive && Progress.Stage == TutorialStage.Shop && button.transform.IsChildOf(_menu.PackContainer);
+        if (_menu.IndexPanel.activeSelf)
         {
-            switch (Progress.Stage)
+            var index = _menu.IndexPanel.GetComponent<CardIndexUI>();
+            if (button == index.PreviousButton || button == index.NextButton || button == index.LayoutButton || System.Array.IndexOf(index.PackButtons, button) >= 0) return true;
+            if (button.name == "ItemsTab") return AllowItemTab;
+            if (button.GetComponentInParent<CardDisplay>() != null) return true;
+            // The modal's affordability and tutorial checks disable unrelated upgrades.
+            if (CoreActive) return Progress.Stage == TutorialStage.Upgrade && button.name.StartsWith("Upgrade - ");
+            if (Progress.ItemActive && Progress.Items == ItemTutorialStage.Equip)
             {
-                case TutorialStage.Play: return button.name == "PlayButton" && button.transform.IsChildOf(_menu.MenuPanel.transform);
-                case TutorialStage.Shop:
-                    if (_menu.MenuPanel.activeSelf) return button.name == "ShopButton";
-                    if (_menu.ConfirmPanel.activeSelf) return button == _menu.YesButton || button.name == "NoButton";
-                    return button.transform.IsChildOf(_menu.PackContainer);
-                case TutorialStage.PackPurchased: return false;
-                case TutorialStage.ShopReturn: return !_menu.OpeningOverlay.activeSelf && button.name == "BackButton";
-                case TutorialStage.Index:
-                case TutorialStage.Upgrade:
-                    if (_menu.MenuPanel.activeSelf) return button.name == "IndexButton";
-                    var index = _menu.IndexPanel.GetComponent<CardIndexUI>();
-                    int page = index.PageForCard(Progress.UpgradeCardID);
-                    if (page < 0) return button.name == "BackButton";
-                    if (button == index.PreviousButton) return index.CurrentPage > page;
-                    if (button == index.NextButton) return index.CurrentPage < page;
-                    if (Progress.Stage == TutorialStage.Index) return false;
-                    var card = button.GetComponentInParent<CardDisplay>();
-                    return card != null && card.AssignedCard != null && card.AssignedCard.ID == Progress.UpgradeCardID ||
-                        button.name.StartsWith("Upgrade - ") || button.name == "Cancel";
-                case TutorialStage.IndexReturn: return button.name == "BackButton" || button.name == "Cancel";
-                default: return false;
+                if (button.name == "<" || button.name == ">" || button.name.StartsWith("Equip to slot ")) return true;
+                if (button.name.StartsWith("Item ") && int.TryParse(button.name.Substring(5), out int id))
+                    return ItemCatalog.Valid(id) && ShopManager.Instance.Progress.ItemInventory[id] > 0;
             }
         }
-        if (_menu.ShopPanel.activeSelf) return button.name == "BackButton";
-        if (_menu.MenuPanel.activeSelf) return button.name == "IndexButton";
-        if (Progress.Items <= ItemTutorialStage.Tab) return button.name == "ItemsTab";
-        if (Progress.Items == ItemTutorialStage.Equip)
-        {
-            if (button.name == "<" || button.name == ">" || button.name == "Cancel" || button.name.StartsWith("Equip to slot ")) return true;
-            if (button.name.StartsWith("Item ") && int.TryParse(button.name.Substring(5), out int id)) return ItemCatalog.Valid(id) && ShopManager.Instance.Progress.ItemInventory[id] > 0;
-        }
         return false;
+    }
+    RectTransform GuidanceTarget(UnityEngine.UI.Button fallback)
+    {
+        var scope = _menu.NavigationScope;
+        var selected = UnityEngine.EventSystems.EventSystem.current?.currentSelectedGameObject;
+        if (_menu.MenuPanel.activeSelf)
+        {
+            string name = !CoreActive || Progress.Stage >= TutorialStage.Index ? "IndexButton" : Progress.Stage == TutorialStage.Play ? "PlayButton" : "ShopButton";
+            return _menu.MenuPanel.transform.Find(name) as RectTransform;
+        }
+        if (_menu.ConfirmPanel.activeSelf) return _menu.YesButton.transform as RectTransform;
+        if (_menu.ShopPanel.activeSelf && CoreActive && Progress.Stage == TutorialStage.Shop)
+        {
+            // Guidance follows the chosen pack; it must not leave a second focus border on pack one.
+            if (selected != null && selected.transform.IsChildOf(_menu.PackContainer)) return selected.transform as RectTransform;
+            foreach (var button in _menu.PackContainer.GetComponentsInChildren<UnityEngine.UI.Button>())
+                if (button.IsInteractable()) return button.transform as RectTransform;
+        }
+        if (_menu.IndexPanel.activeSelf && CoreActive && (Progress.Stage == TutorialStage.Index || Progress.Stage == TutorialStage.Upgrade))
+        {
+            var index = _menu.IndexPanel.GetComponent<CardIndexUI>();
+            if (scope == _menu.IndexPanel)
+            {
+                if (index.SelectedPack != Progress.Pack) return index.PackButtons[(int)Progress.Pack].transform as RectTransform;
+                int page = index.PageForCard(Progress.UpgradeCardID);
+                if (index.CurrentPage != page) return (index.CurrentPage < page ? index.NextButton : index.PreviousButton).transform as RectTransform;
+                index.ContentArea.GetComponentsInChildren(_visibleCards);
+                foreach (var card in _visibleCards)
+                    if (card.AssignedCard != null && card.AssignedCard.ID == Progress.UpgradeCardID && card.BackgroundImage != null) return card.BackgroundImage.rectTransform;
+            }
+        }
+        if (_menu.IndexPanel.activeSelf && scope == _menu.IndexPanel && (!CoreActive || Progress.Stage != TutorialStage.Index && Progress.Stage != TutorialStage.Upgrade))
+        {
+            if (!CoreActive && Progress.ItemActive)
+            {
+                if (!_menu.IndexPanel.GetComponent<IndexLoadoutUI>().ItemsMode) return _menu.IndexPanel.transform.Find("ItemsTab") as RectTransform;
+                foreach (var button in scope.GetComponentsInChildren<UnityEngine.UI.Button>())
+                    if (button.name.StartsWith("Item ") && int.TryParse(button.name.Substring(5), out int id) && ShopManager.Instance.Progress.ItemInventory[id] > 0) return button.transform as RectTransform;
+            }
+            return _menu.IndexPanel.transform.Find("BackButton") as RectTransform;
+        }
+        return fallback != null ? fallback.transform as RectTransform : null;
     }
     void GateMenu()
     {
@@ -171,13 +200,53 @@ public partial class TutorialDirector
         var events = UnityEngine.EventSystems.EventSystem.current;
         var selected = events != null ? events.currentSelectedGameObject : null;
         if (first != null && (selected == null || selected.GetComponent<UnityEngine.UI.Selectable>()?.IsInteractable() != true)) events?.SetSelectedGameObject(first.gameObject);
-        RectTransform highlight = first != null ? (RectTransform)first.transform : null;
-        if (_menu.IndexPanel.activeSelf && CoreActive && _menu.IndexPanel.GetComponent<IndexLoadoutUI>().NavigationScope == _menu.IndexPanel && (Progress.Stage == TutorialStage.Index || Progress.Stage == TutorialStage.Upgrade))
-        {
-            _menu.IndexPanel.GetComponent<CardIndexUI>().ContentArea.GetComponentsInChildren(_visibleCards);
-            foreach (var card in _visibleCards)
-                if (card.AssignedCard != null && card.AssignedCard.ID == Progress.UpgradeCardID && card.BackgroundImage != null) highlight = card.BackgroundImage.rectTransform;
-        }
+        RectTransform highlight = CapturesContinue ? null : GuidanceTarget(first);
         if (highlight != null) _highlight?.Show(highlight); else _highlight?.Hide();
     }
+}
+
+// Inset green borders mark objectives; the outer yellow frame remains controller focus.
+public sealed class TutorialGuidance
+{
+    UnityEngine.UI.Image _image;
+    public static UnityEngine.UI.Image Attach(RectTransform target)
+    {
+        var existing = target.Find("Tutorial green border");
+        if (existing != null) return existing.GetComponent<UnityEngine.UI.Image>();
+        var go = new GameObject("Tutorial green border", typeof(RectTransform), typeof(UnityEngine.UI.Image), typeof(UnityEngine.UI.LayoutElement));
+        var rect = (RectTransform)go.transform; rect.SetParent(target, false);
+        CoopUIElements.Stretch(rect, Vector2.zero, Vector2.one);
+        rect.offsetMin = Vector2.one * 5; rect.offsetMax = Vector2.one * -5;
+        go.GetComponent<UnityEngine.UI.LayoutElement>().ignoreLayout = true;
+        var image = go.GetComponent<UnityEngine.UI.Image>();
+        image.color = Color.clear; image.raycastTarget = false;
+        for (int i = 0; i < 4; i++)
+        {
+            var edge = CoopUIElements.Panel(rect, "Border edge", Vector2.zero, Vector2.one, new Color(.3f, 1, .18f, .9f));
+            edge.GetComponent<UnityEngine.UI.Image>().raycastTarget = false;
+            if (i < 2)
+            {
+                edge.anchorMin = new Vector2(0, i); edge.anchorMax = new Vector2(1, i);
+                edge.pivot = new Vector2(.5f, i); edge.sizeDelta = new Vector2(0, 3);
+            }
+            else
+            {
+                edge.anchorMin = new Vector2(i - 2, 0); edge.anchorMax = new Vector2(i - 2, 1);
+                edge.pivot = new Vector2(i - 2, .5f); edge.sizeDelta = new Vector2(3, -6);
+            }
+            edge.anchoredPosition = Vector2.zero;
+        }
+        rect.SetAsLastSibling();
+        return image;
+    }
+    public void Show(RectTransform target)
+    {
+        if (target == null || !target.gameObject.activeInHierarchy) { Hide(); return; }
+        if (_image == null) _image = Attach(target);
+        else if (_image.transform.parent != target) _image.transform.SetParent(target, false);
+        _image.gameObject.SetActive(true);
+        _image.transform.SetAsLastSibling();
+    }
+    public void Hide() { if (_image != null) _image.gameObject.SetActive(false); }
+    public void Dispose() { if (_image != null) Object.Destroy(_image.gameObject); }
 }

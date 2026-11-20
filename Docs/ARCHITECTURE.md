@@ -520,13 +520,20 @@ Assets/Scripts/EnemyProjectile.cs
 Assets/Scripts/BouncyEnemyProjectile.cs
 ```
 
-EnemyBase floors additive health from WaveManager's explicit piecewise table;
-the active four enemy prefabs do not scale movement or firing rate with waves.
-GameDifficulty applies the selected run modifiers: Easy is unchanged, Medium has
-1.5x health and 1.1x movement speed, and Hard has 2x health, 2x incoming enemy
-damage, 1.1x movement speed, and twice the additive wave-health growth. Existing
-wave spawn schedules and counts are unchanged.
-Tanks derive health as three times the rounded normal ground health. Elite enemies
+Enemy health uses a run-start snapshot of persistent collection progression in
+`GameDifficulty`: E = max(0, (unlockedCards * combinedLevels - 72) / 53), with
+starting-health multiplier 1 + .03E and additive-wave multiplier 1 + .02E.
+WaveManager's piecewise cumulative increases stay unscaled; EnemyBase combines
+the two terms once and retains fractional health. The gameplay card registry has
+47 eligible collection cards plus four Basics; only owned, registered non-Basics
+count, once per ID. Co-op uses the host collection, independently of enabled-card
+filters and current run picks. Solo and host menus no longer offer difficulty
+selection; old preferences/callbacks cannot alter combat or coin multipliers.
+Damage, speed, coins, spawn schedules and counts use their base rates. Elite
+health and the team's existing Sabotage reduction apply once after scaling;
+Sabotage keeps its 95% cap and 1-HP minimum, now without integer truncation.
+Tanks derive health as three times the normal ground health including growth.
+Elite enemies
 reuse the normal prefabs with preserved enlarged/darker visuals, double coin rewards,
 and 25% more XP (LevelManager carries fractional XP). Off-screen spawns reject damage
 until entering the gameplay camera. EnemyHealthBar displays numeric health and optional
@@ -1032,9 +1039,11 @@ closing another player's item menu.
 Its practice and menu partials integrate with existing input, enemy, wave, card,
 shop and loadout owners. No tutorial component needs to be attached in the Editor.
 Runtime prompts use CoopUIElements and the original DuckDefenderTestFontv2 asset.
-Objectives advance automatically after completion and informational prompts have
-a reading delay; timers wait during modal offers/tips and device disconnection.
-Prompts are centered above gameplay and move below shop/index content.
+Completed objectives and informational prompts require a fresh Interact press
+(controller binding, Enter on keyboard, or touch), with release-before-press
+protection. Prompts wait during modal offers/tips and device disconnection.
+Speech-box prompts use a fixed-layout typewriter reveal and the existing duck sprite at the right edge. After a three-second linger they collapse to a compact reminder; completing an objective reopens the prompt. The bottom-center Continue button also accepts pointer input. Prompts use clear gaps in shop/index layouts.
+Enemy tips also require Interact during protected tutorial runs.
 
 Fresh profiles opt into `TutorialProgress.Version = 1`: movement/jump/aim/shoot
 practice, two fixed-XP enemies and a required Basic Health choice; five protected
@@ -1045,8 +1054,13 @@ together. A saved unopened pack resumes its reveal without another charge.
 Practice uses fading green goals and dartboard targets. Its enemies enter from
 outside the camera and stop before combat. All three Basic cards remain focusable,
 but only Health can be activated. Falling out returns the player without losing
-completed objectives; there is no Restart step or manual Continue control.
-The protected wave stage can still restart.
+completed objectives. Neither stage has a restart button. Continue stays available
+when completed/informational dialogue collapses; the portrait reopens instructions. Learned movement/jump controls remain available during
+later lessons. Inset green borders guide cards and buttons separately from
+yellow controller focus. Blocked tutorial actions produce a brief unscaled shake.
+Raised semicircle targets require a change in aim before awarding aim progress;
+shooting them emits a short dartboard-colored burst respecting particle visibility. The index permits browsing packs, layouts, pages and card
+previews while purchase/equipment services retain the tutorial restrictions.
 Interrupted waves resume from the Play menu checkpoint. Tutorial runs do not count
 toward the two completed normal runs needed for item drops.
 
@@ -1061,7 +1075,9 @@ same purchase/upgrade restrictions.
 `SaveSystem.SaveData(..., updateTutorial: true)` explicitly changes checkpoints;
 ordinary cached economy/tip writes preserve the latest saved tutorial state.
 The progression schema remains version 2. `GameUI` gives solo health the classic
-bar proportions and a numeric white-infill label above the existing XP bar.
+bar proportions and a numeric white-infill label. Health and XP bars are longer
+and inset farther from the top; XP reuses the health-bar silhouette with blue fill
+and no orb decoration. The controller aim indicator is one closed outlined arrow.
 
 See [TUTORIAL_IMPLEMENTATION.md](TUTORIAL_IMPLEMENTATION.md) for recovery behavior,
 the file manifest, isolated verification and manual Play Mode checks.
@@ -1294,7 +1310,7 @@ ButtonClickSound.cs
 `MenuController.cs` contains `MainMenuController`.
 
 MainMenu.unity stores the menu, 2x2 pack shop, selectable index grids,
-and settings layouts. MainMenuUI owns the saved difficulty selection and panel
+and settings layouts. MainMenuUI shows the automatic collection-difficulty explanation and owns panel
 navigation. CardIndexUI filters by pack and pages by rarity/name; CardDisplay
 continues to own the existing upgrade/ascension buttons and collection refreshes.
 
@@ -1326,7 +1342,8 @@ renderers without disabling gameplay objects, colliders or sprite telegraphs.
 New particle prefabs should carry this component too.
 
 HostMenuUI opens from the existing Host button and configures 2–4 players,
-difficulty (initially Easy), next-wave respawns and health-bar coloring.
+next-wave respawns and health-bar coloring. Its static difficulty label explains
+that scaling uses the host's collection.
 CardIndexUI's HostFilterMode lists unlocked host cards, hides economy counters,
 and toggles run eligibility through CardDisplay's Enabled/Disabled controls.
 The regular shop and index keep their progression controls. CoopUpdateSetup
@@ -1334,9 +1351,11 @@ authors saved scene wiring through Unity Editor APIs. CoopUpdateVerification and
 CoopVerificationProbe exercise co-op in an isolated save with simulated gamepads.
 See Docs/COOP_UPDATE.md for setup and verification details.
 
-GameDifficulty persists its selection in DuckDefender_Difficulty. LevelManager
-applies 1x/1.25x/1.5x positive coin rewards, retaining fractional coins across
-awards within a run. Shop prices and starting saved balances are unaffected.
+GameDifficulty snapshots the registered unlocked collection and persistent levels
+at run start. Legacy DuckDefender_Difficulty preferences and selection callbacks
+have no effect. LevelManager uses base coin rewards; shop prices and starting
+saved balances are unaffected. See Docs/UPDATE_9_IMPLEMENTATION.md for the formula,
+actual collection/tutorial totals and verification details.
 
 UIUpdateSetup (Editor-only) authors the saved layout through Unity APIs.
 UIUpdateVerification and the Editor-only UIUpdatePlayProbe use the existing

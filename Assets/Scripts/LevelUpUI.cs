@@ -74,7 +74,8 @@ public class LevelUpUI : MonoBehaviour
     /// </summary>
     public void SelectCard(CardDefinition card)
     {
-        if (!_offering || card == null || !TutorialDirector.CanSelectCard(card)) return;
+        if (!_offering || card == null) return;
+        if (!TutorialDirector.CanSelectCard(card)) { TutorialDirector.RejectInteraction(); return; }
         _offering = false;
         // Play the level-up card-pick sound
         if (AudioManager.Instance != null)

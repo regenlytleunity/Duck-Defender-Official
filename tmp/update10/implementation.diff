@@ -1,0 +1,480 @@
+--- before/TutorialDirector.cs
++++ after/TutorialDirector.cs
+@@ -120,16 +120,7 @@
+     {
+         if (_canvas != null) return;
+         _canvas = CoopUIElements.Canvas("Tutorial prompts", transform, 950);
+-        _panel = CoopUIElements.Panel(_canvas, "Tutorial prompt", new Vector2(.25f, .81f), new Vector2(.75f, .985f), PromptColor);
+-        _panel.GetComponent<UnityEngine.UI.Image>().raycastTarget = false;
+-        _message = CoopUIElements.Text(_panel, "", new Vector2(.10f, .25f), new Vector2(.97f, .94f), 30);
+-        _hint = CoopUIElements.Text(_panel, "", new Vector2(.10f, .03f), new Vector2(.97f, .23f), 18);
+-        var circle = CoopUIElements.Panel(_panel, "Stick illustration", new Vector2(.015f, .42f), new Vector2(.085f, .88f), new Color(.2f, .28f, .4f));
+-        circle.GetComponent<UnityEngine.UI.Image>().sprite = ItemArea.Circle;
+-        circle.GetComponent<UnityEngine.UI.Image>().raycastTarget = false;
+-        _stick = CoopUIElements.Panel(circle, "Stick", new Vector2(.3f, .3f), new Vector2(.7f, .7f), Color.white);
+-        _stick.GetComponent<UnityEngine.UI.Image>().sprite = ItemArea.Circle;
+-        _stick.GetComponent<UnityEngine.UI.Image>().raycastTarget = false;
++        BuildDialogue();
+         _highlight = new TutorialGuidance();
+         _panel.gameObject.SetActive(false); // Only an active lesson's Prompt should show it.
+     }
+@@ -137,29 +128,41 @@
+     {
+         EnsureUI();
+         if (_lastPrompt == message) return;
+-        _lastPrompt = message; _message.text = message; _next = next; _ready = ready;
++        _lastPrompt = message; _next = next; _ready = ready;
++        SetPromptText(message, true);
+         _promptElapsed = _readyElapsed = 0;
+         _continueReleased = false;
+         _panel.gameObject.SetActive(true);
+         _panel.GetComponent<UnityEngine.UI.Image>().color = PromptColor;
+     }
+-    void HidePrompt() { _lastPrompt = null; if (_panel != null) _panel.gameObject.SetActive(false); _next = null; }
++    void HidePrompt() { _lastPrompt = null; if (_panel != null) _panel.gameObject.SetActive(false); if (_portrait != null) _portrait.gameObject.SetActive(false); _next = null; }
+     void Advance()
+     {
+-        if (!_ready || _readyElapsed < .1f || _promptElapsed < .35f || !_continueReleased || !ContinuePressed || _next == null || _continueConsumedFrame == Time.frameCount) return;
++        if (!ContinuePressed) return;
++        ContinueDialogue();
++    }
++    void ContinueDialogue()
++    {
++        if (!_ready || _readyElapsed < .1f || _promptElapsed < .35f || !_continueReleased || _next == null || _continueConsumedFrame == Time.frameCount) return;
++        _continueConsumedFrame = Time.frameCount;
++        if (!DialogueRevealed)
++        {
++            RevealDialogue(); _continueReleased = false;
++            return;
++        }
+         // Consume before invoking: callbacks may replace the prompt or change scenes.
+-        _continueConsumedFrame = Time.frameCount;
+         var action = _next; _next = null; action();
+     }
+     void Update()
+     {
+         if (_transitioning) return;
++        CheckBlockedPointer();
+         if (_menu != null) UpdateMenu();
+         else if (_practice && _player != null) UpdatePractice();
+         else if (_protectedRun && WaveManager.Instance != null && WaveManager.Instance.HasWaveError)
+             Failure("This wave could not start. Return to the menu to retry the stage.");
+         if (_panel == null || !_panel.gameObject.activeSelf) return;
+-        bool covered = !_failed && (EnemyTipUI.Instance != null && EnemyTipUI.Instance.IsShowing || LevelUpUI.Instance != null && LevelUpUI.Instance.IsOffering);
++        bool covered = !_failed && (EnemyTipUI.Instance != null && EnemyTipUI.Instance.IsShowing || LevelUpUI.Instance != null && LevelUpUI.Instance.IsOffering && (!_practice || _step != PracticeStep.Cards));
+         bool disconnected = LocalCoopSession.Instance != null && LocalCoopSession.Instance.DevicesMissing;
+         if (!covered && !disconnected)
+         {
+@@ -170,14 +173,11 @@
+             _readyElapsed = _ready ? _readyElapsed + elapsed : 0;
+             if (!_ready) _continueReleased = false;
+             else if (_promptElapsed >= .35f && !ContinueHeld) _continueReleased = true;
++            UpdateDialogue(elapsed);
+             Advance();
+             if (_transitioning || _panel == null || !_panel.gameObject.activeSelf) return;
+         }
+-        _hint.text = _next == null || !_ready ? "Follow the green objective" : ContinueHint;
+-        if (_stick != null) _stick.anchoredPosition = _step == PracticeStep.Jump ? new Vector2(0, Mathf.Abs(Mathf.Sin(Time.unscaledTime * 3)) * 22) : new Vector2(Mathf.Sin(Time.unscaledTime * 3) * 22, 0);
+-        if (_stick != null) _stick.parent.gameObject.SetActive(_practice && _step >= PracticeStep.Move && _step <= PracticeStep.Shoot);
+-        if (_lastPrompt != null && _lastPrompt.StartsWith("TUTORIAL COMPLETE"))
+-            _panel.GetComponent<UnityEngine.UI.Image>().color = Color.HSVToRGB(Mathf.Repeat(Time.unscaledTime * .2f, 1), .6f, .3f);
++        UpdateDialogueControls(covered || disconnected);
+     }
+     void LateUpdate()
+     {
+@@ -185,24 +185,8 @@
+         if (_pause && (LocalCoopSession.Instance == null || !LocalCoopSession.Instance.GameOver)) Time.timeScale = 0;
+         if (_menu != null) GateMenu();
+         if (_practice) UpdatePracticeHUD();
+-        if (_panel != null)
+-        {
+-            // Use the empty areas in the existing layouts, keeping prices, cards,
+-            // pagination and modal controls unobscured.
+-            Vector2 min = new Vector2(.25f, .81f), max = new Vector2(.75f, .985f);
+-            if (_menu != null)
+-            {
+-                if (_menu.OpeningOverlay.activeSelf || _menu.ConfirmPanel.activeSelf)
+-                { min.y = .015f; max.y = .155f; }
+-                else if (_menu.IndexPanel.activeSelf)
+-                { min = new Vector2(.58f, .79f); max = new Vector2(.98f, .985f); }
+-                else if (_menu.ShopPanel.activeSelf)
+-                { min.y = .565f; max.y = .705f; }
+-            }
+-            else if (LevelUpUI.Instance != null && LevelUpUI.Instance.IsOffering)
+-            { min.y = .85f; max.y = .995f; }
+-            if (_panel.anchorMin != min || _panel.anchorMax != max) CoopUIElements.Stretch(_panel, min, max);
+-        }
++        LayoutDialogue();
++        UpdateRejectedFeedback();
+     }
+     void Pause(bool paused)
+     {
+@@ -250,6 +234,7 @@
+     void OnDestroy()
+     {
+         foreach (var pair in _gates) if (pair.Value != null) Destroy(pair.Value);
++        RestoreRejectedFeedback();
+         _highlight?.Dispose(); ClearPractice();
+         if (Instance == this) { Instance = null; if (_pause) Time.timeScale = 1; }
+     }
+--- before/TutorialDirector.Practice.cs
++++ after/TutorialDirector.Practice.cs
+@@ -14,7 +14,10 @@
+     SpriteRenderer _landingGoal;
+     int _kills;
+     bool _jumpLeftGround;
++    bool _aimEngaged;
++    Vector2 _initialAim;
+     static Sprite _square, _goalGradient, _dartboard;
++    static Material _targetParticleMaterial;
+     bool UsingPad => _player != null && _player.UsesGamepad;
+     bool UsingTouch => !UsingPad && MobileInputController.Instance != null && MobileInputController.Instance.IsMobileEnabled;
+     string Binding(string action, KeyCode fallback) => UsingPad ? ControllerBindings.Label(action) : InputManager.Instance != null ? InputManager.Instance.GetKeybind(action).ToString() : fallback.ToString();
+@@ -151,12 +154,13 @@
+     }
+     void SpawnTargets()
+     {
+-        float radius = Camera.main != null ? Mathf.Clamp(Camera.main.orthographicSize * .85f, 3.5f, 8) : 6;
++        float radius = Camera.main != null ? Mathf.Clamp(Camera.main.orthographicSize, 4, 8.5f) : 6.5f;
+         Vector3 origin = _player.Weapon.FirePoint != null ? _player.Weapon.FirePoint.position : _origin;
++        _initialAim = _player.Weapon.AimDirection; _aimEngaged = false;
+         for (int i = 0; i < 5; i++)
+         {
+             float angle = Mathf.PI * i / 4;
+-            var go = Marker("Practice target", origin + new Vector3(Mathf.Cos(angle), Mathf.Sin(angle)) * radius, Vector2.one * .9f, Color.white);
++            var go = Marker("Practice target", origin + Vector3.up * 1.1f + new Vector3(Mathf.Cos(angle), Mathf.Sin(angle)) * radius, Vector2.one * .9f, Color.white);
+             go.GetComponent<SpriteRenderer>().sprite = Dartboard();
+             go.layer = LayerMask.NameToLayer("Enemy");
+             var target = go.AddComponent<TutorialTarget>(); target.Index = i; _targets.Add(target);
+@@ -173,7 +177,7 @@
+                     _visited[i] = true;
+             for (int i = 0; i < 2 && i < _practiceObjects.Count; i++)
+                 if (_visited[i]) FadeGoal(_practiceObjects[i].GetComponent<SpriteRenderer>());
+-            _ready = _visited[0] && _visited[1]; _message.text = MovePrompt();
++            _ready = _visited[0] && _visited[1]; SetPromptText(MovePrompt());
+         }
+         else if (_step == PracticeStep.Jump && _box != null)
+         {
+@@ -182,17 +186,18 @@
+             _ready |= _jumpLeftGround && _player.Movement.IsGrounded && Mathf.Abs(bounds.min.y - _box.bounds.max.y) < .3f &&
+                 bounds.center.x > _box.bounds.min.x && bounds.center.x < _box.bounds.max.x;
+             if (_ready) FadeGoal(_landingGoal);
+-            _message.text = JumpPrompt();
++            SetPromptText(JumpPrompt());
+         }
+         else if (_step == PracticeStep.Aim)
+         {
+             Vector3 origin = _player.Weapon.FirePoint != null ? _player.Weapon.FirePoint.position : _player.transform.position;
++            _aimEngaged |= Vector2.Dot(_initialAim, _player.Weapon.AimDirection) < .995f;
+             for (int i = 0; i < _targets.Count; i++)
+-                if (Vector2.Dot(_player.Weapon.AimDirection, (_targets[i].transform.position - origin).normalized) > .986f)
++                if (_aimEngaged && Vector2.Dot(_player.Weapon.AimDirection, (_targets[i].transform.position - origin).normalized) > .986f)
+                 { _visited[i] = true; _targets[i].GetComponent<SpriteRenderer>().color = Color.green; }
+-            _ready = System.Array.TrueForAll(_visited, v => v); _message.text = AimPrompt();
+-        }
+-        else if (_step == PracticeStep.Shoot) { _ready = System.Array.TrueForAll(_visited, v => v); _message.text = ShootPrompt(); }
++            _ready = System.Array.TrueForAll(_visited, v => v); SetPromptText(AimPrompt());
++        }
++        else if (_step == PracticeStep.Shoot) { _ready = System.Array.TrueForAll(_visited, v => v); SetPromptText(ShootPrompt()); }
+         else if (_step == PracticeStep.Approach)
+         {
+             foreach (var enemy in _practiceEnemies)
+@@ -215,7 +220,38 @@
+     {
+         if (_step != PracticeStep.Shoot || index < 0 || index >= _visited.Length || _visited[index]) return;
+         _visited[index] = true;
++        TargetBurst(_targets[index].transform.position);
+         _targets[index].gameObject.SetActive(false);
++    }
++    void TargetBurst(Vector3 position)
++    {
++        if (!ParticleVisibility.Enabled) return;
++        var go = new GameObject("Target burst"); go.transform.position = position;
++        _practiceObjects.Add(go);
++        var particles = go.AddComponent<ParticleSystem>();
++        particles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
++        var main = particles.main;
++        main.loop = false; main.playOnAwake = false; main.duration = .7f;
++        main.startLifetime = .55f; main.startSpeed = 0; main.gravityModifier = .3f;
++        main.maxParticles = 28; main.simulationSpace = ParticleSystemSimulationSpace.World;
++        main.stopAction = ParticleSystemStopAction.Destroy;
++        var emission = particles.emission; emission.enabled = false;
++        var shape = particles.shape; shape.enabled = false;
++        var size = particles.sizeOverLifetime; size.enabled = true;
++        size.size = new ParticleSystem.MinMaxCurve(1, AnimationCurve.Linear(0, 1, 1, 0));
++        if (_targetParticleMaterial == null) _targetParticleMaterial = new Material(Shader.Find("Sprites/Default"));
++        var renderer = particles.GetComponent<ParticleSystemRenderer>();
++        renderer.sharedMaterial = _targetParticleMaterial; renderer.sortingOrder = 110;
++        go.AddComponent<ParticleVisibility>();
++        particles.Play();
++        Color[] colors = { new Color(.9f, .1f, .14f), new Color(.08f, .55f, .3f), new Color(.94f, .92f, .83f), new Color(.055f, .065f, .08f) };
++        for (int i = 0; i < 28; i++)
++        {
++            float angle = i * Mathf.PI * 2 / 28;
++            particles.Emit(new ParticleSystem.EmitParams { position = position,
++                velocity = new Vector3(Mathf.Cos(angle), Mathf.Sin(angle)) * Random.Range(1.5f, 3.5f),
++                startColor = colors[i % colors.Length], startSize = Random.Range(.06f, .13f), startLifetime = Random.Range(.35f, .65f) }, 1);
++        }
+     }
+     public void PracticeEnemyDefeated()
+     {
+--- before/TutorialDirector.Menus.cs
++++ after/TutorialDirector.Menus.cs
+@@ -205,23 +205,38 @@
+     }
+ }
+ 
+-// A green upward gradient marks the tutorial objective. Yellow borders remain controller focus.
+-// Lives with the tutorial owner and reuses its generated marker texture.
++// Inset green borders mark objectives; the outer yellow frame remains controller focus.
+ public sealed class TutorialGuidance
+ {
+     UnityEngine.UI.Image _image;
+     public static UnityEngine.UI.Image Attach(RectTransform target)
+     {
+-        var existing = target.Find("Tutorial green underglow");
++        var existing = target.Find("Tutorial green border");
+         if (existing != null) return existing.GetComponent<UnityEngine.UI.Image>();
+-        var go = new GameObject("Tutorial green underglow", typeof(RectTransform), typeof(UnityEngine.UI.Image), typeof(UnityEngine.UI.LayoutElement));
++        var go = new GameObject("Tutorial green border", typeof(RectTransform), typeof(UnityEngine.UI.Image), typeof(UnityEngine.UI.LayoutElement));
+         var rect = (RectTransform)go.transform; rect.SetParent(target, false);
+-        CoopUIElements.Stretch(rect, new Vector2(-.035f, -.06f), new Vector2(1.035f, .32f));
++        CoopUIElements.Stretch(rect, Vector2.zero, Vector2.one);
++        rect.offsetMin = Vector2.one * 5; rect.offsetMax = Vector2.one * -5;
+         go.GetComponent<UnityEngine.UI.LayoutElement>().ignoreLayout = true;
+         var image = go.GetComponent<UnityEngine.UI.Image>();
+-        image.sprite = TutorialDirector.GuidanceGradient;
+-        image.color = new Color(.25f, 1, .12f, .65f); image.raycastTarget = false;
+-        rect.SetAsFirstSibling();
++        image.color = Color.clear; image.raycastTarget = false;
++        for (int i = 0; i < 4; i++)
++        {
++            var edge = CoopUIElements.Panel(rect, "Border edge", Vector2.zero, Vector2.one, new Color(.3f, 1, .18f, .9f));
++            edge.GetComponent<UnityEngine.UI.Image>().raycastTarget = false;
++            if (i < 2)
++            {
++                edge.anchorMin = new Vector2(0, i); edge.anchorMax = new Vector2(1, i);
++                edge.pivot = new Vector2(.5f, i); edge.sizeDelta = new Vector2(0, 3);
++            }
++            else
++            {
++                edge.anchorMin = new Vector2(i - 2, 0); edge.anchorMax = new Vector2(i - 2, 1);
++                edge.pivot = new Vector2(i - 2, .5f); edge.sizeDelta = new Vector2(3, -6);
++            }
++            edge.anchoredPosition = Vector2.zero;
++        }
++        rect.SetAsLastSibling();
+         return image;
+     }
+     public void Show(RectTransform target)
+@@ -230,7 +245,7 @@
+         if (_image == null) _image = Attach(target);
+         else if (_image.transform.parent != target) _image.transform.SetParent(target, false);
+         _image.gameObject.SetActive(true);
+-        _image.transform.SetAsFirstSibling();
++        _image.transform.SetAsLastSibling();
+     }
+     public void Hide() { if (_image != null) _image.gameObject.SetActive(false); }
+     public void Dispose() { if (_image != null) Object.Destroy(_image.gameObject); }
+--- before/LocalPlayer.cs
++++ after/LocalPlayer.cs
+@@ -26,8 +26,8 @@
+     public bool JumpDown { get; private set; }
+     public bool JumpHeld => Connected && Controller != null && (ControllerBindings.Get("Jump") == "MoveUp" ? Move.y > .65f : ControllerBindings.Held(Controller, "Jump"));
+     bool _stickUp;
+-    LineRenderer _aimArrow, _aimOutline;
+-    static Material _arrowMaterial;
++    SpriteRenderer _aimArrow;
++    static Sprite _arrowSprite;
+     Material _paletteMaterial;
+ 
+     public void Configure(int index, Gamepad controller, bool usesGamepad)
+@@ -53,17 +53,10 @@
+     {
+         Controller = controller; UsesGamepad = usesGamepad; _stickUp = false; JumpDown = false;
+         if (!usesGamepad || _aimArrow != null) return;
+-        if (_arrowMaterial == null) _arrowMaterial = new Material(Shader.Find("Sprites/Default"));
+-        _aimArrow = new GameObject("Aim direction").AddComponent<LineRenderer>();
++        _aimArrow = new GameObject("Aim direction").AddComponent<SpriteRenderer>();
+         _aimArrow.transform.SetParent(transform, false);
+-        _aimArrow.sharedMaterial = _arrowMaterial; _aimArrow.positionCount = 5;
+-        _aimArrow.startWidth = _aimArrow.endWidth = .06f; _aimArrow.sortingOrder = 110;
+-        _aimArrow.startColor = _aimArrow.endColor = Color;
+-        _aimOutline = new GameObject("Aim outline").AddComponent<LineRenderer>();
+-        _aimOutline.transform.SetParent(transform, false);
+-        _aimOutline.sharedMaterial = _arrowMaterial; _aimOutline.positionCount = 5;
+-        _aimOutline.startWidth = _aimOutline.endWidth = .10f; _aimOutline.sortingOrder = 109;
+-        _aimOutline.startColor = _aimOutline.endColor = new Color(.035f, .045f, .06f, .9f);
++        _aimArrow.sprite = AimArrowSprite(); _aimArrow.sortingOrder = 110;
++        _aimArrow.color = Color;
+     }
+ 
+     void Update()
+@@ -87,14 +80,40 @@
+     {
+         if (_aimArrow == null) return;
+         _aimArrow.enabled = Alive && UsesGamepad && Connected && TutorialDirector.AllowAim;
+-        _aimOutline.enabled = _aimArrow.enabled;
+         Vector3 start = transform.position + Vector3.up * .15f;
+-        Vector3 tip = start + (Vector3)Aim * 1.5f;
+-        Vector3 side = new Vector3(-Aim.y, Aim.x) * .18f;
+-        _aimArrow.SetPosition(0, start + (Vector3)Aim * .85f);
+-        _aimArrow.SetPosition(1, tip); _aimArrow.SetPosition(2, tip - (Vector3)Aim * .3f + side);
+-        _aimArrow.SetPosition(3, tip); _aimArrow.SetPosition(4, tip - (Vector3)Aim * .3f - side);
+-        for (int i = 0; i < 5; i++) _aimOutline.SetPosition(i, _aimArrow.GetPosition(i));
++        // Cancel the duck's facing/size transform, keeping one crisp closed silhouette.
++        var scale = transform.lossyScale;
++        _aimArrow.transform.localScale = new Vector3(1 / scale.x, 1 / scale.y, 1);
++        _aimArrow.transform.rotation = Quaternion.Euler(0, 0, Mathf.Atan2(Aim.y, Aim.x) * Mathf.Rad2Deg * Mathf.Sign(scale.x * scale.y));
++        _aimArrow.transform.position = start + (Vector3)Aim * 1.15f;
++    }
++
++    static Sprite AimArrowSprite()
++    {
++        if (_arrowSprite != null) return _arrowSprite;
++        const int width = 256, height = 176;
++        var texture = new Texture2D(width, height, TextureFormat.RGBA32, false)
++            { name = "Outlined aim arrow", filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
++        var pixels = new Color[width * height];
++        var points = new[] { new Vector2(12, 56), new Vector2(146, 56), new Vector2(146, 10),
++            new Vector2(244, 88), new Vector2(146, 166), new Vector2(146, 120), new Vector2(12, 120) };
++        for (int y = 0; y < height; y++) for (int x = 0; x < width; x++)
++        {
++            Vector2 p = new Vector2(x + .5f, y + .5f);
++            bool inside = false; float distance = float.PositiveInfinity;
++            for (int i = 0, j = points.Length - 1; i < points.Length; j = i++)
++            {
++                Vector2 a = points[j], b = points[i], edge = b - a;
++                if ((a.y > p.y) != (b.y > p.y) && p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x) inside = !inside;
++                distance = Mathf.Min(distance, Vector2.Distance(p, a + edge * Mathf.Clamp01(Vector2.Dot(p - a, edge) / edge.sqrMagnitude)));
++            }
++            // Distance to the closed contour gives the whole outline the same thickness.
++            var color = UnityEngine.Color.Lerp(UnityEngine.Color.black, UnityEngine.Color.white, Mathf.Clamp01(distance - 9));
++            color.a = inside ? Mathf.Clamp01(distance) : 0; pixels[y * width + x] = color;
++        }
++        texture.SetPixels(pixels); texture.Apply(false, true);
++        _arrowSprite = UnityEngine.Sprite.Create(texture, new Rect(0, 0, width, height), Vector2.one * .5f, 300);
++        return _arrowSprite;
+     }
+ 
+     public Vector2 Move => !Connected || Controller == null ? Vector2.zero :
+--- before/GameUI.cs
++++ after/GameUI.cs
+@@ -37,6 +37,7 @@
+     TMP_Text _soloHealthText;
+     int _healthCurrent, _healthMax;
+     Transform _heartDecor, _xpDecor, _coinDecor;
++    Material _xpMaterial;
+ 
+     void Awake()
+     {
+@@ -61,11 +62,11 @@
+ 
+     void Start()
+     {
++        StyleExperienceBar();
+         if (LocalCoopSession.Multiplayer || PlayerHealthBar == null) return;
+         var bar = (RectTransform)PlayerHealthBar.transform;
+         if (_heartDecor != null) _heartDecor.gameObject.SetActive(false);
+-        // Use the classic bar dimensions above the existing solo XP bar.
+-        CoopUIElements.Stretch(bar, new Vector2(.02f, .92f), new Vector2(.19f, .96f));
++        CoopUIElements.Stretch(bar, new Vector2(.02f, .875f), new Vector2(.23f, .915f));
+         if (PlayerHealthBar.Background != null) { CoopUIElements.Stretch(PlayerHealthBar.Background.rectTransform, Vector2.zero, Vector2.one); PlayerHealthBar.Background.preserveAspect = false; }
+         if (PlayerHealthBar.Overlay != null)
+         {
+@@ -77,13 +78,48 @@
+         var label = CoopUIElements.Panel(bar, "Health label", new Vector2(0, 1.05f), new Vector2(1, 1.85f), new Color(.04f, .06f, .09f, .88f));
+         label.GetComponent<UnityEngine.UI.Image>().raycastTarget = false;
+         _soloHealthText = CoopUIElements.Text(label, _healthCurrent + " / " + _healthMax, Vector2.zero, Vector2.one, 22);
++        if (XPBar != null) CoopUIElements.Stretch((RectTransform)XPBar.transform, new Vector2(.02f, .795f), new Vector2(.23f, .835f));
++        if (LevelText != null)
++        {
++            CoopUIElements.Stretch(LevelText.rectTransform, new Vector2(.02f, .837f), new Vector2(.23f, .869f));
++            LevelText.margin = Vector4.zero; LevelText.alignment = TextAlignmentOptions.Center;
++            LevelText.enableAutoSizing = true; LevelText.fontSize = LevelText.fontSizeMax = 22; LevelText.fontSizeMin = 18;
++            CoopUIElements.WhiteInfill(LevelText);
++        }
++    }
++
++    void StyleExperienceBar()
++    {
++        if (_xpDecor != null) _xpDecor.gameObject.SetActive(false);
++        if (XPBar == null || PlayerHealthBar == null) return;
++        if (XPBar.Background != null && PlayerHealthBar.Background != null)
++        {
++            XPBar.Background.sprite = PlayerHealthBar.Background.sprite;
++            XPBar.Background.color = new Color(.28f, .3f, .38f);
++            XPBar.Background.preserveAspect = false;
++            CoopUIElements.Stretch(XPBar.Background.rectTransform, Vector2.zero, Vector2.one);
++        }
++        if (XPBar.Overlay != null && PlayerHealthBar.Overlay != null)
++        {
++            XPBar.Overlay.sprite = PlayerHealthBar.Overlay.sprite;
++            XPBar.Overlay.color = Color.white; XPBar.Overlay.preserveAspect = false;
++            XPBar.Overlay.type = Image.Type.Filled; XPBar.Overlay.fillMethod = Image.FillMethod.Horizontal; XPBar.Overlay.fillOrigin = 0;
++            CoopUIElements.Stretch(XPBar.Overlay.rectTransform, Vector2.zero, Vector2.one);
++            XPBar.Overlay.rectTransform.offsetMin = new Vector2(5, 5); XPBar.Overlay.rectTransform.offsetMax = new Vector2(-5, -5);
++            var shader = Resources.Load<Shader>("HealthPalette");
++            if (shader != null)
++            {
++                _xpMaterial = new Material(shader); _xpMaterial.SetColor("_PlayerColor", new Color(.2f, .65f, 1));
++                XPBar.Overlay.material = _xpMaterial;
++            }
++        }
+     }
+ 
+     public void ShowTutorialDecor(bool xp, bool coins)
+     {
+         // The classic numeric health bar replaces the standalone heart decoration.
+         if (_heartDecor != null) _heartDecor.gameObject.SetActive(false);
+-        if (_xpDecor != null) _xpDecor.gameObject.SetActive(xp);
++        if (_xpDecor != null) _xpDecor.gameObject.SetActive(false);
+         if (_coinDecor != null) _coinDecor.gameObject.SetActive(coins);
+     }
+ 
+@@ -134,6 +170,8 @@
+     public void UpdateEnemiesLeft(int count) => EnemiesLeftText.text = "ENEMIES: " + count;
+     public void ShowWaveBanner(int wave) => StartCoroutine(BannerRoutine(wave));
+ 
++    void OnDestroy() { if (_xpMaterial != null) Destroy(_xpMaterial); }
++
+     private IEnumerator BannerRoutine(int wave)
+     {
+         WaveBannerObject.SetActive(true);
+--- before/LevelUpUI.cs
++++ after/LevelUpUI.cs
+@@ -74,7 +74,8 @@
+     /// </summary>
+     public void SelectCard(CardDefinition card)
+     {
+-        if (!_offering || card == null || !TutorialDirector.CanSelectCard(card)) return;
++        if (!_offering || card == null) return;
++        if (!TutorialDirector.CanSelectCard(card)) { TutorialDirector.RejectInteraction(); return; }
+         _offering = false;
+         // Play the level-up card-pick sound
+         if (AudioManager.Instance != null)
+--- before/CoopRunUI.cs
++++ after/CoopRunUI.cs
+@@ -43,11 +43,11 @@
+             if (coin != null) CoopUIElements.Stretch(coin, new Vector2(.012f, .937f), new Vector2(.03f, .979f));
+             var xp = ui.XPBar;
+             xp.Background.preserveAspect = xp.Overlay.preserveAspect = false;
+-            CoopUIElements.Stretch((RectTransform)xp.transform, new Vector2(.2f, .945f), new Vector2(.8f, .99f));
++            CoopUIElements.Stretch((RectTransform)xp.transform, new Vector2(.2f, .92f), new Vector2(.8f, .965f));
+             CoopUIElements.Stretch(xp.Background.rectTransform, Vector2.zero, Vector2.one);
+             CoopUIElements.Stretch(xp.Overlay.rectTransform, Vector2.zero, Vector2.one);
+             xp.Overlay.rectTransform.offsetMin = new Vector2(6, 6); xp.Overlay.rectTransform.offsetMax = new Vector2(-6, -6);
+-            if (ui.LevelText != null) { CoopUIElements.Stretch(ui.LevelText.rectTransform, new Vector2(.43f, .9f), new Vector2(.57f, .945f)); CoopUIElements.WhiteInfill(ui.LevelText); }
++            if (ui.LevelText != null) { CoopUIElements.Stretch(ui.LevelText.rectTransform, new Vector2(.43f, .875f), new Vector2(.57f, .92f)); CoopUIElements.WhiteInfill(ui.LevelText); }
+             if (ui.WaveText != null) CoopUIElements.Stretch(ui.WaveText.rectTransform, new Vector2(.81f, .93f), new Vector2(.99f, .99f));
+             if (ui.EnemiesLeftText != null) CoopUIElements.Stretch(ui.EnemiesLeftText.rectTransform, new Vector2(.81f, .87f), new Vector2(.99f, .93f));
+             if (ui.CoinText != null) CoopUIElements.Stretch(ui.CoinText.rectTransform, new Vector2(.035f, .925f), new Vector2(.18f, .98f));
+@@ -65,7 +65,7 @@
+             {
+                 var classic = Instantiate(ui.PlayerHealthBar, _canvas); classic.name = "Classic health P" + (player.Index + 1);
+                 classic.gameObject.SetActive(true); bar = (RectTransform)classic.transform;
+-                CoopUIElements.Stretch(bar, new Vector2(.02f, .81f - player.Index * .095f), new Vector2(.19f, .85f - player.Index * .095f));
++                CoopUIElements.Stretch(bar, new Vector2(.02f, .79f - player.Index * .095f), new Vector2(.23f, .83f - player.Index * .095f));
+                 CoopUIElements.Stretch(classic.Background.rectTransform, Vector2.zero, Vector2.one);
+                 fill = classic.Overlay; CoopUIElements.Stretch(fill.rectTransform, Vector2.zero, Vector2.one);
+                 classic.Background.preserveAspect = fill.preserveAspect = false;

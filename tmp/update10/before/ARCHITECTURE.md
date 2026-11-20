@@ -1,0 +1,1735 @@
+# Duck Defender — Architecture Reference
+
+## Purpose
+
+This document describes the verified current architecture of Duck Defender.
+
+It is a reference for coding agents and developers working in the repository.
+
+This is **current-state documentation**, not a roadmap.
+
+Repository files remain the source of truth.
+
+---
+
+# Project Overview
+
+Duck Defender is a Unity 2D wave-survival/action platformer.
+
+The player controls a duck through platforming and combat while fighting scaling enemy waves, collecting coins and XP, leveling up, and choosing card-based upgrades.
+
+Verified project information:
+
+```text
+Unity version:       6000.0.35f1
+Unity revision:      9a3bc604008a
+Rendering pipeline:  Universal Render Pipeline
+URP version:         17.0.3
+Rendering mode:      2D
+Product Name:        Duck Defender
+Company Name:        DefaultCompany
+Bundle version:      1.0
+Standalone ID:       com.DefaultCompany.Duck-Defender
+API compatibility:   .NET Standard 2.1
+```
+
+Project scripts currently compile into:
+
+```text
+Assembly-CSharp
+Assembly-CSharp-Editor (project scripts under Assets/Scripts/Editor)
+```
+
+No project `.asmdef` or `.asmref` files currently exist.
+
+Assets/Scripts/Editor/CardReworkVerification.cs provides repeatable isolated
+progression/combat checks through a Unity Editor menu. These use transient objects
+and a temporary save; they are not Play Mode or build verification. No project
+Unity Test Framework suite currently exists.
+
+CoopUpdateVerification includes Editor-menu regular/development WebGL build checks.
+It uses the current WebGL target/settings and writes output to a temporary folder.
+
+---
+
+# Repository Layout
+
+```text
+Duck Defender/
+├── AGENTS.md
+├── Docs/
+│   ├── ARCHITECTURE.md
+│   └── WORKFLOWS.md
+│
+├── Assets/
+│   ├── Backgrounds/
+│   ├── Cards/
+│   │   ├── Packs/
+│   │   └── Upgrades/
+│   ├── Enemies/
+│   ├── Fonts/
+│   ├── Player/
+│   ├── Plugins/
+│   │   └── WebGL/
+│   ├── Prefabs/
+│   ├── Resources/
+│   ├── Scenes/
+│   ├── Scripts/
+│   ├── Settings/
+│   ├── Sound Effects/
+│   ├── Sprites/
+│   └── TextMesh Pro/
+│
+├── Packages/
+└── ProjectSettings/
+```
+
+Generated/local directories include:
+
+```text
+Library/
+Temp/
+obj/
+Logs/
+Build/
+Builds/
+UserSettings/
+```
+
+These are not authoritative project source.
+
+---
+
+# Script Layout
+
+There are currently **65 project-authored C# files**.
+
+All are directly under:
+
+```text
+Assets/Scripts/
+```
+
+There are currently no script subfolders.
+
+Inventory:
+
+```text
+Assets/Scripts/AudioManager.cs
+Assets/Scripts/AuraController.cs
+Assets/Scripts/BackgroundFiller.cs
+Assets/Scripts/BouncyEnemyProjectile.cs
+Assets/Scripts/ButtonClickSound.cs
+Assets/Scripts/BuzzerEnemy.cs
+Assets/Scripts/CardDefinition.cs
+Assets/Scripts/CardDisplay.cs
+Assets/Scripts/CardIndexUI.cs
+Assets/Scripts/CardManager.cs
+Assets/Scripts/Coin.cs
+Assets/Scripts/DamagePopup.cs
+Assets/Scripts/ElementalTurret.cs
+Assets/Scripts/EnemyBase.cs
+Assets/Scripts/EnemyHealthBar.cs
+Assets/Scripts/EnemyProjectile.cs
+Assets/Scripts/FireTrailPatch.cs
+Assets/Scripts/FlyingEnemy.cs
+Assets/Scripts/Flyingenemyanimator.cs
+Assets/Scripts/FullscreenToggle.cs
+Assets/Scripts/GameUI.cs
+Assets/Scripts/GroundEnemy.cs
+Assets/Scripts/Groundenemyanimator.cs
+Assets/Scripts/Inputhelper.cs
+Assets/Scripts/InputManager.cs
+Assets/Scripts/LevelManager.cs
+Assets/Scripts/LevelUpUI.cs
+Assets/Scripts/LobberEnemy.cs
+Assets/Scripts/MainMenuUI.cs
+Assets/Scripts/MarksmanTurret.cs
+Assets/Scripts/MechanicsController.cs
+Assets/Scripts/MedicTurret.cs
+Assets/Scripts/MenuController.cs
+Assets/Scripts/Meteor.cs
+Assets/Scripts/MobileInputController.cs
+Assets/Scripts/ObjectPooler.cs
+Assets/Scripts/OverheatPopup.cs
+Assets/Scripts/PixelPerfectCanvasScaler.cs
+Assets/Scripts/Playeranimator.cs
+Assets/Scripts/PlayerController.cs
+Assets/Scripts/PlayerData.cs
+Assets/Scripts/PlayerHealth.cs
+Assets/Scripts/PlayerStats.cs
+Assets/Scripts/Projectile.cs
+Assets/Scripts/ProtectorTurret.cs
+Assets/Scripts/SafeAreaPanel.cs
+Assets/Scripts/SaveOnQuit.cs
+Assets/Scripts/SaveSystem.cs
+Assets/Scripts/SecondWindAngel.cs
+Assets/Scripts/SelfDestruct.cs
+Assets/Scripts/SettingsMenuUI.cs
+Assets/Scripts/ShockwaveExpand.cs
+Assets/Scripts/ShopData.cs
+Assets/Scripts/ShopManager.cs
+Assets/Scripts/SlowingAuraController.cs
+Assets/Scripts/SpriteHealthBar.cs
+Assets/Scripts/SpriteXPBar.cs
+Assets/Scripts/SwarmerEnemy.cs
+Assets/Scripts/TankEnemy.cs
+Assets/Scripts/TurretBase.cs
+Assets/Scripts/TurretManager.cs
+Assets/Scripts/VirtualJoystick.cs
+Assets/Scripts/WaveManager.cs
+Assets/Scripts/WeaponPlayer.cs
+Assets/Scripts/XP&Gems.cs
+```
+
+Important filename/type distinctions:
+
+```text
+Inputhelper.cs             -> InputHelper
+Playeranimator.cs          -> PlayerAnimator
+Groundenemyanimator.cs     -> GroundEnemyAnimator
+Flyingenemyanimator.cs     -> FlyingEnemyAnimator
+MenuController.cs          -> MainMenuController
+ShopData.cs                -> ShopPackDefinition
+XP&Gems.cs                 -> XPGem
+Projectile.cs              -> Projectile.BallisticData nested struct
+```
+
+Do not rename these merely for stylistic consistency.
+
+---
+
+# Scenes
+
+## Enabled Build Scenes
+
+```text
+0: Assets/Scenes/MainMenu.unity
+1: Assets/Scenes/SampleScene.unity
+```
+
+Configured through:
+
+```text
+ProjectSettings/EditorBuildSettings.asset
+```
+
+## Additional Scenes
+
+```text
+Assets/Backgrounds/Scenes/demoscene.unity
+Assets/Settings/Scenes/URP2DSceneTemplate.unity
+```
+
+These are not currently part of the global build scene list.
+
+---
+
+# Player Architecture
+
+The player uses component composition rather than one monolithic script.
+
+## Local co-op and world camera
+
+`LocalCoopSession` on the gameplay WaveManager creates 1–4 copies of the existing
+player before their Start methods run. `LocalPlayer` owns device assignment, input
+state and run result counters. PlayerStats/PlayerController/PlayerAnimator singleton
+access remains a player-one compatibility path; gameplay components read their
+own PlayerStats. Projectiles, meteors, fire trails, ascension areas and turrets
+carry their source player explicitly, including when a pooled projectile is reused.
+
+Co-op uses one controller per player. Developer-console code `2048` toggles the
+two-player keyboard/mouse + controller test mode. The host account supplies saved
+card unlocks/levels and receives all persistent coins. Runtime card histories,
+weapons, health, coin thresholds and companions belong to each player. XP and
+Sabotage bonuses add across builds (Sabotage retains the 95% cap).
+
+After hosting, `CoopLobbyUI` gives each assigned controller its own customization
+pane and onscreen name keyboard. Selecting Name clears the current name for new
+entry. Names allow 10 characters, with blank names defaulting to PLAYER N.
+Six body colors are available; duplicates are allowed. The color preview uses
+HostMenuUI.DuckPreviewSprite (the gameplay duck) with DuckPreviewPalette, matching
+the gameplay body recoloring while retaining its beak and outline.
+The session starts after every seat is ready for 1.25 seconds. Profiles and the
+Classic/Above player health style are session options, not account-save fields.
+
+`WorldCamera` follows living players, clamps to the expanded map and caps co-op
+zoom. Settings stores solo zoom in `DuckDefender_CameraZoom`. SampleScene repeats
+the existing terrain equally left/right (190 ground cells including the spawn
+reserve), with three times the original playable boundary width. A 30-unit spawn
+reserve extends beyond each player boundary. Enemies ignore the four side-wall
+and anti-falloff colliders; players still collide with them. Dynamic enemy spawns
+raycast terrain, remain outside the current viewport and use a fixed distance
+independent of zoom. Spawn candidates leave clearance from existing enemy bodies,
+including elite sizes. Ground enemy jump checks ignore the player-only walls.
+
+`CoopRunUI` creates overhead health or stacked clones of the solo health artwork,
+player names, offscreen arrows, individual card panes and results. The co-op XP
+bar occupies 60% of the top width. Cards remain pending and reversible until all
+players are ready for 1.25 seconds, then apply exactly once. Dead players retain
+upgrades and optionally respawn at a living teammate next wave; all players dead
+ends the run. Death animations use unscaled time, and results wait two seconds.
+Disconnecting an assigned controller pauses gameplay until it reconnects.
+`PlayerPalette.shader` preserves body shading, outlines and beaks for all six
+colors. `HealthPalette.shader` recolors the classic bar's green fill.
+
+New UI uses the exact `Fonts/DuckDefenderTestFontv2.asset` font, including its
+authored bitmap atlas and material. MainMenuUI and GameUI reference it through
+their `UIFont` fields and initialize the shared runtime UI helper.
+`CoopAdjustmentSetup` applies saved menu, font and terrain changes through Editor
+APIs, including regenerating the ground's composite collider geometry.
+
+## PlayerController
+
+```text
+Assets/Scripts/PlayerController.cs
+```
+
+Responsibilities include:
+
+* Rigidbody2D movement
+* acceleration/deceleration
+* jumping
+* multi-jump
+* dash
+* ground slam
+* blink
+* low gravity
+* fire trail
+* hypersonic collision damage
+* player facing
+* movement animation state
+
+Reads its own PlayerStats; Instance remains the primary player's compatibility reference.
+
+---
+
+## WeaponPlayer
+
+```text
+Assets/Scripts/WeaponPlayer.cs
+```
+
+Responsibilities include:
+
+* mouse/touch or assigned-controller aiming
+* fire cadence
+* projectile spawning
+* parallel shots
+* spread patterns
+* special feathers
+* buckshot
+* airburst
+* tripleshot
+* minigun heat
+* minigun overheat
+
+---
+
+## Projectile
+
+```text
+Assets/Scripts/Projectile.cs
+```
+
+Contains nested:
+
+```text
+Projectile.BallisticData
+```
+
+Current projectile features include:
+
+* damage
+* critical hits
+* piercing
+* ricochet
+* homing
+* knockback
+* explosions
+* healing
+* poison
+* freezing
+* target reacquisition
+
+Player bullets use:
+
+```text
+Assets/Scripts/ObjectPooler.cs
+```
+
+---
+
+## PlayerHealth
+
+```text
+Assets/Scripts/PlayerHealth.cs
+```
+
+Responsibilities include:
+
+* damage
+* healing
+* regeneration
+* thorns
+* death
+* game-over transition
+* second wind
+
+---
+
+## PlayerStats
+
+```text
+Assets/Scripts/PlayerStats.cs
+```
+
+Central mutable runtime state for many card-derived stats and abilities.
+
+Also contains coin-driven mechanics including `ReportCoinsGained()` and Money High / Powerful Profit behavior.
+
+---
+
+## PlayerAnimator
+
+```text
+Assets/Scripts/Playeranimator.cs
+```
+
+Contains `PlayerAnimator`.
+
+Animation ownership is partially shared with `PlayerController`, which directly manipulates some animation state.
+
+---
+
+# Wave Architecture
+
+## WaveManager
+
+```text
+Assets/Scripts/WaveManager.cs
+```
+
+Responsibilities include:
+
+* starting waves
+* selecting enemies
+* enemy spawning
+* multi-spawning
+* difficulty scaling
+* wave progression
+* enemy count tracking
+
+Spawn batches yield after every enemy (minimum .04 seconds). Both wave counts and
+the default live-enemy limit of 40 scale by the number of players. The limit holds
+the remainder in the queue. The HUD's remaining count still
+includes both queued and living enemies, so the wave cannot finish early.
+
+---
+
+# Enemy Architecture
+
+## EnemyBase
+
+```text
+Assets/Scripts/EnemyBase.cs
+```
+
+Abstract common enemy superclass.
+
+Shared behavior includes:
+
+* health
+* wave-scaled health
+* movement speed
+* damage
+* player lookup
+* facing
+* health bars
+* knockback
+* poison
+* slow
+* freeze
+* hit feedback
+* death
+* rewards
+* coin drops
+
+Movement is delegated through abstract `Move()` behavior.
+
+---
+
+## Specialized Enemy Classes
+
+```text
+Assets/Scripts/SwarmerEnemy.cs
+Assets/Scripts/TankEnemy.cs
+Assets/Scripts/LobberEnemy.cs
+Assets/Scripts/BuzzerEnemy.cs
+```
+
+### SwarmerEnemy
+
+* fast ground melee
+* separation behavior
+* collider-edge melee with a windup and a single impact check
+
+The active Fast Enemy prefab uses collider-edge reach, a configurable windup,
+one impact check, and a one-second cooldown. Elite ground enemies have increased
+health/reach and apply a half-second player movement/feather stun on a successful hit.
+
+### TankEnemy
+
+* slower melee
+* three lifetime protection chains to nearby non-tank enemies, with exclusive ownership
+* chain visuals use 40% of their authored alpha
+* 50% damage redirection using fractional health damage
+* elite shield gain from redirected damage and capped ally-death speed/damage bonuses
+
+### LobberEnemy
+
+* approaches firing range
+* high-arc poison projectiles and one-second ground clouds
+* elite delayed follow-up balls that grow and accelerate on two bounces
+
+### BuzzerEnemy
+
+* hovering ranged behavior
+* fixed-speed approach and aimed shot windup
+* elite slowing shots and a three-second crash/explosion before rewards
+
+---
+
+## Older / General Enemy Implementations
+
+```text
+Assets/Scripts/GroundEnemy.cs
+Assets/Scripts/FlyingEnemy.cs
+```
+
+These coexist with the specialized enemy implementations.
+
+Do not assume they are obsolete without checking serialized references.
+
+---
+
+## Enemy Projectiles
+
+```text
+Assets/Scripts/EnemyProjectile.cs
+Assets/Scripts/BouncyEnemyProjectile.cs
+```
+
+Enemy health uses a run-start snapshot of persistent collection progression in
+`GameDifficulty`: E = max(0, (unlockedCards * combinedLevels - 72) / 53), with
+starting-health multiplier 1 + .03E and additive-wave multiplier 1 + .02E.
+WaveManager's piecewise cumulative increases stay unscaled; EnemyBase combines
+the two terms once and retains fractional health. The gameplay card registry has
+47 eligible collection cards plus four Basics; only owned, registered non-Basics
+count, once per ID. Co-op uses the host collection, independently of enabled-card
+filters and current run picks. Solo and host menus no longer offer difficulty
+selection; old preferences/callbacks cannot alter combat or coin multipliers.
+Damage, speed, coins, spawn schedules and counts use their base rates. Elite
+health and the team's existing Sabotage reduction apply once after scaling;
+Sabotage keeps its 95% cap and 1-HP minimum, now without integer truncation.
+Tanks derive health as three times the normal ground health including growth.
+Elite enemies
+reuse the normal prefabs with preserved enlarged/darker visuals, double coin rewards,
+and 25% more XP (LevelManager carries fractional XP). Off-screen spawns reject damage
+until entering the gameplay camera. EnemyHealthBar displays numeric health and optional
+shield values. PlayerHealth owns non-stacking slow, stun, and five-stack refreshing poison.
+
+WaveDefinition assets optionally override individual waves with scripted groups,
+weighted random pools, exclusions, or mixed ordered/random spawning. Unspecified
+waves use the existing count/cap controls and a configurable introduction schedule:
+normal ground/flying/tank/lobber at 1/3/6/9, elite variants at 12/16/20/25.
+Each automatic introduction wave contains exactly one of its new variant, including
+co-op; random filler and multiplayer duplication exclude that introduction. Wave 1
+is the exception: four normal ground enemies, with ordinary co-op count scaling.
+Explicit WaveDefinition pools/groups retain their authored behavior.
+Tanks follow at least one non-tank spawn; tank-only scripted waves are rejected.
+Protected allies receive a blue tint, while status-effect colors keep priority.
+The active flying enemy prefab uses a seven-unit firing range.
+See Docs/ENEMY_UPDATE.md for authoring, confirmed scaling boundaries, and verification.
+
+WaveManager automatically adds EnemyTipUI for full-view first-encounter tutorials.
+Tips own a gameplay pause with a real-time input grace period and release-before-click
+dismissal. Seen IDs and the MainMenu Show tips option are additive fields in PlayerData;
+SaveSystem preserves them when older cached economy objects save. The save version
+is unchanged. LevelUpUI retains its pause while a tip is displayed.
+
+Assets/Scripts/Editor/EnemyUpdateVerification.cs provides isolated checks and an
+opt-in Play Mode verification menu. EnemyUpdatePlayProbe is guarded by UNITY_EDITOR
+and uses a temporary save only when the verification session flag is set.
+
+---
+
+# Economy and Progression
+
+## LevelManager
+
+```text
+Assets/Scripts/LevelManager.cs
+```
+
+Responsibilities include:
+
+* XP
+* leveling
+* run coins
+* passive coin spawning
+* wave rewards
+* progression UI synchronization
+* coin-trigger thresholds
+
+`LevelManager.AddCoins(amount, recipient)` credits the host's saved balance, the
+recipient's result counter, and their ReportCoinsGained/meteor/Tripleshot effects.
+The optional recipient retains the legacy player-one path for older callers.
+Shared XP targets scale by player count. Wave income, interest and regeneration
+use each living player's build; interest uses the same initial host balance.
+
+---
+
+## Coin
+
+```text
+Assets/Scripts/Coin.cs
+```
+
+Coins settle on the Ground layer and use proximity pickup, so they cannot obstruct
+the player. They share physics materials. LevelManager schedules a spatial merge
+pass every .25 seconds: ten nearby equal denominations become 10, then 100. Merge
+radius is two world units, the vacuum animation lasts .18 seconds, and scales are
+1 / 1.18 / 1.36. Passive and ordinary coins merge separately; merge donors cannot
+collect. Value and Absolute Extinction pickup entitlements transfer to the survivor.
+Candidate search is budgeted at 4,096 comparisons / 32 merges per pass.
+
+LevelManager credits currency and per-coin effects immediately, batches coin saves
+at most once per second, and flushes on disable, pause, focus loss and quit. Its
+meteor queues spawn at most two rewards per frame without dropping earned counts.
+
+Coin magnet behavior reads the nearest living player's MagnetRange. XP gems and
+healing orbs also seek living players; collection guards prevent duplicate pickup.
+Secondary-meteor coins retain their source owner through merging and collection.
+
+---
+
+## XP Gem
+
+```text
+Assets/Scripts/XP&Gems.cs
+```
+
+Contains `XPGem`.
+
+Current behavior uses its own:
+
+```text
+MagnetRange
+```
+
+with a default of `3.0f`.
+
+It does not currently use:
+
+```text
+PlayerStats.MagnetRange
+```
+
+This differs from coin magnet behavior.
+
+---
+
+# Coin-Triggered Mechanics
+
+## Money High / Powerful Profit
+
+Primary files:
+
+```text
+Assets/Scripts/PlayerStats.cs
+Assets/Scripts/Projectile.cs
+```
+
+`ReportCoinsGained()` records one counted expiration batch per pickup. A value-100
+coin still grants 100 independently valued stacks with the same pickup timestamp;
+new pickups do not extend older batches. Damage reads use the cached total and
+skip expiration work until the earliest batch is due.
+
+Stacks expire based on:
+
+```text
+Time.time + MoneyHighDuration
+```
+
+Damage scales from active stack count.
+
+---
+
+## Coin Meteor
+
+Files:
+
+```text
+Assets/Scripts/LevelManager.cs
+Assets/Scripts/PlayerController.cs
+Assets/Scripts/Meteor.cs
+```
+
+Coin Meteor targets the nearest living enemy. Its selected card supplies a threshold of
+50 down to 35 coins and flat non-feather damage of 10 up to 35. Damage runs through
+PlayerStats.CalculateDamage and applies once per enemy, independent of collider count.
+MeteorRadius remains an authored runtime stat. Threshold handling preserves remainder.
+
+Absolute Extinction retains the level-6 primary meteor. Each of its three dropped coins
+can summon a secondary meteor at a random viewport position. Secondary meteors deal
+50% damage and drop no coins, preventing recursive secondary-coin chains.
+
+---
+
+## Tripleshot
+
+Files:
+
+```text
+Assets/Scripts/LevelManager.cs
+Assets/Scripts/WeaponPlayer.cs
+```
+
+Default/fallback threshold:
+
+```text
+15
+```
+
+Adds two bonus spread projectiles during `TripleshotDuration`.
+
+Retriggering restarts the duration.
+
+---
+
+## Passive Income
+
+Files:
+
+```text
+Assets/Scripts/PlayerController.cs
+Assets/Scripts/LevelManager.cs
+```
+
+`CoinsPerSecond` becomes physical coins through:
+
+```text
+LevelManager.SpawnPassiveCoin()
+```
+
+---
+
+## Interest
+
+Wave completion calculates:
+
+```text
+floor(TotalCoins * InterestRate)
+```
+
+Positive results pass through `AddCoins()`.
+
+---
+
+# Cards
+
+## CardDefinition
+
+```text
+Assets/Scripts/CardDefinition.cs
+```
+
+Defines:
+
+```text
+CardDefinition
+CardPackType
+CardRarity
+InRunStackMode
+StatType
+CardStatModifier
+```
+
+### CardPackType
+
+```text
+Munitions = 0
+Mobility  = 1
+Survival  = 2
+Gadget    = 3
+BaseSet   = 4
+```
+
+There is currently no `Tech` enum value.
+
+### CardRarity
+
+```text
+Common    = 0
+Rare      = 1
+Legendary = 2
+Corrupted = 3
+```
+
+### InRunStackMode
+
+```text
+MatchBaseValue  = 0
+MatchShopGrowth = 1
+Custom          = 2
+```
+
+---
+
+## Card Assets
+
+### Current card rework
+
+CardDefinition contains six permanent levels and optional CardAscension metadata on the
+same asset/ID. CardManager applies a collection card once per run at its saved level or
+ascended form. Basic cards remain repeatable at their original level-1 strength. The
+serialized InRunStackMode fields remain for compatibility but no longer drive repeated
+collection-card pickups.
+
+New run-offer defaults are Common 60%, Rare 30%, Basic 7%, Legendary 3%. Unavailable
+rarities fall back to the eligible pool. When fewer than three collection cards remain,
+Basics fill the remaining choices. Lucky Talisman shifts Common probability toward
+Rare and Legendary. The serialized gameplay scene requires the configuration step in
+[CARD_REWORK_IMPLEMENTATION_GUIDE.md](CARD_REWORK_IMPLEMENTATION_GUIDE.md).
+
+The 25 ascensions are runtime flags in PlayerStats. AscensionEffects owns the player's
+beam, wormhole, volcanic eruption, healing areas, orbs and wall spawning. AscensionArea,
+HealingOrb and DefenderWall supply reusable effect behavior. Their prefabs are Inspector
+references; automatic addition of AscensionEffects does not populate them. Savior and
+Wormhole now provide non-blocking circle visuals with a prefab-free ring fallback.
+Walls and orbs use dynamic Rigidbody2D gravity to settle on Ground. Defender places
+walls immediately on acquisition and then every 20 seconds.
+
+PlayerStats.CalculateDamage combines flat damage with an additive percentage bucket.
+Explicit projectile ratios, crits and bounce falloff apply afterward. EnemyBase maintains
+an active enemy registry and fractional damage remainder for area effects/poison.
+PlayerHealth handles Rebirth once per run. Its +150% boost multiplies current upgraded
+fire rate, feather size, maximum health, normal feather count, movement speed,
+acceleration, jump height and feather damage by 2.5. Only those core stats receive the
+multiplier, including later acquisitions; upgrade-specific strengths, cooldowns,
+counts, ranges and rewards remain unchanged. Jump impulse scales by sqrt(2.5), with
+gravity unchanged. PlayerHealth keeps the health multiplier separate from ordinary
+percentage bonuses; PlayerStats.CalculateDamage applies Rebirth only to feather damage.
+LevelUpUI queues multiple earned level choices. Damage-dealing
+area loops copy the active enemy registry into reusable per-effect buffers so death
+callbacks cannot invalidate iteration.
+
+Electric Feathers uses the existing pool. Successfully emitted normal volleys and minigun
+shots each count once for all special-feather intervals; extra feathers do not recurse.
+Electric damage snapshots normal attack damage at firing. Chain targets cannot repeat;
+unrounded damage halves per jump before integer hit conversion. Supercharged uses a
+maximum-health hit through the enemy's normal damage path. Optional chain/bolt visuals
+reuse WeaponPlayer-owned LineRenderers.
+
+Assets/Scripts/Editor/CardReworkSetup.cs provides explicit authoring/configuration menu
+commands. CardReworkVerification runs isolated checks with a temporary save and transient
+objects. CardReworkCombatProbe is guarded by UNITY_EDITOR and excluded from builds.
+Run Isolated Physics Verification simulates a separate preview physics world for
+falling walls/orbs and Blink's collider sweep, without entering Play Mode.
+
+The 24 September balance uses Faster Firing 20–70% and Hunter cooldowns 6–1 seconds.
+Marksman's ascended interval is 1 second. Divine Duplicator retains the level-six
+parallel pair and adds a cursor-aligned vertical feather. Blink has a fixed 1.5-unit
+default distance and runs against the Rigidbody position during the physics step;
+movement acceleration is bounded to avoid high-stat force-feedback oscillation.
+
+### Existing assets
+
+Current count:
+
+```text
+51
+```
+
+Distribution:
+
+```text
+Base Set Upgrades:   4
+Gadget Upgrades:     12
+Mobility Upgrades:   9
+Munitions Upgrades:  14
+Survival Upgrades:   12
+```
+
+Rarity distribution:
+
+```text
+Common:     24
+Rare:       14
+Legendary:  13
+Corrupted:  0
+```
+
+No duplicate card IDs were found during the verified audit.
+
+Card IDs should be treated as persistent identifiers.
+
+---
+
+## CardManager
+
+```text
+Assets/Scripts/CardManager.cs
+```
+
+Responsibilities include:
+
+* rarity rolls
+* unlocked-card filtering
+* run card pool
+* pickups
+* once-per-run selection and repeatable Basic effects
+* application of upgrades
+
+Applies effects into systems including:
+
+```text
+PlayerStats
+PlayerController
+WeaponPlayer
+```
+
+---
+
+# Shop
+
+## ShopPackDefinition
+
+Defined in:
+
+```text
+Assets/Scripts/ShopData.cs
+```
+
+Current pack assets:
+
+```text
+Assets/Cards/Packs/Pack_BasePack.asset
+Assets/Cards/Packs/Pack_Mobility.asset
+Assets/Cards/Packs/Pack_Munitions.asset
+Assets/Cards/Packs/Pack_Survival.asset
+Assets/Cards/Packs/Pack_Tech.asset
+```
+
+Current categories:
+
+```text
+Pack_BasePack.asset  -> BaseSet
+Pack_Mobility.asset  -> Mobility
+Pack_Munitions.asset -> Munitions
+Pack_Survival.asset  -> Survival
+Pack_Tech.asset      -> Gadget
+```
+
+`Pack_Tech.asset` retains an old filename while representing `Gadget`.
+
+---
+
+## ShopManager
+
+```text
+Assets/Scripts/ShopManager.cs
+```
+
+Owns permanent economy and collection/upgrading behavior.
+
+`LoadEconomy()` calls `UnlockBaseSet()`.
+
+### Collection and pack wiring
+
+MainMenu's ShopManager contains 47 collection cards and intentionally omits the four
+Basic cards. Its AvailablePacks omits Pack_BasePack. Basics are always eligible through
+the gameplay CardManager's 51-card list and are not purchasable or upgradeable.
+
+PlayerData.CreateNew unlocks eight specified collection starters independently of the
+shop list. ShopManager owns four essence balances, six-level upgrade prices/copy costs,
+1,000-essence ascensions and persistent developer resource flags. At maximum level,
+new duplicates and leftover copies convert to essence (Common 1, Rare 2, Legendary 4).
+
+TryBuyPacks accepts one, three or six packs, gated by the permanent bulk-opening
+unlock. It grants/saves three, nine or eighteen cards before the visual reveal,
+and publishes OnCollectionChanged for collection/resource UI. Pack odds
+are 60% Common, 35% Rare and 5% Legendary. No Corrupted cards are rolled.
+
+MainMenuUI contains the one-/three-/six-pack controls and an adaptive reveal grid, while
+CardDisplay contains the ascension button/balance bindings. DeveloperConsoleUI accepts
+eight four-digit codes, including repeatable item grants and level-two collection
+unlocks plus one million gold. Existing higher card levels and ascensions are preserved.
+See `Docs/CODES.md` for the complete list and entry instructions.
+
+### Items, loadouts and permanent upgrades
+
+`ShopManager.Upgrades.cs` extends the existing ShopManager. `ShopUpdateUI` adds
+three shop tabs at runtime, retaining authored pack art and the original bitmap font.
+Six item offers persist with sold flags and a UTC ten-minute rotation timestamp.
+Five starting-card slots, three-/six-pack unlocks and five 50-level permanent
+stats share the existing coin balance and save file. Essence labels appear after
+a pack's essence is discovered or a card in that pack reaches its maximum level.
+
+`IndexLoadoutUI`, `LoadoutPanel` and `LoadoutInteraction` supply the Items tab,
+starting-card column, contextual equip/sell menus, drag/drop and per-seat lobby
+equipment. Each item slot reserves one owned copy. Co-op shares the host inventory
+across participating seats; solo and co-op store separate selections. Starting
+cards use unlocked non-Basic collection cards, with no duplicates within one
+player's loadout. Host-disabled cards are excluded. Simple co-op disables both
+loadouts for the run while retaining saved selections; permanent upgrades remain.
+
+`LocalCoopSession` initializes `PlayerItems` after player Start methods. Starting
+cards go through CardManager's existing per-player application/history, so they
+use the saved level/ascension and are excluded from subsequent run offers. Solo
+compatibility calls and explicit per-player calls share the same card history. Items
+are deducted and saved only on use. Unused copies survive death and quitting.
+Completed runs enable drops after the first two games; eligible kills roll 0.5%,
+with the first successful drop always a Bomb. `ItemPickup` requires nearby contact
+and is independent of coin magnetism. Drops have gravity and collide only with
+Ground. Collection shows a brief white-infill "+1 item name" above the collector.
+
+`ItemArea` owns fixed shield/banner zones, lobbed bombs, map-wide flames and the
+falling nuke/radiation. Consumable damage bypasses off-screen spawn protection
+through EnemyBase's existing damage/death path. Shields last two completed waves,
+flames three, and banners ten. Flames deal 10% maximum health per second; radiation
+slows existing and newly spawned enemies by 50% for ten waves after detonation.
+Banners do not stack. Casino positives last ten waves and negatives two.
+`ItemClone` creates one AI for five waves, snapshots the player's full current
+damage/fire rate and effective movement, and stays within six units. Clones do not
+count as real players for camera framing, pickups or game over. Collision exclusions
+are configured after activation. Bombs use one high arc mirrored left/right,
+detonate on terrain or enemy contact, and share their collision tracing with the
+held-Use trajectory preview. Switching slots or pausing cancels the throw.
+Flamethrower and green radiation reuse PlayerController.FireTrailPatchPrefab at
+terrain height, with ItemArea owning damage/slow and wave lifetime.
+
+`PlayerItems` manages up to four evenly spaced cursor sawblades until death, with
+one hit per enemy per blade per orbit, plus the ten-second Shock stun/50%-health hit.
+Divine Intervention snapshots and suspends card stats/effects for two waves,
+restores the baseline captured before starting cards, grants flight, 10 HP/second
+regeneration and lightning at 10% of the baseline shot interval. Lightning deals
+50% maximum health, then chains to five more targets at 90% of the preceding
+fraction. Cards picked during Divine are recorded immediately and applied once
+after restoration. Existing projectiles, areas and companions respect suppression.
+The twelve item IDs preserve the original eight IDs; older inventories expand on
+load. Item icons and world effects retain procedural placeholders.
+
+`ItemWheelUI` provides the temporary four-way selection HUD, pickup text, casino
+display with a fixed landing tick and outcome-matched stopping angle, and
+mobile slot/Use buttons. Keyboard 1–4/right-click and controller D-pad/RB are the
+remappable item defaults; ordinary gamepad movement uses the configured analog stick.
+The old reserved-control mapping rule migrates once, then saved choices are retained.
+Co-op collection events update availability text in every loadout pane without
+closing another player's item menu.
+
+---
+
+# Save Architecture
+
+## Guided tutorial
+
+`TutorialDirector` bootstraps a scene-local coordinator in MainMenu and SampleScene.
+Its practice and menu partials integrate with existing input, enemy, wave, card,
+shop and loadout owners. No tutorial component needs to be attached in the Editor.
+Runtime prompts use CoopUIElements and the original DuckDefenderTestFontv2 asset.
+Completed objectives and informational prompts require a fresh Interact press
+(controller binding, Enter on keyboard, or touch), with release-before-press
+protection. Prompts wait during modal offers/tips and device disconnection.
+Prompts are centered above gameplay and use clear gaps in shop/index layouts.
+Enemy tips also require Interact during protected tutorial runs.
+
+Fresh profiles opt into `TutorialProgress.Version = 1`: movement/jump/aim/shoot
+practice, two fixed-XP enemies and a required Basic Health choice; five protected
+waves at half the normal enemy counts (rounded up, retaining introductions); one
+guaranteed-duplicate pack and its index upgrade. The wave reward is
+200 coins once. The pack charge/cards/checkpoint and upgrade/checkpoint each save
+together. A saved unopened pack resumes its reveal without another charge.
+Practice uses fading green goals and dartboard targets. Its enemies enter from
+outside the camera and stop before combat. All three Basic cards remain focusable,
+but only Health can be activated. Falling out returns the player without losing
+completed objectives. Neither stage has a restart button, and Continue is a text
+hint rather than a button. Learned movement/jump controls remain available during
+later lessons. Green gradient underglows guide cards and buttons separately from
+yellow controller focus. The index permits browsing packs, layouts, pages and card
+previews while purchase/equipment services retain the tutorial restrictions.
+Interrupted waves resume from the Play menu checkpoint. Tutorial runs do not count
+toward the two completed normal runs needed for item drops.
+
+Existing current-schema profiles opt out of the core tutorial without losing
+progress. Both new and existing profiles can enter the item lesson after first
+acquisition; a pickup defers the lesson until returning to MainMenu. The index
+Items tab stays hidden until acquisition, and the item wheel requires an item
+equipped at the start of that run. Selling/unequipping cannot remove the required
+item during the lesson. Core tutorial menus and economy services enforce the
+same purchase/upgrade restrictions.
+
+`SaveSystem.SaveData(..., updateTutorial: true)` explicitly changes checkpoints;
+ordinary cached economy/tip writes preserve the latest saved tutorial state.
+The progression schema remains version 2. `GameUI` gives solo health the classic
+bar proportions and a numeric white-infill label above the existing XP bar.
+
+See [TUTORIAL_IMPLEMENTATION.md](TUTORIAL_IMPLEMENTATION.md) for recovery behavior,
+the file manifest, isolated verification and manual Play Mode checks.
+
+## SaveSystem
+
+```text
+Assets/Scripts/SaveSystem.cs
+```
+
+Writes permanent progression to:
+
+```text
+Application.persistentDataPath/duck_save.json
+```
+
+Saved information includes:
+
+* total coins
+* card ID
+* permanent level
+* duplicate count
+* unlock state
+* ascension state
+* four pack-specific essence balances
+* developer resource flags
+* progression schema version
+* owned consumables, solo/per-seat item and starting-card loadouts
+* permanent stat levels, starting slots and bulk-pack unlock tier
+* item shop stock, sold flags and UTC refresh time
+* completed runs, first item-drop flag and discovered essence types
+* core/item tutorial checkpoints, acquisition flag and guaranteed pack card IDs
+
+Missing/corrupt data falls back to fresh player data.
+
+---
+
+## PlayerData
+
+```text
+Assets/Scripts/PlayerData.cs
+```
+
+Current new `CardSaveData` defaults include:
+
+```text
+Level = 1
+DuplicateCount = 0
+IsUnlocked = true
+```
+
+---
+
+Version 2 is the card-rework schema. Loading an older save intentionally replaces it
+with the eight-starter profile once. Current-version saves preserve progression. An
+editor-only VerificationSavePath allows the isolated checks to avoid real player data.
+The shop expansion keeps version 2. Missing new fields normalize to empty/default
+values without resetting current-version coins or cards.
+
+## SaveOnQuit
+
+```text
+Assets/Scripts/SaveOnQuit.cs
+```
+
+Calls:
+
+```text
+DontDestroyOnLoad(gameObject)
+```
+
+Handles:
+
+```text
+OnApplicationQuit()
+OnApplicationPause(true)
+```
+
+No serialized references to the component were found in inspected:
+
+* scenes
+* prefabs
+* ScriptableObjects
+
+No runtime creation path was found.
+
+The implementation exists, but its runtime activation is not established.
+
+---
+
+# WebGL Plugins
+
+## Save Bridge
+
+```text
+Assets/Plugins/WebGL/SaveSystemBridge.jslib
+```
+
+Exports:
+
+```text
+SyncFiles
+```
+
+and uses:
+
+```text
+FS.syncfs(false, callback)
+```
+
+`SaveSystem.cs` calls it under:
+
+```csharp
+#if UNITY_WEBGL && !UNITY_EDITOR
+```
+
+---
+
+## Fullscreen Bridge
+
+```text
+Assets/Plugins/WebGL/Fullscreen.jslib
+```
+
+Exports:
+
+```text
+JSEnterFullscreen
+JSExitFullscreen
+JSIsFullscreen
+```
+
+Consumed by:
+
+```text
+Assets/Scripts/FullscreenToggle.cs
+```
+
+under WebGL guards.
+
+---
+
+# Audio Architecture
+
+## AudioManager
+
+```text
+Assets/Scripts/AudioManager.cs
+```
+
+Persistent through:
+
+```text
+DontDestroyOnLoad(gameObject)
+```
+
+PlayerPrefs keys include:
+
+```text
+DuckDefender_MasterVolume
+DuckDefender_SFXVolume
+DuckDefender_MusicVolume
+```
+
+Master volume controls AudioListener.volume; SFX and music retain independent channel gains.
+Changing SFX updates currently playing pooled sources as well as future sounds.
+
+### SliceMode
+
+Current values:
+
+```text
+None         = 0
+EqualSlices  = 1
+CustomSlices = 2
+```
+
+There is no current `AutoDetect`.
+
+`PlaySlice()` uses:
+
+```text
+AudioSource.SetScheduledEndTime(...)
+```
+
+Slice duration accounts for playback pitch.
+
+The main-menu SFX library currently contains entries using `CustomSlices`.
+
+No project-authored `AudioManagerEditor.cs` currently exists.
+
+No project-authored custom C# Inspector was found.
+
+---
+
+# UI Architecture
+
+The project primarily uses:
+
+* uGUI
+* TextMesh Pro
+
+Gameplay UI scripts include:
+
+```text
+GameUI.cs
+LevelUpUI.cs
+CardDisplay.cs
+SpriteHealthBar.cs
+SpriteXPBar.cs
+EnemyHealthBar.cs
+DamagePopup.cs
+OverheatPopup.cs
+SafeAreaPanel.cs
+PixelPerfectCanvasScaler.cs
+```
+
+Menu-related scripts include:
+
+```text
+MainMenuUI.cs
+MenuController.cs
+ShopManager.cs
+CardIndexUI.cs
+SettingsMenuUI.cs
+FullscreenToggle.cs
+ButtonClickSound.cs
+```
+
+`MenuController.cs` contains `MainMenuController`.
+
+MainMenu.unity stores the menu, 2x2 pack shop, selectable index grids,
+and settings layouts. MainMenuUI shows the automatic collection-difficulty explanation and owns panel
+navigation. CardIndexUI filters by pack and pages by rarity/name; CardDisplay
+continues to own the existing upgrade/ascension buttons and collection refreshes.
+
+ShopPackButton uses only the existing named pack artwork and its coin cost.
+The root Image is transparent and remains a pointer hit area; the Button targets
+PackIcon for hover/pressed tint. Duplicate name labels are inactive. PackIcon
+uses 234x342 dimensions (3x the current 78x114 sprites) with preserved aspect,
+and the white price sits beneath it in the existing 2x2 shop grid.
+
+Main navigation, Back, index pack selectors, Keybinds and Reset Data use the
+existing 244x48 button sprite at twice its native dimensions (488x96). The logo
+uses its native 442x157 dimensions. These images have fixed-size RectTransforms,
+unit local scale and preserved aspect ratios; the existing CanvasScaler still
+scales the whole interface uniformly for the window. Secondary controls use
+Unity's built-in UI button sprite, with dark backgrounds and white text.
+
+CardIndexUI owns a Layout button cycling 3x1, 4x2, ALL and back to 3x1, with
+capacities of 3, 8 and every card in the selected category. Columns/rows drive both pagination and proportional
+card placement. Switching keeps the previous first card on the resulting page;
+page bounds and the displayed layout label refresh immediately. The choice is
+retained across pack changes and reopening the index within the current menu
+scene; a new menu scene starts at 3x1.
+
+SettingsMenuUI binds master/SFX/music sliders, the saved tips toggle, particle
+visibility, primary/alternate key bindings, and progress reset confirmation.
+Modal CanvasGroups prevent background keyboard interaction; their Images block
+pointer events. ParticleVisibility on existing effect prefabs hides particle
+renderers without disabling gameplay objects, colliders or sprite telegraphs.
+New particle prefabs should carry this component too.
+
+HostMenuUI opens from the existing Host button and configures 2–4 players,
+next-wave respawns and health-bar coloring. Its static difficulty label explains
+that scaling uses the host's collection.
+CardIndexUI's HostFilterMode lists unlocked host cards, hides economy counters,
+and toggles run eligibility through CardDisplay's Enabled/Disabled controls.
+The regular shop and index keep their progression controls. CoopUpdateSetup
+authors saved scene wiring through Unity Editor APIs. CoopUpdateVerification and
+CoopVerificationProbe exercise co-op in an isolated save with simulated gamepads.
+See Docs/COOP_UPDATE.md for setup and verification details.
+
+GameDifficulty snapshots the registered unlocked collection and persistent levels
+at run start. Legacy DuckDefender_Difficulty preferences and selection callbacks
+have no effect. LevelManager uses base coin rewards; shop prices and starting
+saved balances are unaffected. See Docs/UPDATE_9_IMPLEMENTATION.md for the formula,
+actual collection/tutorial totals and verification details.
+
+UIUpdateSetup (Editor-only) authors the saved layout through Unity APIs.
+UIUpdateVerification and the Editor-only UIUpdatePlayProbe use the existing
+SaveSystem.VerificationSavePath to exercise menu flows in an isolated profile
+and restore the tested PlayerPrefs on leaving Play Mode. See Docs/UI_UPDATE.md.
+
+---
+
+# Input Architecture
+
+The project has Unity's Input System package installed:
+
+```text
+com.unity.inputsystem 1.11.2
+```
+
+Project setting:
+
+```text
+activeInputHandler = 2
+```
+
+Both input backends are therefore enabled.
+
+Gameplay primarily uses legacy `UnityEngine.Input` through project abstractions:
+
+```text
+Assets/Scripts/Inputhelper.cs
+Assets/Scripts/InputManager.cs
+Assets/Scripts/MobileInputController.cs
+Assets/Scripts/VirtualJoystick.cs
+```
+
+`Inputhelper.cs` contains `InputHelper`.
+
+Gameplay passes its owning component to InputHelper. An assigned LocalPlayer
+reads only its own Input System Gamepad: D-pad/left stick movement and upward jump,
+right stick aim with a narrow horizontal snap, RT fire, LB dash. Shared menus use
+ControllerMenuNavigation with the first controller, right face/B to confirm and
+bottom face/A to go back by default. `ControllerBindings` saves remappable Jump,
+Dash, Shoot, Confirm, Back, Use Item and four item-slot buttons, plus move/aim stick swapping in PlayerPrefs;
+the existing keybind panel has keyboard and controller tabs. Menu movement stays
+on D-pad/left stick. Solo automatically prioritizes an attached controller and
+falls back to keyboard/mouse when disconnected. Co-op card panes handle their assigned controllers
+separately; the shared EventSystem's controller submit/move bindings are replaced
+with keyboard-only bindings to prevent duplicate or cross-player submissions.
+Controller focus uses a yellow frame with a dark border drawn in screen pixels,
+independent of button tint and card scale. Shared menus follow EventSystem focus;
+each co-op card pane has its own frame, green while selected and yellow while browsing.
+The frames do not intercept pointer input and require no prefab wiring.
+Sliders stay in navigation mode until Interact is pressed. Their focus turns green
+while the left stick adjusts them; Interact or Back returns to navigation.
+
+Pack opening accepts a fresh Confirm/Interact press (B by default) as well as a
+pointer swipe. Holding the purchase press does not skip the swipe screen. Card
+refreshes retain their selected control; when an upgrade becomes unavailable,
+focus stays on that card or a nearby available control. Equipment actions restore
+their source item/card/slot, including starting slots replaced during refresh.
+
+Desktop movement, jump, dash and shooting use InputManager's saved bindings;
+mobile input still takes priority. MainMenu includes the persistent InputManager,
+so settings changes carry into gameplay. The keybind screen exposes six primary
+actions, four alternate movement keys and five item controls, rejects duplicates, and supports
+restoring defaults. Escape cancels capture.
+
+InputManager removes only a duplicate component, preserving MobileInputController
+on the scene's shared InputSystem object. MobileInputController sets canvas
+visibility in Awake before the first frame and refreshes it after scene changes.
+Player builds use Application.isMobilePlatform; desktop touch capability and the
+Editor's build target do not enable mobile controls. Editor auto detection always
+hides them; explicit joystick testing uses AutoDetectPlatform=false and
+IsMobileEnabled=true before Play Mode. Those serialized flags cannot force touch
+controls on a non-mobile player build.
+
+New gameplay input should generally integrate through the existing abstraction rather than introducing another input path.
+
+---
+
+# Turret Architecture
+
+Base:
+
+```text
+Assets/Scripts/TurretBase.cs
+```
+
+Implementations:
+
+```text
+Assets/Scripts/MarksmanTurret.cs
+Assets/Scripts/MedicTurret.cs
+Assets/Scripts/ProtectorTurret.cs
+Assets/Scripts/ElementalTurret.cs
+Assets/Scripts/SecondWindAngel.cs
+```
+
+Manager:
+
+```text
+Assets/Scripts/TurretManager.cs
+```
+
+`TurretManager` creates/removes/repositions companions based on runtime state.
+LocalCoopSession creates one manager per player, assigns PlayerTransform before
+Start, and each manager subscribes to that player's upgrade events. TurretBase
+stores the owner stats/health and stops acting while that owner is dead.
+
+---
+
+# Manager Pattern
+
+The project heavily uses singleton-style `Instance` access.
+
+Examples include:
+
+```text
+AudioManager
+InputManager
+MobileInputController
+PlayerController
+PlayerStats
+PlayerAnimator
+WaveManager
+LevelManager
+CardManager
+TurretManager
+GameUI
+LevelUpUI
+MainMenuUI
+ShopManager
+ObjectPooler
+```
+
+Dependencies are commonly obtained through:
+
+* static `Instance`
+* Inspector references
+* `GetComponent`
+* tags
+
+The project does not currently use a dependency-injection framework.
+
+---
+
+# Packages
+
+Current direct non-module package versions:
+
+```text
+com.unity.collab-proxy                2.10.2
+com.unity.feature.2d                  2.0.1
+com.unity.ide.rider                   3.0.31
+com.unity.ide.visualstudio            2.0.22
+com.unity.inputsystem                 1.11.2
+com.unity.multiplayer.center          1.0.0
+com.unity.render-pipelines.universal  17.0.3
+com.unity.test-framework              1.4.5
+com.unity.timeline                    1.8.7
+com.unity.ugui                        2.0.0
+com.unity.visualscripting             1.9.5
+```
+
+---
+
+# Build / Player Settings
+
+Verified values include:
+
+```text
+companyName:                         DefaultCompany
+productName:                         Duck Defender
+bundleVersion:                       1.0
+applicationIdentifier.Standalone:   com.DefaultCompany.Duck-Defender
+activeInputHandler:                  2
+API compatibility:                  .NET Standard 2.1
+desktop default resolution:         1920 x 1080
+web default resolution:             960 x 600
+resizableWindow:                    false
+runInBackground:                    false
+```
+
+The serialized `scriptingBackend` dictionary is empty.
+
+This does not establish the effective backend of every target.
+
+---
+
+# WebGL Settings
+
+## Global Project Settings
+
+Current global values include:
+
+```text
+webGLCompressionFormat:       Disabled
+webGLDecompressionFallback:   enabled
+webGLTemplate:                APPLICATION:Default
+webGLNameFilesAsHashes:       false
+webGLDataCaching:             false
+webGLThreadsSupport:          false
+webGLEnableWebGPU:            false
+webGLInitialMemorySize:       32
+webGLMaximumMemorySize:       2048
+webGLMemoryGrowthMode:        2
+```
+
+## Saved Web Build Profile
+
+```text
+Assets/Settings/Build Profiles/New Web Profile.asset
+```
+
+Target:
+
+```text
+WebGL
+```
+
+The saved profile currently contains:
+
+```text
+webGLCompressionFormat: Gzip
+```
+
+This differs from the global setting.
+
+Do not assume which configuration was used for a particular build without verification.
+
+---
+
+# Known Rough Edges
+
+## MechanicsController
+
+```text
+Assets/Scripts/MechanicsController.cs
+```
+
+currently exists as a zero-byte file.
+
+---
+
+## XP Gem Magnet
+
+XP gems use their own `MagnetRange`.
+
+Coins use:
+
+```text
+PlayerStats.MagnetRange
+```
+
+This is a current behavior mismatch.
+
+---
+
+## BaseSet Shop Wiring
+
+Basic cards and their pack are intentionally omitted from the MainMenu shop. They remain in the gameplay CardManager list as repeatable fallback offers.
+
+---
+
+## SaveOnQuit
+
+Implementation exists but no active serialized or runtime creation path was found.
+
+---
+
+## WebGL Compression
+
+Global settings say:
+
+```text
+Disabled
+```
+
+Saved WebGL profile says:
+
+```text
+Gzip
+```
+
+---
+
+## Audio Historical Documentation
+
+Current modes are only:
+
+```text
+None
+EqualSlices
+CustomSlices
+```
+
+There is no `AutoDetect`.
+
+There is no project `AudioManagerEditor.cs`.
+
+---
+
+## Mixed Enemy Generations
+
+Specialized and older/general enemy implementations coexist.
+
+Do not delete either category without checking references.
+
+---
+
+## Mixed Pooling
+
+Player bullets use a return queue with lazy growth. ObjectPooler prewarms at most 64
+bullets and caps the pool at the smaller of PoolSize and MaximumPlayerProjectiles
+(default 2,048). Expired bullets are inactive reusable objects, not leaked live shots.
+Projectile target searches use EnemyBase's registry rather than scene-wide tag searches.
+
+Hit/explosion visuals use ObjectPooler plus PooledVisualEffect. The default limits are
+32 instances per prefab and 128 overall. The runtime wrapper activates inactive source
+prefabs, preserves their authored rotation, suppresses SelfDestruct and particle
+Destroy stop actions, and returns effects to the pool. Saturation replays an existing
+same-prefab visual; a new effect type can reclaim an inactive slot. If every global
+slot is busy and none belongs to that type, its extra visual is skipped. Gameplay
+damage still resolves. Destroyed slots are reclaimed. Airburst child feathers opt
+out of hit particles; normal pooled reuse resets that flag. Tungsten/needle sprites
+temporarily disable the bullet Animator; normal pooled reuse restores it.
+
+Enemy and bouncy ammunition each prewarm at most 32 objects and grow on demand
+up to EnemyPoolSize / BouncyPoolSize. The scene's existing 10,000-object limits no
+longer force 20,000 initial clones.
+
+Explosion Effect and Volcano fire use authored URP unlit particle materials at
+sorting order 100. Volcano also replays the impact explosion at its delayed eruption.
+
+Many other objects still use normal instantiation.
+
+Do not assume every spawned object is pooled.
+
+---
+
+# TO CONFIRM
+
+The following remain unresolved by static repository inspection:
+
+* effective scripting backend per target
+* current active/default build target
+* which WebGL profile/settings produced the latest build
+* effective deployed WebGL compression
+* current Windows build architecture
+* current Windows build output location
+* current Windows executable filename
+* Steam release status
+* current Steam App ID usage
+* Steam depot configuration
+* Steam launch executable configuration
+* Steam exclusion rules
+* actual GitHub Pages deployment configuration
+* current deployed Pages URL
+* external CI/build workflows
+* runtime activation of `SaveOnQuit`
+* runtime behavior not explicitly Play Mode tested
+
+Do not convert these into facts without verification.
+
+## September 25 movement and pack-opening corrections
+
+Dash consumes a world-distance budget in FixedUpdate and sweeps the player's body
+against terrain before each move. DashDistance is 3–8 units across the six card
+levels. DashSpeed changes travel speed, not distance; Rebirth changes neither. The old DashDuration field
+and enum value remain compatible; the new enum value is appended. Blink ignores
+artificial horizontal blocking normals from a tiny resting overlap with a flat floor.
+
+SampleScene's Tilemap_Ground now merges into its existing polygon CompositeCollider2D.
+The old (0, -.3) collider offset is on the composite; surface height remains -2.3.
+Savior areas continue to disable all authored physics colliders and bodies.
+
+MainMenuUI centers single-/three-pack images in the authored horizontal PackRow.
+Six packs use a centered 3×2 arrangement with that layout temporarily disabled.
+Three-pack opening uses larger pack images and a five-column, two-row reveal,
+with the four-card bottom row centered. Six-pack reveals retain six columns and
+three rows. `AscendedCardTint` adds a slow chromatic background tint to ascended
+collection and loadout cards while preserving the original white text.
+The card reveal uses positive spacing and fits each card inside its grid cell.

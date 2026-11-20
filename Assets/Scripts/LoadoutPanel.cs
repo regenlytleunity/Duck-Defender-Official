@@ -109,10 +109,7 @@ public sealed class LoadoutPanel
         var button = CoopUIElements.Button(parent, "", min, max, () => OpenItem(id, slot));
         button.name = slot >= 0 ? "Item slot " + (slot + 1) : "Item " + id;
         if (slot < 0 && _shop.Progress.Tutorial.ItemActive && _shop.Progress.ItemInventory[id] > 0)
-        {
-            var outline = button.gameObject.AddComponent<UnityEngine.UI.Outline>();
-            outline.effectColor = new Color(1, .85f, .1f); outline.effectDistance = new Vector2(4, -4);
-        }
+            TutorialGuidance.Attach((RectTransform)button.transform);
         var text = button.GetComponentInChildren<TMP_Text>(); text.fontSizeMax = 21; text.fontSizeMin = 12;
         text.text = slot >= 0 ? "Slot " + (slot + 1) + (id == 0 ? "\nEmpty" : "\n" + ItemCatalog.Names[id]) : ItemCatalog.Names[id] + "\nOwned: " + _shop.Progress.ItemInventory[id] + "\nAvailable: " + Mathf.Max(0, _shop.Progress.ItemInventory[id] - _shop.ReservedItems(id, Seat));
         if (slot < 0) _itemAvailability[id] = text;
@@ -191,10 +188,10 @@ public sealed class LoadoutPanel
             var saved = _shop.GetCardData(id);
             if (saved != null && saved.Level < card.MaxLevel)
                 ModalButton("Upgrade - " + card.GetUpgradeCost(saved.Level) + " Coins", () => Change(() => _shop.TryUpgradeCard(id))).interactable =
-                    saved.IsUnlocked && (_shop.InfiniteCopies || saved.Duplicates >= card.GetCardsRequired(saved.Level)) && _shop.CanAfford(card.GetUpgradeCost(saved.Level));
+                    _shop.TutorialCanUpgrade(id) && !_shop.Progress.Tutorial.ItemActive && saved.IsUnlocked && (_shop.InfiniteCopies || saved.Duplicates >= card.GetCardsRequired(saved.Level)) && _shop.CanAfford(card.GetUpgradeCost(saved.Level));
             else if (saved != null && !saved.IsAscended && card.Ascension != CardAscension.None)
                 ModalButton("Ascend - " + card.AscensionCost + " Essence", () => Change(() => _shop.TryAscendCard(id))).interactable =
-                    _shop.InfiniteResources || _shop.GetEssence(card.PackCategory) >= card.AscensionCost;
+                    !_shop.TutorialBlocksShopping && (_shop.InfiniteResources || _shop.GetEssence(card.PackCategory) >= card.AscensionCost);
         }
         if (slot >= 0) ModalButton("Unequip", () => Change(() => _shop.EquipStartingCard(null, slot, Seat)));
         else for (int i = 0; i < _shop.Progress.StartingCardSlots; i++) { int target = i; ModalButton("Equip to slot " + (i + 1), () => Change(() => _shop.EquipStartingCard(id, target, Seat))); }

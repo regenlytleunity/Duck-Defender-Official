@@ -101,31 +101,18 @@ public class MainMenuUI : MonoBehaviour
         }
     }
 
-    public void SelectDifficulty(int difficulty)
-    {
-        if (TutorialDirector.MenuLocked) return;
-        GameDifficulty.Select(difficulty);
-        RefreshDifficulty();
-    }
+    // Kept for existing serialized UnityEvents; difficulty is now automatic.
+    public void SelectDifficulty(int difficulty) { }
 
     void RefreshDifficulty()
     {
-        if (DifficultyButtons != null) for (int i = 0; i < DifficultyButtons.Length; i++)
-        {
-            var button = DifficultyButtons[i];
-            if (button == null) continue;
-            bool selected = i == (int)GameDifficulty.Selected;
-            var colors = button.colors;
-            colors.normalColor = selected ? new Color(1f, .82f, .28f) : Color.white;
-            colors.selectedColor = colors.normalColor;
-            button.colors = colors;
-            var border = button.GetComponent<UnityEngine.UI.Outline>();
-            if (border != null) { border.enabled = selected; border.effectDistance = new Vector2(4, -4); }
-        }
+        if (DifficultyButtons != null) foreach (var button in DifficultyButtons)
+            if (button != null) button.gameObject.SetActive(false);
         if (DifficultyDescription != null)
-            DifficultyDescription.text = GameDifficulty.Selected == RunDifficulty.Easy ? "1x coins  |  Standard experience" :
-                GameDifficulty.Selected == RunDifficulty.Medium ? "1.25x coins  |  1.5x enemy health  |  +10% speed" :
-                "1.5x coins  |  2x enemy health & damage  |  +10% speed\nDouble health growth per wave";
+        {
+            DifficultyDescription.text = "Difficulty adapts to your collection";
+            CoopUIElements.WhiteInfill(DifficultyDescription);
+        }
     }
 
     // --- NAVIGATION ---

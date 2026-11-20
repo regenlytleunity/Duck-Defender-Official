@@ -17,8 +17,8 @@ public partial class TutorialDirector : MonoBehaviour
     public static bool ProtectedRun => Instance != null && Instance._protectedRun;
     public static bool HoldsPause => Instance != null && Instance._pause;
     public static bool HoldWaves => CoreActive && (Progress.Stage != TutorialStage.Waves || Instance == null || !Instance._wavesStarted);
-    public static bool AllowMovement => !Practice || Instance._step == PracticeStep.Move || Instance._step == PracticeStep.Jump || Instance._step == PracticeStep.Combat;
-    public static bool AllowJump => !Practice || Instance._step == PracticeStep.Jump || Instance._step == PracticeStep.Combat;
+    public static bool AllowMovement => !Practice || Instance._step >= PracticeStep.Move;
+    public static bool AllowJump => !Practice || Instance._step >= PracticeStep.Jump;
     public static bool AllowAim => !Practice || Instance._step >= PracticeStep.Aim;
     public static bool AllowShooting => !Practice || Instance._step == PracticeStep.Shoot || Instance._step == PracticeStep.Combat;
     public static bool AllowItems => !CoreActive;
@@ -28,22 +28,49 @@ public partial class TutorialDirector : MonoBehaviour
     MainMenuUI _menu;
     LocalPlayer _player;
     bool _practice, _protectedRun, _pause, _wavesStarted, _ready, _transitioning, _failed;
-    float _promptElapsed, _readyElapsed, _readDelay;
+    float _promptElapsed, _readyElapsed;
+    bool _continueReleased;
+    static int _continueConsumedFrame = -1;
     RectTransform _canvas, _panel, _stick;
     TMP_Text _message, _hint;
-    UnityEngine.UI.Button _restartStage;
     System.Action _next;
-    ControllerSelectionFrame _highlight;
+    TutorialGuidance _highlight;
     readonly Dictionary<UnityEngine.UI.Button, CanvasGroup> _gates = new Dictionary<UnityEngine.UI.Button, CanvasGroup>();
     readonly List<UnityEngine.UI.Button> _menuButtons = new List<UnityEngine.UI.Button>();
     readonly List<CardDisplay> _visibleCards = new List<CardDisplay>();
     string _lastPrompt;
     static readonly Color PromptColor = new Color(.035f, .055f, .09f, .97f);
 
+    public static bool CapturesContinue => Instance != null && Instance._panel != null && Instance._panel.gameObject.activeSelf && Instance._next != null;
+    public static bool BlocksMenuSubmit => CapturesContinue || _continueConsumedFrame == Time.frameCount;
+    public static void ConsumeContinueInput() => _continueConsumedFrame = Time.frameCount;
+    static UnityEngine.InputSystem.Gamepad ContinuePad
+    {
+        get
+        {
+            if (Instance != null && Instance._player != null) return Instance._player.UsesGamepad ? Instance._player.Controller : null;
+            foreach (var pad in UnityEngine.InputSystem.Gamepad.all) if (pad.enabled) return pad;
+            return null;
+        }
+    }
+    public static bool ContinueHeld => ControllerBindings.Held(ContinuePad, "Confirm") || Input.GetKey(KeyCode.Return) || Input.GetKey(KeyCode.KeypadEnter) || Input.touchCount > 0;
+    public static bool ContinuePressed
+    {
+        get
+        {
+            if (ControllerBindings.Pressed(ContinuePad, "Confirm") || Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)) return true;
+            for (int i = 0; i < Input.touchCount; i++) if (Input.GetTouch(i).phase == TouchPhase.Began) return true;
+            return false;
+        }
+    }
+    public static string ContinueHint => ContinuePad != null ? "Press " + ControllerBindings.Label("Confirm") + " to continue" :
+        MobileInputController.Instance != null && MobileInputController.Instance.IsMobileEnabled ? "Tap to continue" : "Press Enter to continue";
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     static void Initialize()
     {
         Instance = null;
+        _continueConsumedFrame = -1;
         Progress = null; // The scene callback runs after verification/save bootstrap methods.
         SceneManager.sceneLoaded -= SceneLoaded;
         SceneManager.sceneLoaded += SceneLoaded;
@@ -93,62 +120,64 @@ public partial class TutorialDirector : MonoBehaviour
     {
         if (_canvas != null) return;
         _canvas = CoopUIElements.Canvas("Tutorial prompts", transform, 950);
-        _panel = CoopUIElements.Panel(_canvas, "Tutorial prompt", new Vector2(.25f, .81f), new Vector2(.75f, .985f), PromptColor);
-        _panel.GetComponent<UnityEngine.UI.Image>().raycastTarget = false;
-        _message = CoopUIElements.Text(_panel, "", new Vector2(.10f, .25f), new Vector2(.97f, .94f), 30);
-        _hint = CoopUIElements.Text(_panel, "", new Vector2(.10f, .03f), new Vector2(.97f, .23f), 18);
-        _restartStage = CoopUIElements.Button(_canvas, "Restart stage", new Vector2(.85f, .02f), new Vector2(.98f, .075f), RestartWaves);
-        _restartStage.gameObject.SetActive(false);
-        var circle = CoopUIElements.Panel(_panel, "Stick illustration", new Vector2(.015f, .42f), new Vector2(.085f, .88f), new Color(.2f, .28f, .4f));
-        circle.GetComponent<UnityEngine.UI.Image>().sprite = ItemArea.Circle;
-        circle.GetComponent<UnityEngine.UI.Image>().raycastTarget = false;
-        _stick = CoopUIElements.Panel(circle, "Stick", new Vector2(.3f, .3f), new Vector2(.7f, .7f), Color.white);
-        _stick.GetComponent<UnityEngine.UI.Image>().sprite = ItemArea.Circle;
-        _stick.GetComponent<UnityEngine.UI.Image>().raycastTarget = false;
-        _highlight = new ControllerSelectionFrame("Tutorial highlight");
+        BuildDialogue();
+        _highlight = new TutorialGuidance();
+        _panel.gameObject.SetActive(false); // Only an active lesson's Prompt should show it.
     }
     void Prompt(string message, System.Action next = null, bool ready = true)
     {
         EnsureUI();
         if (_lastPrompt == message) return;
-        _lastPrompt = message; _message.text = message; _next = next; _ready = ready;
+        _lastPrompt = message; _next = next; _ready = ready;
+        SetPromptText(message, true);
         _promptElapsed = _readyElapsed = 0;
-        _readDelay = Mathf.Clamp(message.Length * .045f, 2.5f, 8);
+        _continueReleased = false;
         _panel.gameObject.SetActive(true);
         _panel.GetComponent<UnityEngine.UI.Image>().color = PromptColor;
     }
-    void HidePrompt() { _lastPrompt = null; if (_panel != null) _panel.gameObject.SetActive(false); _next = null; }
+    void HidePrompt() { _lastPrompt = null; if (_panel != null) _panel.gameObject.SetActive(false); if (_portrait != null) _portrait.gameObject.SetActive(false); _next = null; }
     void Advance()
     {
-        if (!_ready || _readyElapsed < .6f || _promptElapsed < _readDelay || _next == null) return;
+        if (!ContinuePressed) return;
+        ContinueDialogue();
+    }
+    void ContinueDialogue()
+    {
+        if (!_ready || _readyElapsed < .1f || _promptElapsed < .35f || !_continueReleased || _next == null || _continueConsumedFrame == Time.frameCount) return;
+        _continueConsumedFrame = Time.frameCount;
+        if (!DialogueRevealed)
+        {
+            RevealDialogue(); _continueReleased = false;
+            return;
+        }
         // Consume before invoking: callbacks may replace the prompt or change scenes.
         var action = _next; _next = null; action();
     }
     void Update()
     {
         if (_transitioning) return;
+        CheckBlockedPointer();
         if (_menu != null) UpdateMenu();
         else if (_practice && _player != null) UpdatePractice();
         else if (_protectedRun && WaveManager.Instance != null && WaveManager.Instance.HasWaveError)
             Failure("This wave could not start. Return to the menu to retry the stage.");
         if (_panel == null || !_panel.gameObject.activeSelf) return;
-        bool covered = !_failed && (EnemyTipUI.Instance != null && EnemyTipUI.Instance.IsShowing || LevelUpUI.Instance != null && LevelUpUI.Instance.IsOffering);
+        bool covered = !_failed && (EnemyTipUI.Instance != null && EnemyTipUI.Instance.IsShowing || LevelUpUI.Instance != null && LevelUpUI.Instance.IsOffering && (!_practice || _step != PracticeStep.Cards));
         bool disconnected = LocalCoopSession.Instance != null && LocalCoopSession.Instance.DevicesMissing;
         if (!covered && !disconnected)
         {
-            // Unscaled time also advances paused introductions/endings. Clamp long frames
-            // so returning from a suspended app cannot consume an entire reading delay.
+            // Release-before-press prevents the action that finished an objective
+            // (or opened a prompt) from also dismissing it.
             float elapsed = Mathf.Min(Time.unscaledDeltaTime, .1f);
             _promptElapsed += elapsed;
             _readyElapsed = _ready ? _readyElapsed + elapsed : 0;
+            if (!_ready) _continueReleased = false;
+            else if (_promptElapsed >= .35f && !ContinueHeld) _continueReleased = true;
+            UpdateDialogue(elapsed);
             Advance();
             if (_transitioning || _panel == null || !_panel.gameObject.activeSelf) return;
         }
-        _hint.text = _next == null || !_ready ? "Follow the highlighted objective" : "Continuing automatically...";
-        if (_stick != null) _stick.anchoredPosition = _step == PracticeStep.Jump ? new Vector2(0, Mathf.Abs(Mathf.Sin(Time.unscaledTime * 3)) * 22) : new Vector2(Mathf.Sin(Time.unscaledTime * 3) * 22, 0);
-        if (_stick != null) _stick.parent.gameObject.SetActive(_practice && _step >= PracticeStep.Move && _step <= PracticeStep.Shoot);
-        if (_lastPrompt != null && _lastPrompt.StartsWith("TUTORIAL COMPLETE"))
-            _panel.GetComponent<UnityEngine.UI.Image>().color = Color.HSVToRGB(Mathf.Repeat(Time.unscaledTime * .2f, 1), .6f, .3f);
+        UpdateDialogueControls(covered || disconnected);
     }
     void LateUpdate()
     {
@@ -156,26 +185,8 @@ public partial class TutorialDirector : MonoBehaviour
         if (_pause && (LocalCoopSession.Instance == null || !LocalCoopSession.Instance.GameOver)) Time.timeScale = 0;
         if (_menu != null) GateMenu();
         if (_practice) UpdatePracticeHUD();
-        if (_restartStage != null) _restartStage.gameObject.SetActive(_protectedRun && !_practice && _wavesStarted && Progress.Stage == TutorialStage.Waves &&
-            (LevelUpUI.Instance == null || !LevelUpUI.Instance.IsOffering) && (EnemyTipUI.Instance == null || !EnemyTipUI.Instance.IsShowing));
-        if (_panel != null)
-        {
-            // Use the empty areas in the existing layouts, keeping prices, cards,
-            // pagination and modal controls unobscured.
-            Vector2 min = new Vector2(.25f, .81f), max = new Vector2(.75f, .985f);
-            if (_menu != null)
-            {
-                if (_menu.OpeningOverlay.activeSelf || _menu.ConfirmPanel.activeSelf)
-                { min.y = .015f; max.y = .155f; }
-                else if (_menu.IndexPanel.activeSelf)
-                { min = new Vector2(.58f, .79f); max = new Vector2(.98f, .985f); }
-                else if (_menu.ShopPanel.activeSelf)
-                { min.y = .565f; max.y = .705f; }
-            }
-            else if (LevelUpUI.Instance != null && LevelUpUI.Instance.IsOffering)
-            { min.y = .85f; max.y = .995f; }
-            if (_panel.anchorMin != min || _panel.anchorMax != max) CoopUIElements.Stretch(_panel, min, max);
-        }
+        LayoutDialogue();
+        UpdateRejectedFeedback();
     }
     void Pause(bool paused)
     {
@@ -207,12 +218,6 @@ public partial class TutorialDirector : MonoBehaviour
         _transitioning = true; LevelManager.Instance?.FlushCoinSave(); _pause = false; Time.timeScale = 1;
         SceneManager.LoadScene("MainMenu");
     }
-    void RestartWaves()
-    {
-        if (!_protectedRun || _practice || Progress.Stage != TutorialStage.Waves || _transitioning) return;
-        _transitioning = true; LevelManager.Instance?.FlushCoinSave(); _pause = false; Time.timeScale = 1;
-        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
-    }
     void Failure(string message) { _failed = true; Prompt(message, ReturnToMenu); Pause(true); }
     public static bool CompleteWave(int wave)
     {
@@ -229,6 +234,7 @@ public partial class TutorialDirector : MonoBehaviour
     void OnDestroy()
     {
         foreach (var pair in _gates) if (pair.Value != null) Destroy(pair.Value);
+        RestoreRejectedFeedback();
         _highlight?.Dispose(); ClearPractice();
         if (Instance == this) { Instance = null; if (_pause) Time.timeScale = 1; }
     }

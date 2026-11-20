@@ -37,6 +37,7 @@ public class GameUI : MonoBehaviour
     TMP_Text _soloHealthText;
     int _healthCurrent, _healthMax;
     Transform _heartDecor, _xpDecor, _coinDecor;
+    Material _xpMaterial;
 
     void Awake()
     {
@@ -61,11 +62,11 @@ public class GameUI : MonoBehaviour
 
     void Start()
     {
+        StyleExperienceBar();
         if (LocalCoopSession.Multiplayer || PlayerHealthBar == null) return;
         var bar = (RectTransform)PlayerHealthBar.transform;
         if (_heartDecor != null) _heartDecor.gameObject.SetActive(false);
-        // Use the classic bar dimensions above the existing solo XP bar.
-        CoopUIElements.Stretch(bar, new Vector2(.02f, .92f), new Vector2(.19f, .96f));
+        CoopUIElements.Stretch(bar, new Vector2(.02f, .875f), new Vector2(.23f, .915f));
         if (PlayerHealthBar.Background != null) { CoopUIElements.Stretch(PlayerHealthBar.Background.rectTransform, Vector2.zero, Vector2.one); PlayerHealthBar.Background.preserveAspect = false; }
         if (PlayerHealthBar.Overlay != null)
         {
@@ -77,13 +78,48 @@ public class GameUI : MonoBehaviour
         var label = CoopUIElements.Panel(bar, "Health label", new Vector2(0, 1.05f), new Vector2(1, 1.85f), new Color(.04f, .06f, .09f, .88f));
         label.GetComponent<UnityEngine.UI.Image>().raycastTarget = false;
         _soloHealthText = CoopUIElements.Text(label, _healthCurrent + " / " + _healthMax, Vector2.zero, Vector2.one, 22);
+        if (XPBar != null) CoopUIElements.Stretch((RectTransform)XPBar.transform, new Vector2(.02f, .795f), new Vector2(.23f, .835f));
+        if (LevelText != null)
+        {
+            CoopUIElements.Stretch(LevelText.rectTransform, new Vector2(.02f, .837f), new Vector2(.23f, .869f));
+            LevelText.margin = Vector4.zero; LevelText.alignment = TextAlignmentOptions.Center;
+            LevelText.enableAutoSizing = true; LevelText.fontSize = LevelText.fontSizeMax = 22; LevelText.fontSizeMin = 18;
+            CoopUIElements.WhiteInfill(LevelText);
+        }
+    }
+
+    void StyleExperienceBar()
+    {
+        if (_xpDecor != null) _xpDecor.gameObject.SetActive(false);
+        if (XPBar == null || PlayerHealthBar == null) return;
+        if (XPBar.Background != null && PlayerHealthBar.Background != null)
+        {
+            XPBar.Background.sprite = PlayerHealthBar.Background.sprite;
+            XPBar.Background.color = new Color(.28f, .3f, .38f);
+            XPBar.Background.preserveAspect = false;
+            CoopUIElements.Stretch(XPBar.Background.rectTransform, Vector2.zero, Vector2.one);
+        }
+        if (XPBar.Overlay != null && PlayerHealthBar.Overlay != null)
+        {
+            XPBar.Overlay.sprite = PlayerHealthBar.Overlay.sprite;
+            XPBar.Overlay.color = Color.white; XPBar.Overlay.preserveAspect = false;
+            XPBar.Overlay.type = Image.Type.Filled; XPBar.Overlay.fillMethod = Image.FillMethod.Horizontal; XPBar.Overlay.fillOrigin = 0;
+            CoopUIElements.Stretch(XPBar.Overlay.rectTransform, Vector2.zero, Vector2.one);
+            XPBar.Overlay.rectTransform.offsetMin = new Vector2(5, 5); XPBar.Overlay.rectTransform.offsetMax = new Vector2(-5, -5);
+            var shader = Resources.Load<Shader>("HealthPalette");
+            if (shader != null)
+            {
+                _xpMaterial = new Material(shader); _xpMaterial.SetColor("_PlayerColor", new Color(.2f, .65f, 1));
+                XPBar.Overlay.material = _xpMaterial;
+            }
+        }
     }
 
     public void ShowTutorialDecor(bool xp, bool coins)
     {
         // The classic numeric health bar replaces the standalone heart decoration.
         if (_heartDecor != null) _heartDecor.gameObject.SetActive(false);
-        if (_xpDecor != null) _xpDecor.gameObject.SetActive(xp);
+        if (_xpDecor != null) _xpDecor.gameObject.SetActive(false);
         if (_coinDecor != null) _coinDecor.gameObject.SetActive(coins);
     }
 
@@ -133,6 +169,8 @@ public class GameUI : MonoBehaviour
     public void UpdateWaveText(int wave) => WaveText.text = "WAVE: " + wave + (TutorialDirector.ProtectedRun && !TutorialDirector.Practice ? "/5" : "");
     public void UpdateEnemiesLeft(int count) => EnemiesLeftText.text = "ENEMIES: " + count;
     public void ShowWaveBanner(int wave) => StartCoroutine(BannerRoutine(wave));
+
+    void OnDestroy() { if (_xpMaterial != null) Destroy(_xpMaterial); }
 
     private IEnumerator BannerRoutine(int wave)
     {

@@ -1,0 +1,5 @@
+PASS: Host uses a static collection label with the authored white font.
+PASS: Remapped Interact input and hint.
+PASS: Tutorial essence label fits beside the prompt.
+PASS: Completed-tutorial host menu has no stray prompt.
+PASS: Reset still displays the active Welcome lesson.

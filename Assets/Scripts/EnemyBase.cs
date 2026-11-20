@@ -118,10 +118,13 @@ public abstract class EnemyBase : MonoBehaviour
     Color _normalColor = Color.white;
     float _spawnProtectionUntil;
     Vector3 _spawnScale;
+    Vector3 _unscaledSpawnScale;
+    Color _unscaledSpawnColor;
+    bool _initialized;
     public virtual string EnemyKind => this is TankEnemy ? "tank" : this is LobberEnemy ? "lobber" :
         this is BuzzerEnemy || this is FlyingEnemy ? "flying" : "ground";
     public string TipID => (IsElite ? "elite_" : "") + EnemyKind;
-    protected virtual float HealthAtWave(int wave) => Mathf.Floor(BaseHealth + WaveManager.HealthIncreaseAtWave(wave));
+    protected virtual float HealthAtWave(int wave) => GameDifficulty.HealthAtWave(BaseHealth, wave);
     protected virtual float EliteHealthMultiplier => EnemyKind == "ground" ? 1.5f : EnemyKind == "lobber" ? 1.25f : 1f;
     protected virtual float SpeedAtSpawn => BaseSpeed * (IsElite && EnemyKind == "ground" ? .85f : 1f);
     [Header("Base Stats")]
@@ -186,17 +189,16 @@ public abstract class EnemyBase : MonoBehaviour
     public virtual void Initialize(float waveDifficulty)
     {
         WorldCamera.Instance?.AllowEnemyThroughPlayerWalls(gameObject);
-        MaxHealth = Mathf.Max(1, Mathf.Floor(HealthAtWave(Mathf.Max(1, (int)waveDifficulty)) * (IsElite ? EliteHealthMultiplier : 1f))) * GameDifficulty.HealthMultiplier;
+        MaxHealth = Mathf.Max(1, HealthAtWave(Mathf.Max(1, (int)waveDifficulty)) * (IsElite ? EliteHealthMultiplier : 1f));
         CurrentHealth = MaxHealth;
+        _isDead = false;
+        _fractionalDamage = 0;
 
-        // === 1.4.11 SABOTAGE ===
-        // If the player has Sabotage, enemies spawn with up to 50% HP missing.
-        // Capped at 50% per outline (page 4): "Enemy missing health on spawn should get capped at 50%."
-        if (LocalCoopSession.TeamSabotage() > 0f)
+        // Apply the team's existing missing-health effect once, retaining fractional HP.
+        float missingPct = Mathf.Clamp(LocalCoopSession.TeamSabotage(), 0f, .95f);
+        if (missingPct > 0f)
         {
-            float missingPct = Mathf.Clamp(LocalCoopSession.TeamSabotage(), 0f, 0.95f);
-            int missingHP = Mathf.RoundToInt(MaxHealth * missingPct);
-            CurrentHealth = Mathf.Max(1, (int)MaxHealth - missingHP);
+            CurrentHealth = Mathf.Max(1, MaxHealth * (1 - missingPct));
         }
 
         _originalSpeed = SpeedAtSpawn * GameDifficulty.SpeedMultiplier;
@@ -206,9 +208,15 @@ public abstract class EnemyBase : MonoBehaviour
         SpriteRen = GetComponent<SpriteRenderer>();
         BodyCollider = GetComponent<Collider2D>();
         GameplayCamera = Camera.main;
-        _spawnScale = transform.localScale * (IsElite ? EliteSizeMultiplier : 1f);
+        if (!_initialized)
+        {
+            _initialized = true;
+            _unscaledSpawnScale = transform.localScale;
+            _unscaledSpawnColor = SpriteRen != null ? SpriteRen.color : Color.white;
+        }
+        _spawnScale = _unscaledSpawnScale * (IsElite ? EliteSizeMultiplier : 1f);
         transform.localScale = _spawnScale;
-        _normalColor = SpriteRen != null ? SpriteRen.color : Color.white;
+        _normalColor = _unscaledSpawnColor;
         if (IsElite) _normalColor *= EliteTint;
         UpdateColor();
         IsSpawnProtected = SpawnProtectionSeconds > 0 && !IsInView(false);
@@ -223,7 +231,7 @@ public abstract class EnemyBase : MonoBehaviour
             TargetCollider = playerObj.GetComponent<Collider2D>();
         }
 
-        if (HealthBarPrefab != null)
+        if (HealthBarPrefab != null && HealthBarInstance == null)
         {
             GameObject barObj = Instantiate(HealthBarPrefab, transform.position, Quaternion.identity);
             barObj.transform.SetParent(transform.parent);
@@ -232,6 +240,11 @@ public abstract class EnemyBase : MonoBehaviour
             if (HealthBarInstance != null) HealthBarInstance.Initialize(transform, MaxHealth);
             // 1.4.11: also set the bar to the (potentially reduced) starting HP
             if (HealthBarInstance != null) HealthBarInstance.UpdateHealth(CurrentHealth);
+        }
+        else if (HealthBarInstance != null)
+        {
+            HealthBarInstance.Initialize(transform, MaxHealth);
+            HealthBarInstance.UpdateHealth(CurrentHealth);
         }
     }
 
