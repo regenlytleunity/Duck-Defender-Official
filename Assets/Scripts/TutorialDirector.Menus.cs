@@ -5,6 +5,7 @@ public partial class TutorialDirector
     bool _indexPackSelected;
     public static bool AllowPanel(GameObject panel)
     {
+        if (SkipConfirmationOpen) return false;
         if (!MenuLocked || Instance == null || Instance._menu == null) return true;
         var menu = Instance._menu;
         if (CapturesContinue) return false;
@@ -18,8 +19,8 @@ public partial class TutorialDirector
         }
         return panel == menu.MenuPanel || panel == menu.IndexPanel;
     }
-    public static bool AllowItemTab => !CoreActive && Progress != null && Progress.HasObtainedItem && !CapturesContinue;
-    public static bool AllowCardMenu(string id) => !CapturesContinue && (!MenuLocked || CoreActive || Progress != null && Progress.ItemActive);
+    public static bool AllowItemTab => !SkipConfirmationOpen && !CoreActive && Progress != null && Progress.HasObtainedItem && !CapturesContinue;
+    public static bool AllowCardMenu(string id) => !SkipConfirmationOpen && !CapturesContinue && (!MenuLocked || CoreActive || Progress != null && Progress.ItemActive);
     public static bool AllowItemMenu(int id) => !MenuLocked || Progress != null && Progress.ItemActive && Progress.Items == ItemTutorialStage.Equip &&
         ItemCatalog.Valid(id) && ShopManager.Instance.Progress.ItemInventory[id] > 0;
 
@@ -205,48 +206,82 @@ public partial class TutorialDirector
     }
 }
 
-// Inset green borders mark objectives; the outer yellow frame remains controller focus.
+// The glow is a sibling behind the target's own graphic, never over its label.
 public sealed class TutorialGuidance
 {
     UnityEngine.UI.Image _image;
+    RectTransform _target;
     public static UnityEngine.UI.Image Attach(RectTransform target)
     {
-        var existing = target.Find("Tutorial green border");
-        if (existing != null) return existing.GetComponent<UnityEngine.UI.Image>();
-        var go = new GameObject("Tutorial green border", typeof(RectTransform), typeof(UnityEngine.UI.Image), typeof(UnityEngine.UI.LayoutElement));
-        var rect = (RectTransform)go.transform; rect.SetParent(target, false);
-        CoopUIElements.Stretch(rect, Vector2.zero, Vector2.one);
-        rect.offsetMin = Vector2.one * 5; rect.offsetMax = Vector2.one * -5;
-        go.GetComponent<UnityEngine.UI.LayoutElement>().ignoreLayout = true;
-        var image = go.GetComponent<UnityEngine.UI.Image>();
-        image.color = Color.clear; image.raycastTarget = false;
-        for (int i = 0; i < 4; i++)
-        {
-            var edge = CoopUIElements.Panel(rect, "Border edge", Vector2.zero, Vector2.one, new Color(.3f, 1, .18f, .9f));
-            edge.GetComponent<UnityEngine.UI.Image>().raycastTarget = false;
-            if (i < 2)
-            {
-                edge.anchorMin = new Vector2(0, i); edge.anchorMax = new Vector2(1, i);
-                edge.pivot = new Vector2(.5f, i); edge.sizeDelta = new Vector2(0, 3);
-            }
-            else
-            {
-                edge.anchorMin = new Vector2(i - 2, 0); edge.anchorMax = new Vector2(i - 2, 1);
-                edge.pivot = new Vector2(i - 2, .5f); edge.sizeDelta = new Vector2(3, -6);
-            }
-            edge.anchoredPosition = Vector2.zero;
-        }
-        rect.SetAsLastSibling();
-        return image;
+        var follow = target.GetComponent<TutorialGlowFollower>();
+        if (follow == null) follow = target.gameObject.AddComponent<TutorialGlowFollower>();
+        return follow.EnsureGlow();
     }
     public void Show(RectTransform target)
     {
         if (target == null || !target.gameObject.activeInHierarchy) { Hide(); return; }
-        if (_image == null) _image = Attach(target);
-        else if (_image.transform.parent != target) _image.transform.SetParent(target, false);
+        if (_target != target || _image == null)
+        {
+            Hide(); _target = target;
+            var face = target.GetComponent<UnityEngine.UI.Image>();
+            if (face != null && face.color.a == 0)
+                foreach (var child in target.GetComponentsInChildren<UnityEngine.UI.Image>())
+                    if (child.sprite != null && child.color.a > 0 && child.name != "Tutorial green glow") { target = child.rectTransform; break; }
+            _image = Attach(target);
+        }
         _image.gameObject.SetActive(true);
-        _image.transform.SetAsLastSibling();
     }
     public void Hide() { if (_image != null) _image.gameObject.SetActive(false); }
-    public void Dispose() { if (_image != null) Object.Destroy(_image.gameObject); }
+    public void Dispose() { Hide(); }
+}
+
+public sealed class TutorialGlowFollower : MonoBehaviour
+{
+    public UnityEngine.UI.Image Glow { get; private set; }
+    static Sprite _sprite;
+    public UnityEngine.UI.Image EnsureGlow()
+    {
+        if (Glow != null) return Glow;
+        if (_sprite == null)
+        {
+            var texture = new Texture2D(64, 64, TextureFormat.RGBA32, false) { name = "Tutorial soft glow", filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
+            for (int y = 0; y < 64; y++) for (int x = 0; x < 64; x++)
+            {
+                float edge = Mathf.Min(x, y, 63 - x, 63 - y);
+                float alpha = Mathf.SmoothStep(0, 1, edge / 24f);
+                texture.SetPixel(x, y, new Color(1, 1, 1, alpha));
+            }
+            texture.Apply();
+            _sprite = Sprite.Create(texture, new Rect(0, 0, 64, 64), Vector2.one * .5f, 100, 0, SpriteMeshType.FullRect, Vector4.one * 22);
+        }
+        var go = new GameObject("Tutorial green glow", typeof(RectTransform), typeof(UnityEngine.UI.Image), typeof(UnityEngine.UI.LayoutElement));
+        Glow = go.GetComponent<UnityEngine.UI.Image>();
+        Glow.sprite = _sprite; Glow.type = UnityEngine.UI.Image.Type.Sliced;
+        Glow.color = new Color(.3f, 1, .18f, .30f); Glow.raycastTarget = false;
+        go.GetComponent<UnityEngine.UI.LayoutElement>().ignoreLayout = true;
+        Sync(); return Glow;
+    }
+    void LateUpdate() { Sync(); }
+    void Sync()
+    {
+        if (Glow == null) return;
+        var target = (RectTransform)transform; var rect = Glow.rectTransform;
+        if (rect.parent != target.parent) rect.SetParent(target.parent, false);
+        rect.anchorMin = target.anchorMin; rect.anchorMax = target.anchorMax; rect.pivot = target.pivot;
+        var visibleSize = target.rect.size;
+        var face = target.GetComponent<UnityEngine.UI.Image>();
+        if (face != null && face.preserveAspect && face.sprite != null)
+        {
+            var spriteSize = face.sprite.rect.size;
+            visibleSize = spriteSize * Mathf.Min(visibleSize.x / spriteSize.x, visibleSize.y / spriteSize.y);
+        }
+        rect.anchoredPosition = target.anchoredPosition + (target.pivot - Vector2.one * .5f) * 24;
+        rect.sizeDelta = target.sizeDelta + visibleSize - target.rect.size + Vector2.one * 24;
+        rect.localScale = target.localScale; rect.localRotation = target.localRotation;
+        if (rect.GetSiblingIndex() != target.GetSiblingIndex() - 1)
+            rect.SetSiblingIndex(target.GetSiblingIndex() - (rect.GetSiblingIndex() < target.GetSiblingIndex() ? 1 : 0));
+        Glow.enabled = isActiveAndEnabled;
+    }
+    void OnDisable() { if (Glow != null) Glow.enabled = false; }
+    void OnDestroy() { if (Glow != null) Destroy(Glow.gameObject); }
 }

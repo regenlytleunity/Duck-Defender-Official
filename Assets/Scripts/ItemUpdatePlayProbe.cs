@@ -87,7 +87,7 @@ public class ItemUpdatePlayProbe : MonoBehaviour
         Check(old.ItemInventory.Length == 13 && old.ItemInventory[8] == 8 && old.ItemInventory[12] == 0 && old.TotalCoins == 5432, "old inventories expand without losing items or coins");
         Check(ItemCatalog.Prices[(int)ItemKind.Flamethrower] == 500 && ItemCatalog.Prices[(int)ItemKind.Sawblade] == 250 && ItemCatalog.Prices[(int)ItemKind.Nuke] == 1000, "updated item prices");
         ControllerBindings.Reset(); InputManager.Instance.ResetToDefaults();
-        Check(ControllerBindings.TrySet("UseItem", "buttonWest", out _) && ControllerBindings.TrySet("Shoot", "rightShoulder", out _), "controller item and gameplay controls can trade formerly reserved buttons");
+        Check(ControllerBindings.TrySet("UseItem", "leftStickPress", out _) && ControllerBindings.TrySet("Shoot", "rightShoulder", out _), "controller item and gameplay controls can trade formerly reserved buttons");
         Check(ControllerBindings.TrySet("Item1", "start", out _) && ControllerBindings.Get("Item1") == "start", "Start can be assigned to an item slot");
         Check(!ControllerBindings.TrySet("Item2", "start", out _), "duplicate gameplay bindings are rejected");
         ControllerBindings.Reset();

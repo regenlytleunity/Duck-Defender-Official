@@ -22,13 +22,15 @@ public class SettingsMenuUI : MonoBehaviour
     public TextMeshProUGUI KeyCaptureText;
     public TextMeshProUGUI[] KeybindLabels;
     public TextMeshProUGUI KeybindStatus;
-    public static readonly string[] BindingActions = { "moveleft", "moveright", "jump", "crouch", "dash", "shoot", "moveleftalt", "moverightalt", "jumpalt", "crouchalt", "useitem", "item1", "item2", "item3", "item4" };
-    public static readonly string[] BindingNames = { "Move left", "Move right", "Jump / fly up", "Crouch / fly down", "Dash / blink", "Shoot", "Left (alternate)", "Right (alternate)", "Jump (alternate)", "Crouch (alternate)", "Use item (hold bomb)", "Item slot 1", "Item slot 2", "Item slot 3", "Item slot 4" };
+    public static readonly string[] BindingActions = { "moveleft", "moveright", "jump", "crouch", "dash", "shoot", "moveleftalt", "moverightalt", "jumpalt", "crouchalt", "useitem", "item1", "item2", "item3", "item4", "tutorial" };
+    public static readonly string[] BindingNames = { "Move left", "Move right", "Jump / fly up", "Crouch / fly down", "Dash / blink", "Shoot", "Left (alternate)", "Right (alternate)", "Jump (alternate)", "Crouch (alternate)", "Use item (hold bomb)", "Item slot 1", "Item slot 2", "Item slot 3", "Item slot 4", "Show tutorial" };
     static readonly KeyCode[] Keys = (KeyCode[])System.Enum.GetValues(typeof(KeyCode));
     int _bindingIndex = -1;
     float _captureAfter;
     ControllerBindingsUI _controllerBindings;
-    public bool CapturingInput => _bindingIndex >= 0 || _controllerBindings?.SuppressInput == true;
+    TMP_Text _controllerHint;
+    RectTransform _controllerHintBacking;
+    public bool CapturingInput => _bindingIndex >= 0 || Time.unscaledTime < _captureAfter || _controllerBindings?.SuppressInput == true;
     public GameObject NavigationScope => ResetConfirmationPanel != null && ResetConfirmationPanel.activeInHierarchy ? ResetConfirmationPanel :
         KeyCapturePanel != null && KeyCapturePanel.activeInHierarchy ? KeyCapturePanel : KeybindPanel != null && KeybindPanel.activeInHierarchy ? KeybindPanel : gameObject;
     [Header("Reset Confirmation")]
@@ -38,6 +40,13 @@ public class SettingsMenuUI : MonoBehaviour
     void Start() { Initialize(); }
     void Initialize()
     {
+        if (_controllerHint == null)
+        {
+            _controllerHintBacking = CoopUIElements.Panel(transform, "Controller hint backing", new Vector2(.41f, .03f), new Vector2(.98f, .14f), new Color(.04f, .06f, .09f, .95f));
+            _controllerHintBacking.GetComponent<UnityEngine.UI.Image>().raycastTarget = false;
+            _controllerHint = CoopUIElements.Text(_controllerHintBacking, "", new Vector2(.03f, .10f), new Vector2(.97f, .90f), 24);
+            _controllerHint.name = "Controller settings hint";
+        }
         BindSlider(CameraZoomSlider, PlayerPrefs.GetFloat(WorldCamera.ZoomPreference, 2f / 7f), SetCameraZoom);
         RefreshZoomLabel();
         if (ShowTipsToggle != null)
@@ -123,9 +132,15 @@ public class SettingsMenuUI : MonoBehaviour
     }
     void Update()
     {
+        if (_controllerHint != null)
+        {
+            _controllerHintBacking.gameObject.SetActive(ControllerBindings.MenuPad != null && NavigationScope == gameObject);
+            _controllerHint.text = "Sliders: double-press " + ControllerBindings.Label("Confirm") + " to adjust.\nLeft stick changes value. Interact / Back finishes.";
+        }
         _controllerBindings?.Update();
         if (_bindingIndex < 0 || Time.unscaledTime < _captureAfter) return;
-        if (Input.GetKeyDown(KeyCode.Escape)) { CancelBinding(); return; }
+        var pad = ControllerBindings.MenuPad;
+        if (Input.GetKeyDown(KeyCode.Escape) || ControllerBindings.Pressed(pad, "Back")) { CancelBinding(); return; }
         if (!Input.anyKeyDown) return;
         foreach (var key in Keys)
         {
@@ -152,6 +167,7 @@ public class SettingsMenuUI : MonoBehaviour
     }
     void CancelBinding()
     {
+        if (_bindingIndex >= 0) _captureAfter = Time.unscaledTime + .3f;
         _bindingIndex = -1;
         if (KeyCapturePanel != null) KeyCapturePanel.SetActive(false);
         RefreshModalInput();
@@ -182,6 +198,7 @@ public class SettingsMenuUI : MonoBehaviour
     static void FocusFirstButton(GameObject panel)
     {
         if (panel == null || !panel.activeInHierarchy || UnityEngine.EventSystems.EventSystem.current == null) return;
+        ControllerMenuNavigation.ConfigureNavigation(panel);
         foreach (var button in panel.GetComponentsInChildren<UnityEngine.UI.Button>())
             if (button.IsInteractable())
             {

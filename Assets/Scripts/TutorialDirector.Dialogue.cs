@@ -7,17 +7,21 @@ public partial class TutorialDirector
 {
     RectTransform _portrait, _tail;
     UnityEngine.UI.Button _continueButton;
+    ControllerSelectionFrame _continueFrame;
+    CanvasGroup _dialogueFade, _portraitFade;
     float _revealedCharacters, _linger, _collapse;
     bool _collapsed, _wasReady;
-    const float CharactersPerSecond = 42, LingerSeconds = 3;
+    const float CharactersPerSecond = 42;
+    float ReadingSeconds => Mathf.Clamp(2 + _message.textInfo.characterCount / 22f, 5, 11);
     bool DialogueRevealed => _message != null && _revealedCharacters >= _message.textInfo.characterCount;
 
     void BuildDialogue()
     {
-        _panel = CoopUIElements.Panel(_canvas, "Tutorial prompt", new Vector2(.28f, .78f), new Vector2(.86f, .96f), PromptColor);
+        _panel = CoopUIElements.Panel(_canvas, "Tutorial prompt", new Vector2(.22f, .77f), new Vector2(.80f, .98f), PromptColor);
+        _panel.pivot = new Vector2(1, .5f);
+        CoopUIElements.Stretch(_panel, new Vector2(.22f, .77f), new Vector2(.80f, .98f));
+        _dialogueFade = _panel.gameObject.AddComponent<CanvasGroup>();
         _panel.GetComponent<UnityEngine.UI.Image>().raycastTarget = false;
-        var outline = _panel.gameObject.AddComponent<UnityEngine.UI.Outline>();
-        outline.effectColor = new Color(.005f, .01f, .02f, 1); outline.effectDistance = new Vector2(4, -4);
         var rim = CoopUIElements.Panel(_panel, "Speech box rim", Vector2.zero, Vector2.one, Color.clear);
         rim.GetComponent<UnityEngine.UI.Image>().raycastTarget = false;
         var top = CoopUIElements.Panel(rim, "Top rim", new Vector2(0, 1), Vector2.one, new Color(.38f, .5f, .64f));
@@ -32,7 +36,9 @@ public partial class TutorialDirector
         _message = CoopUIElements.Text(_panel, "", new Vector2(.12f, .29f), new Vector2(.96f, .92f), 30);
         _message.useMaxVisibleDescender = false;
         _message.alignment = TextAlignmentOptions.MidlineLeft;
-        _hint = CoopUIElements.Text(_panel, "Follow the green objective", new Vector2(.13f, .04f), new Vector2(.87f, .25f), 20);
+        var shadow = _message.gameObject.AddComponent<UnityEngine.UI.Shadow>();
+        shadow.effectColor = new Color(0, 0, 0, .95f); shadow.effectDistance = new Vector2(2, -2);
+        _hint = CoopUIElements.Text(_panel, "", new Vector2(.13f, .04f), new Vector2(.87f, .25f), 20);
         _continueButton = CoopUIElements.Button(_panel, "Continue", new Vector2(.22f, .035f), new Vector2(.78f, .25f), () =>
         {
             if (_collapsed && (_next == null || !_ready)) ExpandDialogue();
@@ -43,7 +49,7 @@ public partial class TutorialDirector
         continueLabel.fontSize = continueLabel.fontSizeMax = 22; continueLabel.fontSizeMin = 16;
         continueLabel.alignment = TextAlignmentOptions.Midline;
         CoopUIElements.Stretch(continueLabel.rectTransform, new Vector2(.035f, .15f), new Vector2(.965f, .85f));
-        TutorialGuidance.Attach((RectTransform)_continueButton.transform);
+        _continueFrame = new ControllerSelectionFrame("Tutorial continue highlight");
 
         var circle = CoopUIElements.Panel(_panel, "Stick illustration", new Vector2(.065f, .61f), new Vector2(.065f, .61f), new Color(.2f, .28f, .4f));
         circle.sizeDelta = new Vector2(64, 64);
@@ -56,18 +62,16 @@ public partial class TutorialDirector
         _stick.GetComponent<UnityEngine.UI.Image>().preserveAspect = true;
         _stick.GetComponent<UnityEngine.UI.Image>().raycastTarget = false;
 
-        _portrait = CoopUIElements.Panel(_canvas, "Tutorial duck", new Vector2(.91f, .53f), new Vector2(.91f, .53f), Color.white);
-        _portrait.sizeDelta = new Vector2(190, 190);
+        _portrait = CoopUIElements.Panel(_canvas, "Tutorial duck", new Vector2(.94f, .53f), new Vector2(.94f, .53f), Color.white);
+        _portrait.sizeDelta = Vector2.one * (_canvas.rect.height * .44f);
+        _portraitFade = _portrait.gameObject.AddComponent<CanvasGroup>();
         var portraitImage = _portrait.GetComponent<UnityEngine.UI.Image>();
         var host = _menu != null ? _menu.GetComponent<HostMenuUI>() : null;
         portraitImage.sprite = _player != null && _player.Sprite != null ? _player.Sprite.sprite : host != null ? host.DuckPreviewSprite : null;
         portraitImage.preserveAspect = true;
+        portraitImage.raycastTarget = false;
         // The authored sprite faces left, inward toward the speech box.
         _portrait.localScale = Vector3.one;
-        var portraitButton = _portrait.gameObject.AddComponent<UnityEngine.UI.Button>();
-        portraitButton.targetGraphic = portraitImage;
-        portraitButton.navigation = new UnityEngine.UI.Navigation { mode = UnityEngine.UI.Navigation.Mode.None };
-        portraitButton.onClick.AddListener(ExpandDialogue);
         _portrait.gameObject.SetActive(false);
     }
 
@@ -80,6 +84,8 @@ public partial class TutorialDirector
         _message.ForceMeshUpdate(true);
         _revealedCharacters = 0; _message.maxVisibleCharacters = 0;
         _linger = 0; _collapse = 0; _collapsed = false; _wasReady = _ready;
+        _panel.gameObject.SetActive(true); _dialogueFade.alpha = _portraitFade.alpha = 1;
+        _panel.localScale = Vector3.one;
         _message.gameObject.SetActive(true);
         if (_portrait != null) _portrait.gameObject.SetActive(true);
     }
@@ -91,7 +97,11 @@ public partial class TutorialDirector
     }
     void ExpandDialogue()
     {
-        _collapsed = false; _linger = 0;
+        if (_lastPrompt == null || _skipOpen) return;
+        _collapsed = false; _linger = 0; _collapse = 0;
+        _panel.gameObject.SetActive(true); _dialogueFade.alpha = _portraitFade.alpha = 1;
+        _panel.localScale = Vector3.one;
+        RevealDialogue();
     }
     void UpdateDialogue(float elapsed)
     {
@@ -105,65 +115,61 @@ public partial class TutorialDirector
         else
         {
             _linger += elapsed;
-            if (_linger >= LingerSeconds) _collapsed = true;
+            if (_linger >= ReadingSeconds) _collapsed = true;
         }
         _collapse = Mathf.MoveTowards(_collapse, _collapsed ? 1 : 0, elapsed * 5);
     }
     void UpdateDialogueControls(bool blocked)
     {
         bool canContinue = _next != null && _ready;
-        bool compact = _collapse > .5f;
-        _message.gameObject.SetActive(!compact);
-        _tail.gameObject.SetActive(!compact);
-        _hint.gameObject.SetActive(!canContinue && !compact);
-        _continueButton.gameObject.SetActive(canContinue || compact);
+        bool hidden = _collapse >= 1;
+        _dialogueFade.alpha = _portraitFade.alpha = 1;
+        _dialogueFade.blocksRaycasts = !_collapsed && !blocked;
+        _panel.gameObject.SetActive(!hidden);
+        _portrait.gameObject.SetActive(!hidden && _portrait.GetComponent<UnityEngine.UI.Image>().sprite != null);
+        _message.gameObject.SetActive(true);
+        _tail.gameObject.SetActive(true);
+        _hint.gameObject.SetActive(!canContinue);
+        _hint.text = "Show again: " + TutorialBindingLabel;
+        _continueButton.gameObject.SetActive(canContinue);
         _continueButton.interactable = !blocked;
         var label = _continueButton.GetComponentInChildren<TMP_Text>();
-        label.text = canContinue ? DialogueRevealed ? ContinueHint : "Reveal text" : "Show instructions";
-        _continueButton.transform.Find("Tutorial green border").gameObject.SetActive(canContinue && DialogueRevealed);
+        label.text = DialogueRevealed ? ContinueHint : "Reveal text";
         var rect = (RectTransform)_continueButton.transform;
-        CoopUIElements.Stretch(rect, new Vector2(.22f, compact ? .12f : .035f), new Vector2(.78f, compact ? .88f : .25f));
+        CoopUIElements.Stretch(rect, new Vector2(.22f, .035f), new Vector2(.78f, .25f));
         rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, Mathf.Max(42, rect.rect.height));
-        bool showStick = !compact && _practice && _step >= PracticeStep.Move && _step <= PracticeStep.Shoot && (UsingPad || UsingTouch);
+        bool showStick = _practice && _step >= PracticeStep.Move && _step <= PracticeStep.Shoot && (UsingPad || UsingTouch);
         _stick.parent.gameObject.SetActive(showStick);
         _stick.anchoredPosition = _step == PracticeStep.Jump ? new Vector2(0, Mathf.Abs(Mathf.Sin(Time.unscaledTime * 3)) * 16) :
             _step >= PracticeStep.Aim ? new Vector2(Mathf.Cos(Time.unscaledTime * 2), Mathf.Sin(Time.unscaledTime * 2)) * 16 :
             new Vector2(Mathf.Sin(Time.unscaledTime * 3) * 16, 0);
         _portrait.anchoredPosition = !blocked && !DialogueRevealed ? new Vector2(0, Mathf.Sin(Time.unscaledTime * 5) * 3) : Vector2.zero;
         if (_lastPrompt != null && _lastPrompt.StartsWith("TUTORIAL COMPLETE"))
-            _panel.GetComponent<UnityEngine.UI.Image>().color = Color.HSVToRGB(Mathf.Repeat(Time.unscaledTime * .2f, 1), .6f, .3f);
+        {
+            var color = Color.HSVToRGB(Mathf.Repeat(Time.unscaledTime * .2f, 1), .6f, .3f);
+            color.a = PromptColor.a; _panel.GetComponent<UnityEngine.UI.Image>().color = color;
+        }
     }
     void LayoutDialogue()
     {
         if (_panel == null || !_panel.gameObject.activeSelf) return;
-        Vector2 min = new Vector2(.28f, .78f), max = new Vector2(.86f, .96f);
-        bool sideTail = false;
-        if (_menu != null)
-        {
-            if (_menu.OpeningOverlay.activeSelf || _menu.ConfirmPanel.activeSelf)
-            { min = new Vector2(.2f, .02f); max = new Vector2(.8f, .16f); sideTail = true; }
-            else if (_menu.IndexPanel.activeSelf)
-            { min = new Vector2(.57f, .79f); max = new Vector2(.98f, .985f); }
-            else if (_menu.ShopPanel.activeSelf)
-            { min = new Vector2(.2f, .57f); max = new Vector2(.8f, .70f); sideTail = true; }
-        }
-        else if (LevelUpUI.Instance != null && LevelUpUI.Instance.IsOffering)
-        { min = new Vector2(.24f, .85f); max = new Vector2(.84f, .99f); sideTail = true; }
-        else if (_practice && !_ready && (_step == PracticeStep.Aim || _step == PracticeStep.Shoot))
-        { min.y = .89f; max.y = .99f; }
-        min.y = Mathf.Lerp(min.y, max.y - .055f, _collapse);
+        Vector2 min = new Vector2(.22f, .77f), max = new Vector2(.80f, .98f);
         if (_panel.anchorMin != min || _panel.anchorMax != max) CoopUIElements.Stretch(_panel, min, max);
-        // Keep the mascot at the right edge, away from gameplay and menu hit targets.
-        bool menuSpace = _menu != null || LevelUpUI.Instance != null && LevelUpUI.Instance.IsOffering;
-        Vector2 portraitAnchor = new Vector2(menuSpace ? .965f : .91f, .53f);
-        if (_menu != null && _menu.IndexPanel.activeSelf) portraitAnchor = new Vector2(.95f, .07f);
-        else if (LevelUpUI.Instance != null && LevelUpUI.Instance.IsOffering) portraitAnchor = new Vector2(.94f, .93f);
-        _portrait.anchorMin = _portrait.anchorMax = portraitAnchor;
-        _portrait.sizeDelta = Vector2.one * (menuSpace ? 100 : Mathf.Lerp(190, 100, _collapse));
-        _portrait.GetComponent<UnityEngine.UI.Image>().raycastTarget = _collapsed;
-        _portrait.gameObject.SetActive(_portrait.GetComponent<UnityEngine.UI.Image>().sprite != null);
-        _tail.anchorMin = _tail.anchorMax = sideTail ? new Vector2(1, .5f) : new Vector2(.88f, 0);
-        _tail.localRotation = Quaternion.Euler(0, 0, sideTail ? 90 : 0);
+        // The right-edge pivot gathers the bubble toward the duck, preserving its opacity.
+        float collapse = Mathf.SmoothStep(0, 1, _collapse);
+        _panel.localScale = new Vector3(1 - collapse, 1 - collapse * .2f, 1);
+        // Leave the complete head, including its right-side eye, inside the screen.
+        _portrait.anchorMin = _portrait.anchorMax = new Vector2(.94f, .53f);
+        _portrait.sizeDelta = Vector2.one * (_canvas.rect.height * .44f);
+        _tail.anchorMin = _tail.anchorMax = new Vector2(.88f, 0);
+        _tail.localRotation = Quaternion.identity;
+    }
+    void UpdateContinueHighlight()
+    {
+        if (_continueButton != null && _continueButton.gameObject.activeInHierarchy && _continueButton.interactable &&
+            DialogueRevealed && _collapse == 0 && !_skipOpen)
+            _continueFrame?.Show((RectTransform)_continueButton.transform);
+        else _continueFrame?.Hide();
     }
 
     readonly List<RaycastResult> _pointerHits = new List<RaycastResult>();
@@ -229,8 +235,13 @@ public sealed class TutorialSpeechTail : UnityEngine.UI.MaskableGraphic
     protected override void OnPopulateMesh(UnityEngine.UI.VertexHelper mesh)
     {
         mesh.Clear(); var r = rectTransform.rect;
-        Triangle(mesh, new Vector2(r.xMin, r.yMax), new Vector2(r.xMax, r.yMax), new Vector2(r.xMax * .7f, r.yMin), Color.black);
-        Triangle(mesh, new Vector2(r.xMin + 7, r.yMax), new Vector2(r.xMax - 5, r.yMax), new Vector2(r.xMax * .7f - 1, r.yMin + 6), color);
+        var a = new Vector2(r.xMin, r.yMax); var b = new Vector2(r.xMax, r.yMax); var c = new Vector2(r.xMax * .7f, r.yMin);
+        var innerA = a + new Vector2(7, 0); var innerB = b - new Vector2(5, 0); var innerC = c + new Vector2(-1, 6);
+        var border = new Color(0, 0, 0, color.a);
+        // Outline only the edges. An opaque triangle behind the fill defeats transparency.
+        Triangle(mesh, a, innerA, c, border); Triangle(mesh, innerA, innerC, c, border);
+        Triangle(mesh, b, c, innerB, border); Triangle(mesh, innerB, c, innerC, border);
+        Triangle(mesh, innerA, innerB, innerC, color);
     }
     static void Triangle(UnityEngine.UI.VertexHelper mesh, Vector2 a, Vector2 b, Vector2 c, Color color)
     {

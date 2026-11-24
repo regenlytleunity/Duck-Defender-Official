@@ -29,6 +29,7 @@ public class InputManager : MonoBehaviour
     
     [Header("UI Keys")]
     public KeyCode PauseKey = KeyCode.Escape;
+    public KeyCode TutorialKey { get; private set; } = KeyCode.T;
 
     // Events for input
     public event Action OnDashPressed;
@@ -146,6 +147,7 @@ public class InputManager : MonoBehaviour
             case "jumpalt": JumpAlt = newKey; break;
             case "crouchalt": CrouchAlt = newKey; break;
             case "pause": PauseKey = newKey; break;
+            case "tutorial": TutorialKey = newKey; break;
             case "useitem": UseItemKey = newKey; break;
             case "item1": Item1Key = newKey; break;
             case "item2": Item2Key = newKey; break;
@@ -170,6 +172,7 @@ public class InputManager : MonoBehaviour
             case "jumpalt": return JumpAlt;
             case "crouchalt": return CrouchAlt;
             case "pause": return PauseKey;
+            case "tutorial": return TutorialKey;
             case "useitem": return UseItemKey;
             case "item1": return Item1Key;
             case "item2": return Item2Key;
@@ -192,6 +195,7 @@ public class InputManager : MonoBehaviour
         PlayerPrefs.SetInt("Key_JumpAlt", (int)JumpAlt);
         PlayerPrefs.SetInt("Key_CrouchAlt", (int)CrouchAlt);
         PlayerPrefs.SetInt("Key_Pause", (int)PauseKey);
+        PlayerPrefs.SetInt("Key_Tutorial", (int)TutorialKey);
         PlayerPrefs.SetInt("Key_UseItem", (int)UseItemKey);
         PlayerPrefs.SetInt("Key_Item1", (int)Item1Key); PlayerPrefs.SetInt("Key_Item2", (int)Item2Key);
         PlayerPrefs.SetInt("Key_Item3", (int)Item3Key); PlayerPrefs.SetInt("Key_Item4", (int)Item4Key);
@@ -224,6 +228,7 @@ public class InputManager : MonoBehaviour
         if (PlayerPrefs.HasKey("Key_Pause"))
             PauseKey = (KeyCode)PlayerPrefs.GetInt("Key_Pause");
         UseItemKey = (KeyCode)PlayerPrefs.GetInt("Key_UseItem", (int)KeyCode.Mouse1);
+        TutorialKey = (KeyCode)PlayerPrefs.GetInt("Key_Tutorial", (int)KeyCode.T);
         Item1Key = (KeyCode)PlayerPrefs.GetInt("Key_Item1", (int)KeyCode.Alpha1);
         Item2Key = (KeyCode)PlayerPrefs.GetInt("Key_Item2", (int)KeyCode.Alpha2);
         Item3Key = (KeyCode)PlayerPrefs.GetInt("Key_Item3", (int)KeyCode.Alpha3);
@@ -259,6 +264,7 @@ public class InputManager : MonoBehaviour
         DashKey = KeyCode.LeftShift;
         ShootKey = KeyCode.Mouse0;
         PauseKey = KeyCode.Escape;
+        TutorialKey = KeyCode.T;
         UseItemKey = KeyCode.Mouse1; Item1Key = KeyCode.Alpha1; Item2Key = KeyCode.Alpha2; Item3Key = KeyCode.Alpha3; Item4Key = KeyCode.Alpha4;
         SaveKeybinds();
     }

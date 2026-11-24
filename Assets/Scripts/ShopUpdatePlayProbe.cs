@@ -294,9 +294,9 @@ public class ShopUpdatePlayProbe : MonoBehaviour
         SaveSystem.SaveData(shop.Progress); shop.LoadEconomy();
         menu.ShowPanel(menu.MenuPanel);
         var homeIndex = menu.MenuPanel.transform.Find("IndexButton").gameObject;
-        events.SetSelectedGameObject(homeIndex); yield return Press(pad, GamepadButton.East);
+        events.SetSelectedGameObject(homeIndex); yield return Press(pad, GamepadButton.South);
         Check(menu.IndexPanel.activeSelf, "controller opens Index from home");
-        yield return Press(pad, GamepadButton.South);
+        yield return Press(pad, GamepadButton.East);
         Check(menu.MenuPanel.activeSelf && events.currentSelectedGameObject == homeIndex, "leaving Index restores the home Index button");
         menu.OpenIndex(); yield return null;
         var index = menu.IndexPanel.GetComponent<IndexLoadoutUI>();
@@ -305,45 +305,45 @@ public class ShopUpdatePlayProbe : MonoBehaviour
         for (int level = 1; level < card.AssignedCard.MaxLevel; level++)
         {
             events.SetSelectedGameObject(card.UpgradeButton.gameObject);
-            yield return Press(pad, GamepadButton.East);
+            yield return Press(pad, GamepadButton.South);
             Check(shop.GetCardData(id).Level == level + 1, "B upgrades the selected card exactly once to level " + (level + 1));
             var expected = level + 1 < card.AssignedCard.MaxLevel ? card.UpgradeButton : card.AscendButton.IsActive() && card.AscendButton.IsInteractable() ? card.AscendButton : card.ClickButton;
             Check(events.currentSelectedGameObject == expected.gameObject, "focus stays on the card's available control at level " + (level + 1));
         }
         if (card.AscendButton.IsActive() && card.AscendButton.IsInteractable())
         {
-            yield return Press(pad, GamepadButton.East);
+            yield return Press(pad, GamepadButton.South);
             Check(shop.GetCardData(id).IsAscended && events.currentSelectedGameObject == card.ClickButton.gameObject, "ascension returns focus to the same card");
         }
         events.SetSelectedGameObject(card.ClickButton.gameObject);
-        yield return Press(pad, GamepadButton.East);
+        yield return Press(pad, GamepadButton.South);
         var equip = menu.NavigationScope.GetComponentsInChildren<UnityEngine.UI.Button>().First(b => b.GetComponentInChildren<TMPro.TMP_Text>()?.text == "Equip to slot 2");
-        events.SetSelectedGameObject(equip.gameObject); yield return Press(pad, GamepadButton.East);
+        events.SetSelectedGameObject(equip.gameObject); yield return Press(pad, GamepadButton.South);
         Check(shop.Loadout().Cards[1] == id && events.currentSelectedGameObject == card.ClickButton.gameObject, "equipping a starting card returns to its source card");
         var slot = menu.IndexPanel.GetComponentsInChildren<UnityEngine.UI.Button>().First(b => b.name == "Starting slot 2");
-        events.SetSelectedGameObject(slot.gameObject); yield return Press(pad, GamepadButton.East);
-        yield return Press(pad, GamepadButton.East);
+        events.SetSelectedGameObject(slot.gameObject); yield return Press(pad, GamepadButton.South);
+        yield return Press(pad, GamepadButton.South);
         Check(string.IsNullOrEmpty(shop.Loadout().Cards[1]) && events.currentSelectedGameObject?.name == "Starting slot 2", "unequipping restores the rebuilt starting slot");
 
         index.ShowItems(); yield return null;
         var item = menu.IndexPanel.GetComponentsInChildren<UnityEngine.UI.Button>().First(b => b.name == "Item 6");
-        events.SetSelectedGameObject(item.gameObject); yield return Press(pad, GamepadButton.East);
+        events.SetSelectedGameObject(item.gameObject); yield return Press(pad, GamepadButton.South);
         equip = menu.NavigationScope.GetComponentsInChildren<UnityEngine.UI.Button>().First(b => b.GetComponentInChildren<TMPro.TMP_Text>()?.text == "Equip to slot 2");
-        events.SetSelectedGameObject(equip.gameObject); yield return Press(pad, GamepadButton.East);
+        events.SetSelectedGameObject(equip.gameObject); yield return Press(pad, GamepadButton.South);
         Check(shop.Loadout().Items[1] == 6 && events.currentSelectedGameObject?.name == "Item 6", "item equip restores its inventory button");
         slot = menu.IndexPanel.GetComponentsInChildren<UnityEngine.UI.Button>().First(b => b.name == "Item slot 2");
-        events.SetSelectedGameObject(slot.gameObject); yield return Press(pad, GamepadButton.East);
-        yield return Press(pad, GamepadButton.East);
+        events.SetSelectedGameObject(slot.gameObject); yield return Press(pad, GamepadButton.South);
+        yield return Press(pad, GamepadButton.South);
         Check(shop.Loadout().Items[1] == 0 && events.currentSelectedGameObject?.name == "Item slot 2", "item unequip restores its slot button");
         yield return Press(pad, GamepadButton.DpadDown);
         Check(events.currentSelectedGameObject != null && events.currentSelectedGameObject.name != "BackButton", "navigation continues from restored item focus");
 
         menu.OpenShop(); menu.GetComponent<ShopUpdateUI>().ShowPage(2); yield return null;
         var permanent = menu.ShopPanel.GetComponentsInChildren<UnityEngine.UI.Button>().First(b => b.name == "Permanent upgrade 4");
-        events.SetSelectedGameObject(permanent.gameObject); yield return Press(pad, GamepadButton.East);
+        events.SetSelectedGameObject(permanent.gameObject); yield return Press(pad, GamepadButton.South);
         Check(shop.Progress.PermanentUpgrades[2] == 1 && events.currentSelectedGameObject == permanent.gameObject, "permanent upgrade retains its button");
         shop.Progress.PermanentUpgrades[2] = 49; menu.GetComponent<ShopUpdateUI>().Refresh();
-        yield return Press(pad, GamepadButton.East);
+        yield return Press(pad, GamepadButton.South);
         Check(shop.Progress.PermanentUpgrades[2] == 50 && events.currentSelectedGameObject != null && events.currentSelectedGameObject.transform.IsChildOf(permanent.transform.parent), "maxed permanent upgrade moves focus to a nearby upgrade");
 
         foreach (int count in new[] { 1, 3, 6 })
@@ -351,11 +351,11 @@ public class ShopUpdatePlayProbe : MonoBehaviour
             menu.OpenShop(); menu.GetComponent<ShopUpdateUI>().ShowPage(0); yield return null;
             int packIndex = count == 1 ? 0 : count == 3 ? 1 : 3;
             var pack = menu.PackContainer.GetChild(packIndex).GetComponent<UnityEngine.UI.Button>();
-            events.SetSelectedGameObject(pack.gameObject); yield return Press(pad, GamepadButton.East);
+            events.SetSelectedGameObject(pack.gameObject); yield return Press(pad, GamepadButton.South);
             var buy = count == 1 ? menu.YesButton : count == 3 ? menu.BuyThreeButton : menu.BuySixButton;
             events.SetSelectedGameObject(buy.gameObject);
             int coins = shop.CurrentCoins;
-            InputSystem.QueueStateEvent(pad, new GamepadState().WithButton(GamepadButton.East));
+            InputSystem.QueueStateEvent(pad, new GamepadState().WithButton(GamepadButton.South));
             yield return null; yield return null; yield return new WaitForSecondsRealtime(.15f);
             Check(menu.SliceZone.activeSelf && !menu.ContinueButton.gameObject.activeSelf, "held purchase press does not open " + count + " packs");
             var hint = menu.SliceHelpText.GetComponent<TMPro.TMP_Text>(); hint.ForceMeshUpdate();
@@ -364,11 +364,11 @@ public class ShopUpdatePlayProbe : MonoBehaviour
             InputSystem.QueueStateEvent(pad, new GamepadState()); yield return null; yield return null;
             if (count == 3)
             {
-                Check(ControllerBindings.TrySet("Confirm", "buttonWest", out _), "Interact can be remapped for the swipe screen");
-                yield return Press(pad, GamepadButton.East);
-                Check(menu.SliceZone.activeSelf, "old B binding cannot open a pack after remapping");
+                Check(ControllerBindings.TrySet("Confirm", "select", out _), "Interact can be remapped for the swipe screen");
+                yield return Press(pad, GamepadButton.South);
+                Check(menu.SliceZone.activeSelf, "old A binding cannot open a pack after remapping");
             }
-            var interact = count == 3 ? GamepadButton.West : GamepadButton.East;
+            var interact = count == 3 ? GamepadButton.Select : GamepadButton.South;
             yield return Press(pad, interact);
             Check(!menu.SliceZone.activeSelf, "Interact opens the " + count + " pack swipe screen");
             yield return Press(pad, interact);
@@ -384,7 +384,7 @@ public class ShopUpdatePlayProbe : MonoBehaviour
         }
 
         menu.PackContainer.GetComponentInChildren<UnityEngine.UI.Button>().onClick.Invoke(); menu.BuyPack(); yield return null;
-        yield return Press(pad, GamepadButton.South);
+        yield return Press(pad, GamepadButton.East);
         Check(menu.MenuPanel.activeSelf && !menu.OpeningOverlay.activeSelf, "Back still leaves the pack swipe screen");
 
         // Per-seat equipment uses independent focus instead of EventSystem.
@@ -400,9 +400,9 @@ public class ShopUpdatePlayProbe : MonoBehaviour
         typeof(LoadoutPanel).GetField("_focus", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).SetValue(panels[1], Array.FindIndex(paneControls, b => b.name == "Item 6"));
         panels[1].ControllerInput(Vector2.zero, false, false);
         var origin = panels[1].Focused.name; var p1Focus = panels[0].Focused;
-        yield return Press(_pads[1], GamepadButton.East);
+        yield return Press(_pads[1], GamepadButton.South);
         Check(panels[1].HasModal, "P2 opens its own item actions");
-        yield return Press(_pads[1], GamepadButton.East);
+        yield return Press(_pads[1], GamepadButton.South);
         Check(!panels[1].HasModal && panels[1].Focused.name == origin, "P2 item equip restores its own button");
         Check(panels[0].Focused == p1Focus, "P2 equipment change does not move P1 focus");
         lobby.Close(); LocalCoopSession.RequestedPlayers = 1; menu.OpenMenu();
@@ -516,7 +516,7 @@ public class ShopUpdatePlayProbe : MonoBehaviour
         InputSystem.QueueStateEvent(_pads[1], new GamepadState()); yield return null;
         InputSystem.QueueStateEvent(_pads[1], new GamepadState().WithButton(GamepadButton.DpadDown)); yield return null; yield return null;
         InputSystem.QueueStateEvent(_pads[1], new GamepadState()); yield return null;
-        InputSystem.QueueStateEvent(_pads[1], new GamepadState().WithButton(GamepadButton.East)); yield return null; yield return null;
+        InputSystem.QueueStateEvent(_pads[1], new GamepadState().WithButton(GamepadButton.South)); yield return null; yield return null;
         InputSystem.QueueStateEvent(_pads[1], new GamepadState()); yield return null;
         var panels = (LoadoutPanel[])typeof(CoopLobbyUI).GetField("_loadouts", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(lobby);
         Check(panels[1].Root.gameObject.activeSelf && !panels[0].Root.gameObject.activeSelf, "P2 controller opens only its own lobby equipment");

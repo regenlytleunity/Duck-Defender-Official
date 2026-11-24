@@ -1,7 +1,7 @@
 # Guided tutorial implementation
 
 Implemented from `Duck Defender Update (7).pdf` (three pages), with the refinements
-in `Duck Defender Update (8).pdf` (one page) and Updates (9) and (10). These documents supply the gameplay
+in `Duck Defender Update (8).pdf` (one page) and Updates (9), (10) and (11). These documents supply the gameplay
 outline; repository rules govern implementation and Unity assets.
 
 ## Behavior and recovery
@@ -38,28 +38,38 @@ outline; repository rules govern implementation and Unity assets.
 - Quitting before slicing a paid pack resumes its opening without a second charge.
   Quitting during/after reveal preserves all cards and resumes the index lesson.
   The index initially selects the purchased pack, then allows all pack tabs, page
-  arrows, layouts and card previews. An inset green border directs the player back to
+  arrows, layouts and card previews. A soft green underglow directs the player back to
   the required pack/page/card. Only that upgrade can spend coins; the action itself
   advances the lesson without an extra confirmation. Upgrade and completion save together.
 - Tutorial prompts, completed objectives, pack reveals, completion banners and
   protected-run enemy tips require Interact. Prompts display the mapped controller
-  button, Enter for keyboard, or a touch hint, plus a highlighted Continue button. A short
+  button, Enter for keyboard, or a touch hint, plus a Continue button outlined by the shared yellow selection frame. A short
   input grace and release-before-press prevent carryover, with menu submission
   suppressed while informational prompts own Interact. Learned movement/jump
   controls remain available during later practice lessons. Enemy approaches and
   completed purchase/upgrade actions advance their own checkpoints directly.
 - Movement goals and the box landing glow both fade after completion. Tutorial
-  card/button guidance uses an inset green border, separate from yellow
+  card/button guidance uses a soft green underglow, separate from yellow
   controller focus. Shop guidance follows the chosen pack instead of leaving a
   second focus frame on the first one. The controller aim arrow is a closed, consistently outlined silhouette.
-- Speech-box prompts default above gameplay with the existing duck at the right edge.
+- Speech-box prompts use one fixed top position with a 76%-opaque background.
+  The existing duck is 44% of canvas height, anchored at (94%, 53%), so its complete
+  head and eye remain onscreen.
   Full text is laid out before the typewriter reveal; the duck bobs three pixels while
-  speaking. After three seconds of lingering, dialogue collapses to a small reminder.
-  Completing an objective reopens it; clicking the duck reopens instructions.
-  Continue remains available on collapsed completed/informational prompts. Card offers use a shorter top panel; reveals
-  use the empty footer, the shop uses the gap above packs, and the index uses its
-  upper-right space. New messages restore the normal background color after a
+  speaking. After a 5–11 second reading window, the bubble collapses right toward the duck
+  over 0.2 seconds, then both hide. Bubble and tail retain matching 76% opacity
+  throughout the collapse; the tail outline has no opaque backing triangle.
+  Completing an objective reopens it; Show tutorial (T or controller Y by default)
+  restores it without advancing. A first Interact press on a hidden completed prompt
+  also restores it. The popup stays in the same position in every menu.
+  New messages restore the normal background color after a
   chromatic completion banner, including the subsequent item tutorial.
+- A bottom-right Skip tutorial button opens a paused confirmation modal with Keep
+  playing selected. Controller X opens it directly; holding the keyboard Show
+  tutorial key for 0.85 seconds also opens the modal. B cancels; A confirms the
+  selected option. Controller Y only recalls text, even when held.
+  Confirming preserves earned coins/cards/items, skips both tutorial tracks without
+  granting rewards, and returns to MainMenu. Cancel resumes the current step.
 - First item purchase starts the item lesson in the shop; first pickup waits until
   MainMenu. Items stays hidden in the index until acquisition, with sidebar spacing
   adjusted when it appears. Owned items are highlighted; any of four solo slots is
@@ -218,11 +228,11 @@ require fixing their assignments; the current required references were checked.
 
 The current Update (9) file manifest, verified results, balance assumptions and
 manual checklist are in [UPDATE_9_IMPLEMENTATION.md](UPDATE_9_IMPLEMENTATION.md).
-The Update (8) results above are historical; the current probe writes to
-`tmp/update9/` to preserve the earlier screenshots and verification records.
+The Update (8) and Update (9) results above are historical; the current probe writes
+to `tmp/update10/` to preserve the earlier screenshots and verification records.
 
 
-### Update (10) changes and manual checks
+### Update (10) original changes and manual checks (historical)
 
 - `TutorialDirector.cs`: shared prompt timing, fresh-input protection and dialogue delegation.
 - `TutorialDirector.Dialogue.cs` and Unity-generated `.meta`: speech-box layout, fixed-size circular stick preview, authored duck portrait, prelaid-out typewriter text, three-second linger/collapse, clickable Continue, and a 0.18-second four-pixel rejection shake with restoration.
@@ -237,14 +247,16 @@ The Update (8) results above are historical; the current probe writes to
 
 No scene/prefab edits or new Inspector assignments are needed. Menu portraits use
 HostMenuUI.DuckPreviewSprite; gameplay portraits use the configured player's SpriteRenderer.
-The portrait moves into spare corner space on card offers and index pages to keep
-card text and controls unobscured.
+The portrait stays halfway off the right edge, centered at 53% of screen height,
+and measures 58% of the canvas height. It retains that size on card offers, index
+pages and collapsed dialogue; overlap with underlying UI is intentional.
 The exact existing DuckDefenderTestFontv2 asset/material remains in use.
 
 Manual Play Mode checklist:
 
 1. Run practice using controller, then keyboard/mouse or touch. Check circular stick
    motion, stable text wrapping, gentle duck bob, three-second linger and collapse.
+   The large duck should remain about half outside the right edge throughout.
 2. Click the duck to reread, finish an objective, and use both Continue and the mapped
    Interact input. Holding Interact must not skip multiple prompts.
 3. Leave aim neutral: no target should turn green. Aim at all five raised targets,
@@ -254,4 +266,223 @@ Manual Play Mode checklist:
 5. Check health and XP at partial/full values in solo and co-op. XP has no orb, uses
    the health-bar shape and blue fill, and all labels retain white interiors.
 6. Check shop confirmation, pack reveal, index/card modal and item equipment at the
-   intended display resolutions for overlap, readable text and reachable controls.
+   intended display resolutions for readable text and reachable controls. Duck/UI
+   overlap at the right edge is intentional.
+
+### Update (10) verification
+
+- Unity 6000.0.35f1 compiled successfully. Static review and `git diff --check` passed.
+  The final run produced no new Console errors. Play Mode was stopped afterward;
+  MainMenu is clean, temporary save routing is cleared and input preferences restored.
+- The isolated Play Mode regression passed 212 checks, including a fresh run after
+  the November 21 portrait-size follow-up. It exercises tutorial progression, fresh
+  controller input and pointer
+  Continue, text layout/reveal/collapse, target spacing and hit particles, arrow
+  directions with either facing, rejection feedback, HUD visibility, shop/index
+  progression and normal gameplay after the tutorial. Enemy kills are accelerated
+  through existing damage methods; this is not a manual combat playthrough.
+- A separate two-player classic co-op HUD check passed, including the longer/lower
+  health bars, half-full blue shared XP and removed orb.
+- The original UI passes reviewed welcome, movement, aiming, cards, health, shop,
+  confirmation, pack reveal, index and item screens at 1920 by 1080. Corrections
+  included speech-tail rendering, Continue text clearance and flipped aim angles.
+- The November 21 portrait follow-up changes `TutorialDirector.Dialogue.cs` to
+  retain the enlarged, half-offscreen portrait across gameplay, menus and collapsed
+  prompts. `Docs/ARCHITECTURE.md` and this file document that behavior. At 1920 by
+  1080, its runtime rectangle is 626.4 pixels square, from x=1606.8 to x=2233.2;
+  exactly half lies beyond the right edge. Fresh welcome and card-offer captures
+  show the requested crop and intentional UI overlap.
+- Existing uGUI was retained. The installed package's `class-RectTransform.md`
+  and `UIBasicLayout.md` were consulted for sizing and anchors. No packages,
+  serialized fields, scenes, prefabs or ProjectSettings were changed.
+
+Verification reports and captures are in `tmp/update10/`. Manual physical-device
+controller tests, end-to-end keyboard/mouse/touch runs, broad aspect-ratio checks,
+standalone/WebGL builds and browser persistence remain unverified. No new Inspector,
+scene or prefab setup is required.
+
+### November 22 popup and skip refinement
+
+This supersedes the historical Update (10) popup placement, portrait crop, collapsed
+reminder and inset highlights above. Runtime uGUI remains the existing UI framework;
+the authored DuckDefenderTestFontv2 asset/material and white glyph infill are retained.
+
+- The duck is now 44% of canvas height at (94%, 53%); its full head and eye fit onscreen.
+- Every popup uses anchors (22%, 77%) to (80%, 98%). It never relocates for menus.
+- Backdrop simulations at 62%, 76% and 86% opacity selected 76% to retain visibility
+  of the underlying UI and readable white text with a small dark shadow. The old
+  full-panel Outline effect was removed because its duplicate quads defeated transparency.
+- Full text is still laid out before the 42-character/second reveal. The reading
+  window after reveal is `clamp(2 + characterCount / 22, 5, 11)` seconds, followed
+  by a 0.2-second fade. The whole popup and duck then hide until completion or recall.
+- Show tutorial uses T / View-Select by default and is remappable in the existing
+  keyboard/controller settings. A pointer/touch button provides the same action.
+  Recall shows complete text and restarts its reading window without advancing,
+  including the final completion message.
+- Bottom-right Skip tutorial opens a paused confirmation, also accessible by
+  holding Show tutorial for 0.85 seconds. Corner controls remain above enemy-tip
+  click blockers. Keep playing is selected by default;
+  opening/held input cannot confirm. Cancel restores the current step and pause
+  state. Confirm preserves earned resources, marks core and item lessons complete
+  without awarding tutorial rewards, and returns to MainMenu.
+- Soft green glows are siblings behind the target graphic, excluded from layout
+  and raycasts. Transparent pack click areas resolve to their visible icon so the
+  glow follows the artwork. Yellow controller focus remains independent.
+
+Timing examples from the implemented character-count rule (including reveal and fade):
+
+| Text length | Reveal | Fully readable window | Time until completely hidden |
+| --- | --- | --- | --- |
+| 60 characters | 1.43 s | 5.00 s | 6.63 s |
+| 130 characters | 3.10 s | 7.91 s | 11.20 s |
+| 220 characters | 5.24 s | 11.00 s | 16.44 s |
+
+These are calculated timing scenarios; the Play Mode probe separately waits for real
+automatic hiding and uses the controller recall input. Holding recall opens confirmation;
+it never directly skips.
+
+Files changed in this refinement (paths relative to the repository root):
+
+| File | Purpose |
+| --- | --- |
+| `Assets/Scripts/TutorialDirector.cs` | Update hidden-prompt lifecycle and pause/input ownership for confirmation. |
+| `Assets/Scripts/TutorialDirector.Dialogue.cs` | Fixed translucent popup, readable text, full hide/recall, head-visible portrait. |
+| `Assets/Scripts/TutorialDirector.Controls.cs` and Unity-generated `.meta` | Runtime recall/skip controls and guarded modal/save/return behavior. |
+| `Assets/Scripts/TutorialDirector.Menus.cs` | Prevent navigation under the skip modal and draw/follow glows behind actual graphics. |
+| `Assets/Scripts/LocalCoopSession.cs` | Remember tutorial-run eligibility so skipping during scene teardown cannot increment normal completed runs. |
+| `Assets/Scripts/InputManager.cs` | Persist/reset the keyboard Show tutorial binding without adding a serialized field. |
+| `Assets/Scripts/ControllerBindings.cs` | Add Show tutorial to existing controller mappings and prevent binding conflicts. |
+| `Assets/Scripts/SettingsMenuUI.cs` | Expose Show tutorial in keyboard settings. |
+| `Assets/Scripts/ControllerBindingsUI.cs` | Fit the added keyboard/controller actions in existing panels. |
+| `Assets/Scripts/Editor/UIUpdateVerification.cs` | Restore the new keyboard preference after isolated tests. |
+| `Assets/Scripts/TutorialPlayProbe.cs` | Verify full hide, recall, modal cancellation, behind-graphic highlights and skip persistence across checkpoints. |
+| `Docs/ARCHITECTURE.md` and this document | Describe the current behavior, setup, verification and checks. |
+
+No serialized assets, Inspector fields, scenes, prefabs, settings or packages were
+changed. Unity generated the new Controls partial's `.meta`. No additional Editor
+setup is required. Backups, simulations and regression artifacts use
+`tmp/tutorial-refinement/`; `tmp/update10/` retains the earlier version's captures.
+
+Verification completed November 22, 2026:
+
+- Unity 6000.0.35f1 compiled successfully. The final isolated Play Mode run passed
+  **250 checks**, with no new Unity console errors. The full results are in
+  `tmp/tutorial-refinement/play-verification.txt`.
+- Actual virtual-controller events verified timed hiding, recall without advancing,
+  hold-to-open confirmation, safe default cancellation, and completion-message recall.
+  Pointer raycasts/click handlers verified both skip buttons at six checkpoints:
+  practice, waves, shop, purchased pack, upgrade, and the item lesson.
+- Skip persistence retained 432 coins, two completed normal runs, the existing
+  level-three card, and two bombs in every checkpoint fixture. No tutorial reward
+  was granted by skipping. Pause, practice and menu gates were released.
+- Keyboard/controller rebinding, saved values, collision rejection and Restore
+  defaults passed. Pointer checks reached all 20 keyboard-panel controls and all
+  16 controller-panel controls after layout settled. Captures verify that the added
+  rows and Restore defaults do not overlap the status text.
+- Visual inspection at 1920 by 1080 covered the complete head/eye, fixed translucent
+  prompt, full hidden state, skip confirmation, behind-art glows, and binding panels.
+  The three opacity comparisons and final captures are in `tmp/tutorial-refinement/`.
+- The probe now retains the authored three-second inter-wave gap. Its previous
+  0.02-second override could let the next test wave start before the old spawn
+  coroutine finished; that test-only acceleration produced an exception in one
+  earlier run. No WaveManager or authored wave settings were changed.
+- Static diff checks passed. No Inspector, scene or prefab assignments are required.
+  The Editor was returned to clean MainMenu Edit Mode, background execution was
+  restored to false, the preference snapshot was restored/cleared, and the isolated
+  save override was cleared.
+  Physical-controller/touch checks, a complete keyboard/mouse run, broader aspect
+  ratios, standalone/WebGL builds and browser persistence remain unverified.
+
+Manual Play Mode checks:
+
+1. Start a fresh tutorial. Confirm the full head/eye is visible and the popup stays
+   in one position during practice, card offers, shop, pack reveal and index.
+2. Read a short and a long message. Confirm text remains readable, does not reflow,
+   and fully fades away after its reading window. Check that gameplay/UI behind it
+   remains visible and usable as intended.
+3. Press T or View/Select, or click Show tutorial: full text returns without skipping
+   a step. Complete an objective while hidden: the prompt returns automatically.
+4. Rebind Show tutorial in keyboard/controller settings; verify recall, displayed
+   hints, persistence and Restore defaults.
+5. Open Skip tutorial by click/tap and by holding the recall binding. Keep playing
+   must be selected first. Cancel with the button or Back/Escape and resume the same step.
+6. Confirm skip from practice, a wave, the shop, a purchased pack and the item lesson.
+   Verify MainMenu is usable, earned inventory/coins remain, no reward is added,
+   and reloading does not restart either tutorial track.
+7. Check green glows behind menu buttons, packs, required Health and owned items;
+   they should follow their graphic and never obscure text or intercept clicks.
+8. Repeat on physical controller/touch hardware and target aspect ratios. Release
+   builds and those hardware/resolution checks are not covered by the automated probe.
+
+
+## Update (11): controller menus and tutorial presentation
+
+Source: `Duck Defender Update (11).pdf`, two pages. Its numbered item 5 is the
+controller reference image; there is no separate text requirement for that item.
+
+Implemented in the existing uGUI runtime owners, on Unity 6000.0.35f1. No package,
+ProjectSettings, serialized field, scene, prefab, font, sprite or metadata changes
+were required. Existing uncommitted work was retained.
+
+Files changed for this update (paths relative to the project):
+
+| File | Reason |
+| --- | --- |
+| `Assets/Scripts/ControllerBindings.cs` | A/B defaults, Y/X tutorial shortcuts, one-time default migration, conflict checks and enabled-controller selection. |
+| `Assets/Scripts/ControllerBindingsUI.cs` | Logitech-style controller geometry, live binding pathways, focus feedback and Back cancellation during capture. |
+| `Assets/Scripts/ControllerMenuNavigation.cs` | Include sliders/toggles in navigation; require a double Interact press within 0.4 seconds to edit sliders. |
+| `Assets/Scripts/SettingsMenuUI.cs` | Explain slider editing, rebuild modal navigation and support controller Back during keyboard capture. |
+| `Assets/Scripts/TutorialDirector.Controls.cs` | X opens skip confirmation; Y recalls text without a hold-to-skip action. Keyboard hold behavior remains. |
+| `Assets/Scripts/TutorialDirector.Dialogue.cs` | Shared yellow Continue frame, rightward bubble collapse and translucent tail geometry. |
+| `Assets/Scripts/TutorialDirector.cs` | Update and dispose the Continue frame with the existing prompt lifecycle. |
+| `Assets/Scripts/TutorialPlayProbe.cs` | New A/X/Y inputs, collapse/tail checks and separate Update (11) capture output. |
+| `Assets/Scripts/CoopVerificationProbe.cs` | Use A to confirm and a free button for the remapping check. |
+| `Assets/Scripts/ShopUpdatePlayProbe.cs` | Use A/B defaults and View/Select for the remapped Interact check. |
+| `Assets/Scripts/ItemUpdatePlayProbe.cs` | Use a free button for item-remapping checks, respecting X as Skip tutorial. |
+| `Assets/Scripts/Editor/UIUpdateVerification.cs` | Snapshot/restore the new menu-binding migration preference in isolated tests. |
+| `Docs/ARCHITECTURE.md` | Document the current bindings, diagram, slider interaction and tutorial presentation. |
+| `Docs/TUTORIAL_IMPLEMENTATION.md` | Record this update, its setup requirements, changed files and verification. |
+
+Verification artifacts are under `tmp/update11/`: source-page renders, before-edit
+backups, an external live-Editor controller check, screenshots and test reports.
+The external check is not imported into the game and creates no Unity asset.
+
+No additional Inspector or scene/prefab setup is required. In Play Mode, check:
+
+1. Navigate Settings with the D-pad and left stick; reach each volume slider,
+   camera zoom, Show tips and Particles. A changes either toggle.
+2. On a slider, one A press leaves navigation active. Two quick A presses enable
+   adjustment (green frame); the left stick changes its value. A or B finishes;
+   a subsequent B goes back. Moving away clears the first press.
+3. Open Keybinds, switch tabs, and focus each controller callout. Change a binding
+   and swap the sticks; verify the pathways follow. B cancels capture or goes back.
+4. In a tutorial, inspect the yellow Continue frame. Wait for the bubble to
+   collapse toward the duck; Y restores it. X opens confirmation; B cancels it.
+5. Confirm Skip from a disposable profile; verify it returns to MainMenu and
+   preserves already-earned resources.
+
+Verified for Update (11):
+
+- Unity 6000.0.35f1 compilation completed successfully. The final Console snapshot
+  reported zero errors and warnings. An intermediate verification-code API error
+  was corrected before running the successful tests.
+- 95 live Play Mode controller/settings checks passed with a simulated gamepad
+  and a temporary save. These exercised default migration, reachability across
+  repeated tab changes, toggles, all four sliders, timed double presses, actual
+  rebinding, pathway updates, keyboard/controller capture cancellation and Back.
+- 256 tutorial Play Mode checks passed, including unchanged lesson progression,
+  rightward collapse without fading, tail vertex transparency, A/B/Y/X defaults,
+  skip confirmation and preservation of resources from six tutorial checkpoints.
+- Two controller-diagram visual passes were reviewed at 1920x1080. The second
+  corrected the small Start label and confirmed the focused yellow pathway.
+  Settings and tutorial captures were also reviewed in their real scenes; the
+  settings hint no longer overlaps the existing code-entry controls.
+- Static diff review completed. uGUI package documentation consulted: Basic
+  Layout, Rect Transform, Event System, Navigation Options, Slider and Toggle;
+  the Unity CLI play-mode verification guide was used for Editor checks.
+
+The co-op, shop and item probes were updated for the new input defaults and
+compiled, but their full suites were not rerun. No physical-controller acceptance,
+mobile device or WebGL/player build verification was performed. Final artwork
+approval and behavior on other screen sizes remain user checks. The temporary
+Play Mode sessions restore saved preferences on exit; the Editor is left stopped.

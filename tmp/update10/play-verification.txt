@@ -187,8 +187,8 @@ Reachable menu control: ItemsTab
 Control belongs to current navigation scope: ItemsTab
 Items tab opens equipment after the core lesson (mode=True, stage=Equip).
 Item lesson prevents selling.
-Reachable menu control: Item 7
-Control belongs to current navigation scope: Item 7
+Reachable menu control: Item 3
+Control belongs to current navigation scope: Item 3
 Reachable menu control: Equip to slot 1
 Control belongs to current navigation scope: Equip to slot 1
 Item lesson accepts equipping through its menu.

@@ -11,7 +11,8 @@ public class ControllerMenuNavigation : MonoBehaviour
     {
         if (scope == null) return;
         Canvas.ForceUpdateCanvases();
-        var controls = System.Array.FindAll(scope.GetComponentsInChildren<UnityEngine.UI.Button>(), b => b.IsActive() && b.IsInteractable());
+        var controls = System.Array.FindAll(scope.GetComponentsInChildren<UnityEngine.UI.Selectable>(), b => b.IsActive() && b.IsInteractable() &&
+            (b is UnityEngine.UI.Button || b is UnityEngine.UI.Slider || b is UnityEngine.UI.Toggle));
         foreach (var control in controls)
             control.navigation = new UnityEngine.UI.Navigation {
                 mode = UnityEngine.UI.Navigation.Mode.Explicit,
@@ -21,10 +22,10 @@ public class ControllerMenuNavigation : MonoBehaviour
                 selectOnDown = FindInDirection(control, controls, Vector2.down)
             };
         var events = EventSystem.current;
-        var selected = events != null && events.currentSelectedGameObject != null ? events.currentSelectedGameObject.GetComponent<UnityEngine.UI.Button>() : null;
+        var selected = events != null && events.currentSelectedGameObject != null ? events.currentSelectedGameObject.GetComponent<UnityEngine.UI.Selectable>() : null;
         if (selected != null && selected.transform.IsChildOf(scope.transform) && (!selected.IsActive() || !selected.IsInteractable()) && controls.Length > 0)
         {
-            UnityEngine.UI.Button nearest = controls[0]; float distance = float.PositiveInfinity;
+            UnityEngine.UI.Selectable nearest = controls[0]; float distance = float.PositiveInfinity;
             foreach (var control in controls)
             {
                 float candidate = (control.transform.position - selected.transform.position).sqrMagnitude;
@@ -33,12 +34,12 @@ public class ControllerMenuNavigation : MonoBehaviour
             events.SetSelectedGameObject(nearest.gameObject);
         }
     }
-    public static UnityEngine.UI.Button FindInDirection(UnityEngine.UI.Button current, UnityEngine.UI.Button[] controls, Vector2 direction)
+    public static T FindInDirection<T>(T current, T[] controls, Vector2 direction) where T : UnityEngine.UI.Selectable
     {
         var rect = (RectTransform)current.transform;
         Vector2 origin = rect.TransformPoint(rect.rect.center);
         float best = float.PositiveInfinity;
-        UnityEngine.UI.Button next = null;
+        T next = null;
         foreach (var control in controls)
         {
             if (control == current || !control.IsActive() || !control.IsInteractable()) continue;
@@ -54,6 +55,9 @@ public class ControllerMenuNavigation : MonoBehaviour
     }
     float _nextMove;
     UnityEngine.UI.Slider _editingSlider;
+    UnityEngine.UI.Slider _armedSlider;
+    float _sliderPressedAt;
+    const float SliderDoublePressSeconds = .4f;
     bool _waitForNeutral;
     Transform _lastFocusScope;
     Vector3 _lastFocusPosition;
@@ -80,11 +84,11 @@ public class ControllerMenuNavigation : MonoBehaviour
     }
     void Update()
     {
-        if (TutorialDirector.BlocksMenuSubmit || EnemyTipUI.Instance != null && EnemyTipUI.Instance.IsShowing) return;
-        if (Gamepad.all.Count == 0 || EventSystem.current == null) { _editingSlider = null; return; }
+        if (TutorialDirector.BlocksMenuSubmit || EnemyTipUI.Instance != null && EnemyTipUI.Instance.IsShowing) { ClearSliderInput(); return; }
+        if (Gamepad.all.Count == 0 || EventSystem.current == null) { ClearSliderInput(); return; }
         if (CoopLobbyUI.Instance != null && CoopLobbyUI.Instance.IsOpen) return;
         var menu = MainMenuUI.Instance;
-        if (menu != null && menu.SettingsPanel.activeInHierarchy && menu.SettingsPanel.GetComponent<SettingsMenuUI>().CapturingInput) return;
+        if (menu != null && menu.SettingsPanel.activeInHierarchy && menu.SettingsPanel.GetComponent<SettingsMenuUI>().CapturingInput) { ClearSliderInput(); return; }
         if (LocalCoopSession.Multiplayer && LevelUpUI.Instance != null && LevelUpUI.Instance.IsOffering) return;
         Gamepad pad = null;
         foreach (var device in Gamepad.all) if (device.enabled) { pad = device; break; }
@@ -107,11 +111,12 @@ public class ControllerMenuNavigation : MonoBehaviour
             if (selected != null) events.SetSelectedGameObject(selected.gameObject);
         }
         Vector2 direction = ControllerBindings.MenuMove(pad);
+        if (_armedSlider != selected || Time.unscaledTime - _sliderPressedAt > SliderDoublePressSeconds) _armedSlider = null;
         if (_editingSlider != null && (_editingSlider != selected || !_editingSlider.IsInteractable())) _editingSlider = null;
         if (_editingSlider != null)
         {
             if (ControllerBindings.Pressed(pad, "Confirm") || ControllerBindings.Pressed(pad, "Back"))
-            { _editingSlider = null; _waitForNeutral = true; return; }
+            { ClearSliderInput(); _waitForNeutral = true; return; }
             float axis = pad.leftStick.ReadValue().x;
             if (Mathf.Abs(axis) > .2f)
                 _editingSlider.value += Mathf.Sign(axis) * ((Mathf.Abs(axis) - .2f) / .8f) *
@@ -126,6 +131,7 @@ public class ControllerMenuNavigation : MonoBehaviour
         if (direction.sqrMagnitude < .2f) _nextMove = 0;
         else if (Time.unscaledTime >= _nextMove && selected != null)
         {
+            _armedSlider = null;
             _nextMove = Time.unscaledTime + .22f;
             var data = new AxisEventData(events) { moveVector = direction,
                 moveDir = Mathf.Abs(direction.x) > Mathf.Abs(direction.y) ? direction.x > 0 ? MoveDirection.Right : MoveDirection.Left : direction.y > 0 ? MoveDirection.Up : MoveDirection.Down };
@@ -147,11 +153,17 @@ public class ControllerMenuNavigation : MonoBehaviour
             _lastFocusScope = scope; _lastFocusPosition = selected.transform.position; _hasLastFocus = true;
             if (ControllerBindings.Pressed(pad, "Confirm"))
             {
-                if (selected is UnityEngine.UI.Slider slider) { _editingSlider = slider; return; }
+                if (selected is UnityEngine.UI.Slider slider)
+                {
+                    if (_armedSlider == slider && Time.unscaledTime - _sliderPressedAt <= SliderDoublePressSeconds)
+                    { _editingSlider = slider; _armedSlider = null; }
+                    else { _armedSlider = slider; _sliderPressedAt = Time.unscaledTime; }
+                    return;
+                }
                 ExecuteEvents.Execute(selected.gameObject, new BaseEventData(events), ExecuteEvents.submitHandler);
             }
         }
-        if (ControllerBindings.Pressed(pad, "Back") && menu != null) menu.BackToMainMenu();
+        if (ControllerBindings.Pressed(pad, "Back") && menu != null) { ClearSliderInput(); menu.BackToMainMenu(); }
     }
     void LateUpdate()
     {
@@ -169,7 +181,8 @@ public class ControllerMenuNavigation : MonoBehaviour
             target = card.BackgroundImage.rectTransform;
         _selectionFrame.Show(target, _editingSlider != null ? new Color(.35f, 1, .55f) : (Color?)null);
     }
-    void OnDisable() { _selectionFrame?.Hide(); _editingSlider = null; }
+    void ClearSliderInput() { _editingSlider = null; _armedSlider = null; }
+    void OnDisable() { _selectionFrame?.Hide(); ClearSliderInput(); }
     void OnDestroy()
     {
         _selectionFrame?.Dispose();

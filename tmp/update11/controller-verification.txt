@@ -1,0 +1,96 @@
+PASS: 95 controller/settings checks.
+Old B/A default pair migrates to A/B.
+Y/X tutorial defaults preserve a custom gameplay binding.
+Play Mode frames advance.
+Every settings button, slider and toggle is reachable through the navigation graph.
+A toggles Show Tips.
+A restores Show Tips.
+A toggles Particles.
+A restores Particles.
+Single A does not edit SFX volume slider.
+A slow second press does not edit SFX volume slider.
+Double A edits SFX volume slider.
+Stick adjusts the focused SFX volume slider.
+B exits editing without leaving settings.
+Right navigates without changing SFX volume slider.
+Single A does not edit SFX volume slider.
+A slow second press does not edit SFX volume slider.
+Double A edits SFX volume slider.
+Stick adjusts the focused SFX volume slider.
+B exits editing without leaving settings.
+Right navigates without changing SFX volume slider.
+Single A does not edit Music volume slider.
+A slow second press does not edit Music volume slider.
+Double A edits Music volume slider.
+Stick adjusts the focused Music volume slider.
+B exits editing without leaving settings.
+Right navigates without changing Music volume slider.
+Single A does not edit Camera Zoom.
+A slow second press does not edit Camera Zoom.
+Double A edits Camera Zoom.
+Stick adjusts the focused Camera Zoom.
+B exits editing without leaving settings.
+Right navigates without changing Camera Zoom.
+All bindings remain reachable after switching to keyboard.
+All bindings remain reachable after switching to controller.
+All bindings remain reachable after switching to keyboard.
+All bindings remain reachable after switching to controller.
+B cancels keyboard capture without closing keybinds.
+B cancels controller capture without closing the bindings page.
+Controller callout rebinds through actual gamepad input.
+Remapping moves the pathway endpoint to the actual button.
+Gameplay cannot overlap tutorial shortcuts.
+Diagram label fits: Move: LEFT stick | Aim: RIGHT stick  (swap)
+Diagram text uses the original white bitmap font.
+Diagram label fits: Jump / fly up Move up
+Diagram text uses the original white bitmap font.
+Diagram label fits: Dash / blink LB
+Diagram text uses the original white bitmap font.
+Diagram label fits: Shoot RT
+Diagram text uses the original white bitmap font.
+Diagram label fits: Interact A / Bottom
+Diagram text uses the original white bitmap font.
+Diagram label fits: Back B / Right
+Diagram text uses the original white bitmap font.
+Diagram label fits: Use item RB
+Diagram text uses the original white bitmap font.
+Diagram label fits: Item slot 1 D-pad up
+Diagram text uses the original white bitmap font.
+Diagram label fits: Item slot 2 D-pad right
+Diagram text uses the original white bitmap font.
+Diagram label fits: Item slot 3 D-pad down
+Diagram text uses the original white bitmap font.
+Diagram label fits: Item slot 4 D-pad left
+Diagram text uses the original white bitmap font.
+Diagram label fits: Show tutorial Y / Top
+Diagram text uses the original white bitmap font.
+Diagram label fits: Skip tutorial X / Left
+Diagram text uses the original white bitmap font.
+Diagram label fits: A
+Diagram text uses the original white bitmap font.
+Diagram label fits: B
+Diagram text uses the original white bitmap font.
+Diagram label fits: X
+Diagram text uses the original white bitmap font.
+Diagram label fits: Y
+Diagram text uses the original white bitmap font.
+Diagram label fits: LB
+Diagram text uses the original white bitmap font.
+Diagram label fits: RB
+Diagram text uses the original white bitmap font.
+Diagram label fits: LT
+Diagram text uses the original white bitmap font.
+Diagram label fits: RT
+Diagram text uses the original white bitmap font.
+Diagram label fits: START
+Diagram text uses the original white bitmap font.
+Diagram label fits: VIEW
+Diagram text uses the original white bitmap font.
+Diagram label fits: L
+Diagram text uses the original white bitmap font.
+Diagram label fits: R
+Diagram text uses the original white bitmap font.
+Diagram label fits: Restore controller defaults
+Diagram text uses the original white bitmap font.
+B returns from keybinds to settings.
+B returns from settings to the main menu.

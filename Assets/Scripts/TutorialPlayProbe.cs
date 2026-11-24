@@ -38,7 +38,7 @@ public class TutorialPlayProbe : MonoBehaviour
     IEnumerator Start()
     {
         if (string.IsNullOrEmpty(SaveSystem.VerificationSavePath)) throw new InvalidOperationException("Start isolated Play verification first.");
-        Directory.CreateDirectory("tmp/update10");
+        Directory.CreateDirectory("tmp/update11/tutorial");
         DontDestroyOnLoad(gameObject);
         while (!TutorialDirector.Practice || LocalCoopSession.Instance == null || LocalCoopSession.Instance.Players.Count == 0) yield return null;
         foreach (var pad in Gamepad.all.ToArray()) if (pad.enabled) { _realPads.Add(pad); InputSystem.DisableDevice(pad); }
@@ -62,8 +62,8 @@ public class TutorialPlayProbe : MonoBehaviour
     }
     void Finish(string result)
     {
-        Result = result; Directory.CreateDirectory("tmp/update10");
-        File.WriteAllText("tmp/update10/play-verification.txt", result + "\n" + string.Join("\n", _checks));
+        Result = result; Directory.CreateDirectory("tmp/update11/tutorial");
+        File.WriteAllText("tmp/update11/tutorial/play-verification.txt", result + "\n" + string.Join("\n", _checks));
         Debug.Log(result); Destroy(gameObject);
     }
     void OnDestroy()
@@ -90,6 +90,7 @@ public class TutorialPlayProbe : MonoBehaviour
     {
         Input();
         var director = TutorialDirector.Instance;
+        if (Field<bool>(director, "_collapsed")) { Call(director, "ExpandDialogue"); yield return null; }
         string prompt = Field<string>(director, "_lastPrompt");
         yield return Until(() => director == null || Field<TMPro.TMP_Text>(director, "_message").maxVisibleCharacters >= Field<TMPro.TMP_Text>(director, "_message").textInfo.characterCount, "Dialogue finishes revealing before continue.");
         yield return new WaitForSecondsRealtime(.5f);
@@ -105,7 +106,7 @@ public class TutorialPlayProbe : MonoBehaviour
             Check(hits.Count > 0 && hits[0].gameObject.GetComponentInParent<UnityEngine.UI.Button>() == button, "Continue button receives pointer raycasts.");
             UnityEngine.EventSystems.ExecuteEvents.Execute(button.gameObject, data, UnityEngine.EventSystems.ExecuteEvents.pointerClickHandler);
         }
-        else InputSystem.QueueStateEvent(_pad, new GamepadState().WithButton(GamepadButton.East));
+        else InputSystem.QueueStateEvent(_pad, new GamepadState().WithButton(GamepadButton.South));
         yield return null; yield return null;
         yield return Until(() => director == null || TutorialDirector.Instance != director || Field<string>(director, "_lastPrompt") != prompt,
             "Interact advances: " + prompt);
@@ -117,7 +118,7 @@ public class TutorialPlayProbe : MonoBehaviour
         Check(button != null && button.IsActive() && button.IsInteractable(), "Reachable menu control: " + (button != null ? button.name : "missing"));
         if (MainMenuUI.Instance != null) Check(button.transform.IsChildOf(MainMenuUI.Instance.NavigationScope.transform), "Control belongs to current navigation scope: " + button.name);
         UnityEngine.EventSystems.EventSystem.current.SetSelectedGameObject(button.gameObject);
-        InputSystem.QueueStateEvent(_pad, new GamepadState().WithButton(GamepadButton.East));
+        InputSystem.QueueStateEvent(_pad, new GamepadState().WithButton(GamepadButton.South));
         yield return new WaitForSecondsRealtime(.08f); Input(); yield return new WaitForSecondsRealtime(.3f);
     }
     UnityEngine.UI.Button MenuButton(GameObject panel, string name) => panel.GetComponentsInChildren<UnityEngine.UI.Button>().First(b => b.name == name);
@@ -131,6 +132,7 @@ public class TutorialPlayProbe : MonoBehaviour
     }
     IEnumerator ReadPrompt()
     {
+        Call(TutorialDirector.Instance, "ExpandDialogue");
         yield return Until(() => Field<TMPro.TMP_Text>(TutorialDirector.Instance, "_message").maxVisibleCharacters >= Field<TMPro.TMP_Text>(TutorialDirector.Instance, "_message").textInfo.characterCount, "Capture waits for complete dialogue.");
         yield return null;
     }
@@ -149,14 +151,38 @@ public class TutorialPlayProbe : MonoBehaviour
         yield return Until(() => message.maxVisibleCharacters >= message.textInfo.characterCount, "Welcome text completes its reveal.");
         message.ForceMeshUpdate();
         Check(linePositions.SequenceEqual(message.textInfo.characterInfo.Select(c => c.origin)), "Character layout stays fixed throughout reveal.");
-        yield return Until(() => Field<float>(TutorialDirector.Instance, "_collapse") > .99f, "Dialogue collapses after its reading time.", 8);
-        Check(Field<float>(TutorialDirector.Instance, "_collapse") > .99f && Field<UnityEngine.UI.Button>(TutorialDirector.Instance, "_continueButton").gameObject.activeSelf, "Dialogue collapses after lingering while Continue remains available.");
-        Call(TutorialDirector.Instance, "ExpandDialogue");
+        Check(ControllerBindings.Get("Confirm") == "buttonSouth" && ControllerBindings.Get("Back") == "buttonEast" &&
+            ControllerBindings.Get("Tutorial") == "buttonNorth" && ControllerBindings.Get("SkipTutorial") == "buttonWest", "A/B/Y/X defaults apply to tutorial controls.");
+        yield return Until(() => Field<float>(TutorialDirector.Instance, "_collapse") > 0, "Dialogue begins its collapse after reading time.", 14);
+        yield return new WaitForEndOfFrame();
+        var bubble = Field<RectTransform>(TutorialDirector.Instance, "_panel");
+        Check(bubble.pivot.x == 1 && bubble.localScale.x < 1 && Field<CanvasGroup>(TutorialDirector.Instance, "_dialogueFade").alpha == 1,
+            "Speech bubble collapses right toward the duck without fading.");
+        var tailMesh = Field<RectTransform>(TutorialDirector.Instance, "_tail").GetComponent<CanvasRenderer>().GetMesh();
+        Check(tailMesh != null && tailMesh.vertexCount > 0 && tailMesh.colors.All(c => Mathf.Abs(c.a - .76f) < .01f), "Tail fill and outline retain the bubble transparency.");
+        yield return Until(() => !Field<RectTransform>(TutorialDirector.Instance, "_panel").gameObject.activeSelf, "Dialogue hides after its reading time.", 14);
+        Check(!Field<RectTransform>(TutorialDirector.Instance, "_panel").gameObject.activeSelf && !Field<RectTransform>(TutorialDirector.Instance, "_portrait").gameObject.activeSelf, "Popup and duck fully hide without leaving a collapsed panel.");
+        ScreenCapture.CaptureScreenshot("tmp/update11/tutorial/hidden.png");
+        InputSystem.QueueStateEvent(_pad, new GamepadState().WithButton(GamepadButton.North));
+        yield return null; yield return null; Input();
+        Check(Field<RectTransform>(TutorialDirector.Instance, "_panel").gameObject.activeSelf && Step == "Welcome", "Show tutorial binding restores text without advancing the lesson.");
+        yield return new WaitForSecondsRealtime(.1f);
+        InputSystem.QueueStateEvent(_pad, new GamepadState().WithButton(GamepadButton.West));
+        yield return Until(() => TutorialDirector.SkipConfirmationOpen, "X opens skip confirmation.");
+        Input();
+        Check(TutorialDirector.SkipConfirmationOpen && Time.timeScale == 0 && UnityEngine.EventSystems.EventSystem.current.currentSelectedGameObject == Field<UnityEngine.UI.Button>(TutorialDirector.Instance, "_keepTutorialButton").gameObject, "Skip confirmation pauses and defaults to Keep playing.");
+        Call(TutorialDirector.Instance, "ConfirmSkip");
+        Check(TutorialDirector.CoreActive && TutorialDirector.SkipConfirmationOpen, "Opening input cannot accidentally confirm skipping.");
+        yield return new WaitForSecondsRealtime(.4f);
+        ScreenCapture.CaptureScreenshot("tmp/update11/tutorial/skip-confirmation.png");
+        InputSystem.QueueStateEvent(_pad, new GamepadState().WithButton(GamepadButton.South));
+        yield return null; yield return null; Input();
+        Check(!TutorialDirector.SkipConfirmationOpen && Step == "Welcome", "Default controller confirmation cancels skipping and preserves the lesson.");
         yield return new WaitForSecondsRealtime(.3f);
         var decor = GameUI.Instance.PlayerHealthBar.transform.parent;
         Check(!decor.Find("HeartDecor").gameObject.activeSelf && !decor.Find("ExpDecor").gameObject.activeSelf && !decor.Find("CoinDecor").gameObject.activeSelf, "All HUD decorations are hidden before their lessons.");
         yield return new WaitForSecondsRealtime(.4f);
-        ScreenCapture.CaptureScreenshot("tmp/update10/welcome.png");
+        ScreenCapture.CaptureScreenshot("tmp/update11/tutorial/welcome.png");
         yield return Continue(true);
         var objects = Field<List<GameObject>>(TutorialDirector.Instance, "_practiceObjects");
         var stick = Field<RectTransform>(TutorialDirector.Instance, "_stick");
@@ -165,7 +191,7 @@ public class TutorialPlayProbe : MonoBehaviour
         Check(Mathf.Abs(circleRect.rect.width - circleRect.rect.height) < .01f && Mathf.Abs(stick.rect.width - stick.rect.height) < .01f, "Thumbstick base and knob remain circular.");
         Check(objects.All(g => g.GetComponent<SpriteRenderer>().sprite.texture.name == "Tutorial goal gradient"), "Walking goals use the upward fading gradient.");
         yield return ReadPrompt();
-        ScreenCapture.CaptureScreenshot("tmp/update10/movement.png");
+        ScreenCapture.CaptureScreenshot("tmp/update11/tutorial/movement.png");
         yield return MoveTo(objects[0].transform.position.x);
         Check(!Field<bool>(TutorialDirector.Instance, "_ready"), "One movement goal cannot skip the other.");
         Player.transform.position += Vector3.down * 30; yield return null; yield return null;
@@ -177,7 +203,7 @@ public class TutorialPlayProbe : MonoBehaviour
         var box = Field<BoxCollider2D>(TutorialDirector.Instance, "_box");
         Check(objects[1].GetComponent<SpriteRenderer>().sprite.texture.name == "Tutorial goal gradient", "Box landing goal also uses the gradient.");
         yield return ReadPrompt();
-        ScreenCapture.CaptureScreenshot("tmp/update10/jump.png");
+        ScreenCapture.CaptureScreenshot("tmp/update11/tutorial/jump.png");
         yield return new WaitForSecondsRealtime(.6f);
         float start = Time.realtimeSinceStartup;
         while (!Field<bool>(TutorialDirector.Instance, "_ready") && Time.realtimeSinceStartup - start < 5)
@@ -197,12 +223,12 @@ public class TutorialPlayProbe : MonoBehaviour
         var speech = Field<RectTransform>(TutorialDirector.Instance, "_panel");
         var speechCorners = new Vector3[4]; speech.GetWorldCorners(speechCorners);
         float speechBottom = RectTransformUtility.WorldToScreenPoint(null, speechCorners[0]).y;
-        Check(targets.All(t => Camera.main.WorldToScreenPoint(t.GetComponent<SpriteRenderer>().bounds.max).y < speechBottom), "All five targets remain below the speech box.");
+        Check(speech.anchorMin == new Vector2(.22f, .77f) && speech.anchorMax == new Vector2(.80f, .98f) && speech.GetComponent<UnityEngine.UI.Image>().color.a < .8f, "Aim uses the same fixed translucent popup as other steps.");
         Check(targets[0].transform.position.y > Player.Weapon.FirePoint.position.y + .8f, "Lowest targets are raised above default horizontal aim.");
         var arrow = Player.transform.Find("Aim direction").GetComponent<SpriteRenderer>();
         Check(arrow != null && arrow.sprite.texture.name == "Outlined aim arrow" && Player.GetComponentsInChildren<LineRenderer>().All(l => l.name != "Aim outline"), "Aim arrow uses one closed silhouette without crossing lines.");
         yield return ReadPrompt();
-        ScreenCapture.CaptureScreenshot("tmp/update10/aim.png");
+        ScreenCapture.CaptureScreenshot("tmp/update11/tutorial/aim.png");
         var originalScale = Player.transform.localScale; var originalAim = Player.Aim;
         var aimField = typeof(LocalPlayer).GetField("<Aim>k__BackingField", Private);
         foreach (var direction in new[] { Vector2.right, Vector2.up, new Vector2(.6f, .8f), new Vector2(-.6f, .8f) })
@@ -227,7 +253,7 @@ public class TutorialPlayProbe : MonoBehaviour
             {
                 var samples = new ParticleSystem.Particle[28]; int count = burst.GetComponent<ParticleSystem>().GetParticles(samples);
                 Check(count > 0 && Vector3.Distance(samples[0].position, target.transform.position) < 1, "Burst particles originate at the struck target.");
-                ScreenCapture.CaptureScreenshot("tmp/update10/particles.png");
+                ScreenCapture.CaptureScreenshot("tmp/update11/tutorial/particles.png");
             }
         }
         Input(); yield return Continue();
@@ -260,9 +286,10 @@ public class TutorialPlayProbe : MonoBehaviour
         Check(LevelUpUI.Instance.IsOffering && LevelManager.Instance.CurrentLevel == 2, "Second enemy opens the level-up offer.");
         var options = LevelUpUI.Instance.CardContainer.GetComponentsInChildren<CardDisplay>();
         Check(options.Length == 3 && options.All(c => c.ClickButton.IsInteractable()), "All three practice cards remain focusable.");
-        Check(GameObject.Find("Tutorial highlight") == null && options[0].GetComponentsInChildren<UnityEngine.UI.Image>().Any(i => i.name == "Tutorial green border"), "Required Health card uses green guidance distinct from controller focus.");
+        var healthGlow = options[0].BackgroundImage.GetComponent<TutorialGlowFollower>().Glow;
+        Check(healthGlow.transform.parent == options[0].BackgroundImage.transform.parent && healthGlow.transform.GetSiblingIndex() < options[0].BackgroundImage.transform.GetSiblingIndex() && !healthGlow.raycastTarget, "Required Health glow renders behind its graphic and does not intercept input.");
         yield return ReadPrompt();
-        ScreenCapture.CaptureScreenshot("tmp/update10/cards.png");
+        ScreenCapture.CaptureScreenshot("tmp/update11/tutorial/cards.png");
         UnityEngine.EventSystems.EventSystem.current.SetSelectedGameObject(options[0].ClickButton.gameObject);
         InputSystem.QueueStateEvent(_pad, new GamepadState().WithButton(GamepadButton.DpadRight));
         yield return new WaitForSecondsRealtime(.08f); Input();
@@ -292,7 +319,7 @@ public class TutorialPlayProbe : MonoBehaviour
         Check(healthRect.anchorMax.x == .23f && healthRect.anchorMax.y < .94f && xpRect.anchorMax.x == healthRect.anchorMax.x && GameUI.Instance.XPBar.Overlay.sprite == GameUI.Instance.PlayerHealthBar.Overlay.sprite, "Health and XP share longer classic bars below the top margin.");
         Check(!decor.Find("ExpDecor").gameObject.activeSelf, "XP orb stays removed after XP is revealed.");
         yield return ReadPrompt();
-        ScreenCapture.CaptureScreenshot("tmp/update10/health.png");
+        ScreenCapture.CaptureScreenshot("tmp/update11/tutorial/health.png");
         Check(LevelManager.Instance.TotalCoins == 0, "Practice grants no coins.");
         yield return Continue(); yield return Continue();
         yield return Until(() => MainMenuUI.Instance != null, "Stage 1 returns to menu."); yield return new WaitForSecondsRealtime(.5f);
@@ -314,12 +341,13 @@ public class TutorialPlayProbe : MonoBehaviour
         Check(EnemyTipUI.Instance.IsShowing && Time.timeScale == 0, "Stage 2 enemy explanation pauses the run.");
         Input(); yield return new WaitForSecondsRealtime(1.2f);
         Check(EnemyTipUI.Instance.IsShowing, "Enemy tip waits for Interact.");
-        InputSystem.QueueStateEvent(_pad, new GamepadState().WithButton(GamepadButton.East));
+        InputSystem.QueueStateEvent(_pad, new GamepadState().WithButton(GamepadButton.South));
         yield return Until(() => !EnemyTipUI.Instance.IsShowing, "Interact dismisses the enemy tip.");
         Input(); yield return null;
         Player.Health.TryTakeDamage(10000); Check(Player.Health.CurrentHealth == 1 && !Player.Health.IsDead, "Lethal tutorial damage stops at 1 health.");
         Check(!LocalCoopSession.Instance.ItemDropsEnabled && !TutorialDirector.AllowItems, "Stage 2 blocks item drops and use.");
-        WaveManager.Instance.TimeBetweenWaves = .02f; WaveManager.Instance.BaseSpawnInterval = .04f; WaveManager.Instance.MinSpawnInterval = .04f;
+        // Retain the authored inter-wave gap so the previous spawn coroutine finishes.
+        WaveManager.Instance.BaseSpawnInterval = .04f; WaveManager.Instance.MinSpawnInterval = .04f;
         var waveCounts = new Dictionary<int, int>();
         bool keptIntroduction = false;
         float end = Time.realtimeSinceStartup + 35;
@@ -351,25 +379,26 @@ public class TutorialPlayProbe : MonoBehaviour
         yield return new WaitForSecondsRealtime(.1f); Input(); yield return null;
         var focusedPack = UnityEngine.EventSystems.EventSystem.current.currentSelectedGameObject;
         Check(focusedPack != packs[0].gameObject && focusedPack.transform.IsChildOf(menu.PackContainer), "Controller can move away from the first pack.");
-        var glows = menu.PackContainer.GetComponentsInChildren<UnityEngine.UI.Image>().Where(i => i.name == "Tutorial green border").ToArray();
-        Check(glows.Length == 1 && glows[0].transform.parent == focusedPack.transform && GameObject.Find("Tutorial highlight") == null, "One green guidance follows the focused pack; no stuck tutorial focus frame remains.");
+        var glows = menu.PackContainer.GetComponentsInChildren<UnityEngine.UI.Image>().Where(i => i.name == "Tutorial green glow").ToArray();
+        var packGlow = focusedPack.GetComponentInChildren<TutorialGlowFollower>();
+        Check(glows.Length == 1 && glows[0] == packGlow.Glow && glows[0].transform.GetSiblingIndex() < packGlow.transform.GetSiblingIndex(), "One green underglow follows the focused pack behind its visible art.");
         yield return ReadPrompt();
-        ScreenCapture.CaptureScreenshot("tmp/update10/shop.png");
+        ScreenCapture.CaptureScreenshot("tmp/update11/tutorial/shop.png");
         yield return Submit(focusedPack.GetComponent<UnityEngine.UI.Button>());
         yield return ReadPrompt();
-        ScreenCapture.CaptureScreenshot("tmp/update10/confirmation.png");
+        ScreenCapture.CaptureScreenshot("tmp/update11/tutorial/confirmation.png");
         yield return Submit(menu.YesButton);
         int coins = ShopManager.Instance.CurrentCoins;
         menu.BackToMainMenu(); Check(menu.OpeningOverlay.activeSelf, "Back cannot escape an unopened tutorial pack.");
         SceneManager.LoadScene("MainMenu"); yield return new WaitForSecondsRealtime(1);
         menu = MainMenuUI.Instance;
         Check(menu.OpeningOverlay.activeSelf && ShopManager.Instance.CurrentCoins == coins, "Reload restores purchased pack without charging again.");
-        InputSystem.QueueStateEvent(_pad, new GamepadState().WithButton(GamepadButton.East));
+        InputSystem.QueueStateEvent(_pad, new GamepadState().WithButton(GamepadButton.South));
         yield return new WaitForSecondsRealtime(.08f); Input();
         yield return Until(() => menu.TutorialPackRevealed, "Pack reveal completes.");
         Check(!menu.ContinueButton.gameObject.activeSelf, "Tutorial pack reveal has no manual Continue button.");
         yield return ReadPrompt();
-        ScreenCapture.CaptureScreenshot("tmp/update10/pack.png");
+        ScreenCapture.CaptureScreenshot("tmp/update11/tutorial/pack.png");
         yield return Continue();
         Check(!menu.OpeningOverlay.activeSelf && menu.ShopPanel.activeSelf, "Interact closes the pack reveal without activating a pack.");
         yield return Submit(MenuButton(menu.ShopPanel, "BackButton"));
@@ -379,7 +408,7 @@ public class TutorialPlayProbe : MonoBehaviour
         while (index.CurrentPage < page) yield return Submit(index.NextButton);
         while (index.CurrentPage > page) yield return Submit(index.PreviousButton);
         yield return ReadPrompt();
-        ScreenCapture.CaptureScreenshot("tmp/update10/index.png");
+        ScreenCapture.CaptureScreenshot("tmp/update11/tutorial/index.png");
         Check(TutorialDirector.Progress.Stage == TutorialStage.Upgrade, "Browsing enters the upgrade lesson without an extra confirmation.");
         var targetPack = index.SelectedPack;
         yield return Submit(index.PackButtons[((int)targetPack + 1) % 4]);
@@ -393,6 +422,11 @@ public class TutorialPlayProbe : MonoBehaviour
         Check(ShopManager.Instance.GetCardData(upgradeID).Level == 2, "Guided index upgrade succeeds.");
         yield return Submit(MenuButton(menu.IndexPanel, "BackButton"));
         Check(!TutorialDirector.CoreActive, "Core tutorial completes and unlocks normal menus.");
+        yield return Until(() => !Field<RectTransform>(TutorialDirector.Instance, "_panel").gameObject.activeSelf, "Completion message fully hides after its reading window.", 16);
+        Check(Field<UnityEngine.UI.Button>(TutorialDirector.Instance, "_showTutorialButton").gameObject.activeSelf && !Field<UnityEngine.UI.Button>(TutorialDirector.Instance, "_skipButton").gameObject.activeSelf, "Completion retains recall without offering another skip.");
+        InputSystem.QueueStateEvent(_pad, new GamepadState().WithButton(GamepadButton.North));
+        yield return null; yield return null; Input();
+        Check(Field<RectTransform>(TutorialDirector.Instance, "_panel").gameObject.activeSelf && TutorialDirector.MenuLocked, "Recall restores the completion message without consuming its pending action.");
         yield return Continue();
         Check(SceneManager.GetActiveScene().name == "MainMenu" && !TutorialDirector.MenuLocked, "Completion Interact does not start an unintended game.");
         var shop = ShopManager.Instance;
@@ -401,9 +435,9 @@ public class TutorialPlayProbe : MonoBehaviour
         Check(shop.BuyItem(0, shop.Progress.ItemShopStock[0], shop.Progress.ItemShopRefreshUtc), "First purchased item starts item lesson.");
         yield return null; yield return null;
         var panel = Field<RectTransform>(TutorialDirector.Instance, "_panel");
-        Check(panel.GetComponent<UnityEngine.UI.Image>().color == new Color(.035f, .055f, .09f, .97f), "Item tutorial restores the normal prompt color after chromatic completion.");
+        Check(panel.GetComponent<UnityEngine.UI.Image>().color == new Color(.025f, .04f, .065f, .76f), "Item tutorial restores the normal prompt color after chromatic completion.");
         yield return ReadPrompt();
-        ScreenCapture.CaptureScreenshot("tmp/update10/item.png");
+        ScreenCapture.CaptureScreenshot("tmp/update11/tutorial/item.png");
         yield return Submit(MenuButton(menu.ShopPanel, "BackButton"));
         yield return Submit(MenuButton(menu.MenuPanel, "IndexButton"));
         yield return Submit(MenuButton(menu.IndexPanel, "ItemsTab"));
@@ -442,6 +476,43 @@ public class TutorialPlayProbe : MonoBehaviour
         Check(!items.HadEquippedItems && !Field<RectTransform>(Player.GetComponent<ItemWheelUI>(), "_wheel").gameObject.activeSelf, "Picking up mid-run does not enable an unequipped item wheel.");
         Time.timeScale = 1; SceneManager.LoadScene("MainMenu"); yield return new WaitForSecondsRealtime(.7f);
         Check(TutorialDirector.Progress.ItemActive && !MenuButton(MainMenuUI.Instance.MenuPanel, "PlayButton").IsInteractable() && MenuButton(MainMenuUI.Instance.MenuPanel, "IndexButton").IsInteractable(), "Pickup lesson starts on return to menu with Index reachable.");
+        yield return VerifySkipping();
+    }
+
+    IEnumerator VerifySkipping()
+    {
+        foreach (var stage in new[] { TutorialStage.Basics, TutorialStage.Waves, TutorialStage.Shop, TutorialStage.PackPurchased, TutorialStage.Upgrade, TutorialStage.Complete })
+        {
+            var data = PlayerData.CreateNew(); data.TotalCoins = 432; data.CompletedRuns = 2;
+            data.CardCollection[0].Level = 3; data.ItemInventory[(int)ItemKind.Bomb] = 2;
+            data.Tutorial.Stage = stage; data.Tutorial.HasObtainedItem = true;
+            data.Tutorial.Items = ItemTutorialStage.Index;
+            data.Tutorial.UpgradeCardID = data.CardCollection[0].CardID;
+            data.Tutorial.NewCardID = data.CardCollection[1].CardID;
+            SaveSystem.SaveData(data, true, true);
+            Time.timeScale = 1; SceneManager.LoadScene(stage == TutorialStage.Basics || stage == TutorialStage.Waves ? "SampleScene" : "MainMenu");
+            yield return new WaitForSecondsRealtime(.8f);
+            var director = TutorialDirector.Instance;
+            ClickTutorialControl(Field<UnityEngine.UI.Button>(director, "_skipButton"));
+            yield return new WaitForSecondsRealtime(.45f);
+            Input(); ClickTutorialControl(Field<UnityEngine.UI.Button>(director, "_confirmSkipButton"));
+            yield return Until(() => MainMenuUI.Instance != null && !TutorialDirector.CoreActive && !TutorialDirector.Progress.ItemActive, "Confirmed skip exits " + stage + " safely.");
+            yield return new WaitForSecondsRealtime(.3f);
+            var saved = SaveSystem.LoadData();
+            Check(saved.TotalCoins == 432 && saved.CompletedRuns == 2 && saved.CardCollection[0].Level == 3 && saved.ItemInventory[(int)ItemKind.Bomb] == 2, "Skipping " + stage + " preserves earned resources without tutorial rewards.");
+            Check(!TutorialDirector.HoldsPause && Time.timeScale == 1 && !TutorialDirector.MenuLocked && !TutorialDirector.Practice, "Skipping " + stage + " releases pause, practice and menu gates.");
+        }
+    }
+    void ClickTutorialControl(UnityEngine.UI.Button button)
+    {
+        Canvas.ForceUpdateCanvases();
+        var rect = (RectTransform)button.transform;
+        var events = UnityEngine.EventSystems.EventSystem.current;
+        var pointer = new UnityEngine.EventSystems.PointerEventData(events) { position = RectTransformUtility.WorldToScreenPoint(null, rect.TransformPoint(rect.rect.center)) };
+        var hits = new List<UnityEngine.EventSystems.RaycastResult>();
+        events.RaycastAll(pointer, hits);
+        Check(hits.Count > 0 && hits[0].gameObject.GetComponentInParent<UnityEngine.UI.Button>() == button, "Skip control receives pointer input above other overlays: " + button.name);
+        UnityEngine.EventSystems.ExecuteEvents.Execute(button.gameObject, pointer, UnityEngine.EventSystems.ExecuteEvents.pointerClickHandler);
     }
 }
 #endif

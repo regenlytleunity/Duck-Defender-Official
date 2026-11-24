@@ -1042,7 +1042,8 @@ Runtime prompts use CoopUIElements and the original DuckDefenderTestFontv2 asset
 Completed objectives and informational prompts require a fresh Interact press
 (controller binding, Enter on keyboard, or touch), with release-before-press
 protection. Prompts wait during modal offers/tips and device disconnection.
-Speech-box prompts use a fixed-layout typewriter reveal and the existing duck sprite at the right edge. After a three-second linger they collapse to a compact reminder; completing an objective reopens the prompt. The bottom-center Continue button also accepts pointer input. Prompts use clear gaps in shop/index layouts.
+Speech-box prompts stay at one fixed top position across gameplay and menus, with a 76%-opaque dark background, original white bitmap text and a shadow. Full text is laid out before typewriter reveal. After the reveal they linger for a length-dependent 5–11 seconds, then collapse right toward the duck in 0.2 seconds. The bubble stays at its authored opacity during collapse, and the tail has a matching translucent fill and outline. Completing an objective or using Show tutorial restores the text. The existing duck is 44% of canvas height at (94%, 53%), leaving its complete head and eye onscreen; it hides with the text. Continue accepts pointer input and a fresh Interact press, with the shared yellow selection frame around the revealed button.
+`TutorialDirector.Controls.cs` provides Show tutorial (default T or controller Y, rebindable in existing settings) and a bottom-right Skip tutorial button (controller X by default). Holding the keyboard Show tutorial key for 0.85 seconds also opens the skip confirmation. The modal pauses gameplay, defaults to Keep playing and requires released input before confirmation. Confirming skips core and item lessons, preserves earned resources without granting rewards, and returns to MainMenu.
 Enemy tips also require Interact during protected tutorial runs.
 
 Fresh profiles opt into `TutorialProgress.Version = 1`: movement/jump/aim/shoot
@@ -1054,15 +1055,16 @@ together. A saved unopened pack resumes its reveal without another charge.
 Practice uses fading green goals and dartboard targets. Its enemies enter from
 outside the camera and stop before combat. All three Basic cards remain focusable,
 but only Health can be activated. Falling out returns the player without losing
-completed objectives. Neither stage has a restart button. Continue stays available
-when completed/informational dialogue collapses; the portrait reopens instructions. Learned movement/jump controls remain available during
-later lessons. Inset green borders guide cards and buttons separately from
-yellow controller focus. Blocked tutorial actions produce a brief unscaled shake.
+completed objectives. Neither stage has a restart button. Hidden informational prompts retain their pending action; the first Interact press reopens them. Learned movement/jump controls remain available during
+later lessons. Soft green glows render as siblings behind the visible button/card art,
+separately from yellow controller focus. They follow layout changes without blocking raycasts. Blocked tutorial actions produce a brief unscaled shake.
 Raised semicircle targets require a change in aim before awarding aim progress;
 shooting them emits a short dartboard-colored burst respecting particle visibility. The index permits browsing packs, layouts, pages and card
 previews while purchase/equipment services retain the tutorial restrictions.
 Interrupted waves resume from the Play menu checkpoint. Tutorial runs do not count
-toward the two completed normal runs needed for item drops.
+toward the two completed normal runs needed for item drops. LocalCoopSession remembers
+whether a run started in the tutorial, including when skipping changes the saved stage
+before scene teardown.
 
 Existing current-schema profiles opt out of the core tutorial without losing
 progress. Both new and existing profiles can enter the item lesson after first
@@ -1394,10 +1396,15 @@ Assets/Scripts/VirtualJoystick.cs
 Gameplay passes its owning component to InputHelper. An assigned LocalPlayer
 reads only its own Input System Gamepad: D-pad/left stick movement and upward jump,
 right stick aim with a narrow horizontal snap, RT fire, LB dash. Shared menus use
-ControllerMenuNavigation with the first controller, right face/B to confirm and
-bottom face/A to go back by default. `ControllerBindings` saves remappable Jump,
-Dash, Shoot, Confirm, Back, Use Item and four item-slot buttons, plus move/aim stick swapping in PlayerPrefs;
-the existing keybind panel has keyboard and controller tabs. Menu movement stays
+ControllerMenuNavigation with the first controller, bottom face/A to confirm and
+right face/B to go back by default. The old default pair migrates together once;
+customized pairs and unrelated gameplay mappings are preserved. `ControllerBindings` saves remappable Jump,
+Dash, Shoot, Confirm, Back, Use Item, four item-slot buttons, Show tutorial and Skip tutorial,
+plus move/aim stick swapping in PlayerPrefs;
+the existing keybind panel has keyboard and controller tabs. The controller tab
+draws a symmetric dual-stick Logitech-style diagram with live pathways to the
+current bindings; focused callouts highlight their path in yellow. Tutorial
+shortcuts cannot overlap gameplay or menu actions. Menu movement stays
 on D-pad/left stick. Solo automatically prioritizes an attached controller and
 falls back to keyboard/mouse when disconnected. Co-op card panes handle their assigned controllers
 separately; the shared EventSystem's controller submit/move bindings are replaced
@@ -1406,10 +1413,13 @@ Controller focus uses a yellow frame with a dark border drawn in screen pixels,
 independent of button tint and card scale. Shared menus follow EventSystem focus;
 each co-op card pane has its own frame, green while selected and yellow while browsing.
 The frames do not intercept pointer input and require no prefab wiring.
-Sliders stay in navigation mode until Interact is pressed. Their focus turns green
-while the left stick adjusts them; Interact or Back returns to navigation.
+Settings navigation includes buttons, sliders and toggles. Sliders stay in navigation
+mode until two Interact presses on the same slider within 0.4 seconds. Movement,
+focus changes, modal entry and timeout clear the first press. Their focus turns
+green while the left stick adjusts them; Interact or Back returns to navigation.
+Back also cancels controller and keyboard binding capture without closing the page.
 
-Pack opening accepts a fresh Confirm/Interact press (B by default) as well as a
+Pack opening accepts a fresh Confirm/Interact press (A by default) as well as a
 pointer swipe. Holding the purchase press does not skip the swipe screen. Card
 refreshes retain their selected control; when an upgrade becomes unavailable,
 focus stays on that card or a nearby available control. Equipment actions restore

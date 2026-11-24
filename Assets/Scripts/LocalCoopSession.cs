@@ -11,7 +11,7 @@ public class LocalCoopSession : MonoBehaviour
     public static bool AdvancedLoadouts;
     public int CompletedWaves { get; private set; }
     public bool ItemDropsEnabled { get; private set; }
-    bool _runStarted, _runCompleted;
+    bool _runStarted, _runCompleted, _tutorialRun;
     public enum HealthBarStyle { Classic, AbovePlayer }
     public static HealthBarStyle HealthStyle = HealthBarStyle.AbovePlayer;
     public static readonly string[] PlayerNames = { "PLAYER 1", "PLAYER 2", "PLAYER 3", "PLAYER 4" };
@@ -73,6 +73,7 @@ public class LocalCoopSession : MonoBehaviour
         // PlayerController/Health/Weapon initialize authored defaults in Start.
         yield return null;
         var data = SaveSystem.LoadData(); data.NormalizeShopData();
+        _tutorialRun = data.Tutorial.CoreActive;
         ItemDropsEnabled = data.CompletedRuns >= 2 && !TutorialDirector.CoreActive;
         ShopManager.SanitizeItems(data, Multiplayer, Players.Count);
         _runStarted = true;
@@ -85,7 +86,8 @@ public class LocalCoopSession : MonoBehaviour
     public void CompleteWave() { CompletedWaves++; }
     public void CompleteRun()
     {
-        if (TutorialDirector.ProtectedRun || TutorialDirector.CoreActive) return;
+        // Scene teardown can destroy the director after skipping changes the saved stage.
+        if (_tutorialRun || TutorialDirector.ProtectedRun || TutorialDirector.CoreActive) return;
         if (!_runStarted || _runCompleted) return;
         _runCompleted = true;
         LevelManager.Instance?.FlushCoinSave();

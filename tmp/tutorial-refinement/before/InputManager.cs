@@ -1,0 +1,265 @@
+using UnityEngine;
+using System;
+using System.Collections.Generic;
+
+/// <summary>
+/// Centralized input management with rebindable keys.
+/// Handles all player input and allows keybind customization.
+/// </summary>
+public class InputManager : MonoBehaviour
+{
+    public static InputManager Instance;
+
+    [Header("Movement Keys")]
+    public KeyCode MoveLeftKey = KeyCode.A;
+    public KeyCode MoveLeftAlt = KeyCode.LeftArrow;
+    public KeyCode MoveRightKey = KeyCode.D;
+    public KeyCode MoveRightAlt = KeyCode.RightArrow;
+    public KeyCode JumpKey = KeyCode.Space;
+    public KeyCode JumpAlt = KeyCode.W;
+    public KeyCode CrouchKey = KeyCode.S;
+    public KeyCode CrouchAlt = KeyCode.DownArrow;
+
+    [Header("Action Keys")]
+    public KeyCode DashKey = KeyCode.LeftShift;
+    public KeyCode ShootKey = KeyCode.Mouse0;
+    [Header("Item Keys")]
+    public KeyCode UseItemKey = KeyCode.Mouse1;
+    public KeyCode Item1Key = KeyCode.Alpha1, Item2Key = KeyCode.Alpha2, Item3Key = KeyCode.Alpha3, Item4Key = KeyCode.Alpha4;
+    
+    [Header("UI Keys")]
+    public KeyCode PauseKey = KeyCode.Escape;
+
+    // Events for input
+    public event Action OnDashPressed;
+    public event Action OnJumpPressed;
+    public event Action OnShootPressed;
+    public event Action OnShootReleased;
+
+    // Input state
+    private bool _isShootHeld = false;
+
+    void Awake()
+    {
+        if (Instance == null)
+        {
+            Instance = this;
+            DontDestroyOnLoad(gameObject);
+            LoadKeybinds();
+        }
+        else if (Instance != this)
+        {
+            // The scene's InputSystem also owns MobileInputController.
+            // Keep that component alive so it can hide/show the touch canvas.
+            enabled = false;
+            Destroy(this);
+        }
+    }
+
+    void Update()
+    {
+        // Dash - single key press
+        if (Input.GetKeyDown(DashKey))
+        {
+            OnDashPressed?.Invoke();
+        }
+
+        // Jump
+        if (Input.GetKeyDown(JumpKey) || Input.GetKeyDown(JumpAlt))
+        {
+            OnJumpPressed?.Invoke();
+        }
+
+        // Shoot (hold)
+        if (Input.GetKey(ShootKey))
+        {
+            if (!_isShootHeld)
+            {
+                _isShootHeld = true;
+                OnShootPressed?.Invoke();
+            }
+        }
+        else if (_isShootHeld)
+        {
+            _isShootHeld = false;
+            OnShootReleased?.Invoke();
+        }
+    }
+
+    // --- INPUT QUERIES ---
+    
+    public float GetHorizontalInput()
+    {
+        float input = 0f;
+        if (Input.GetKey(MoveLeftKey) || Input.GetKey(MoveLeftAlt)) input -= 1f;
+        if (Input.GetKey(MoveRightKey) || Input.GetKey(MoveRightAlt)) input += 1f;
+        return input;
+    }
+
+    public float GetVerticalInput()
+    {
+        float input = 0f;
+        if (Input.GetKey(CrouchKey) || Input.GetKey(CrouchAlt)) input -= 1f;
+        if (Input.GetKey(JumpKey) || Input.GetKey(JumpAlt)) input += 1f;
+        return input;
+    }
+
+    public bool IsJumpPressed()
+    {
+        return Input.GetKeyDown(JumpKey) || Input.GetKeyDown(JumpAlt);
+    }
+
+    public bool IsJumpHeld()
+    {
+        return Input.GetKey(JumpKey) || Input.GetKey(JumpAlt);
+    }
+
+    public bool IsDashPressed()
+    {
+        return Input.GetKeyDown(DashKey);
+    }
+
+    public bool IsShootHeld()
+    {
+        return Input.GetKey(ShootKey);
+    }
+
+    public bool IsCrouchHeld()
+    {
+        return Input.GetKey(CrouchKey) || Input.GetKey(CrouchAlt);
+    }
+
+    // --- KEYBIND MANAGEMENT ---
+
+    public void SetKeybind(string action, KeyCode newKey)
+    {
+        switch (action.ToLower())
+        {
+            case "moveleft": MoveLeftKey = newKey; break;
+            case "moveright": MoveRightKey = newKey; break;
+            case "jump": JumpKey = newKey; break;
+            case "crouch": CrouchKey = newKey; break;
+            case "dash": DashKey = newKey; break;
+            case "shoot": ShootKey = newKey; break;
+            case "moveleftalt": MoveLeftAlt = newKey; break;
+            case "moverightalt": MoveRightAlt = newKey; break;
+            case "jumpalt": JumpAlt = newKey; break;
+            case "crouchalt": CrouchAlt = newKey; break;
+            case "pause": PauseKey = newKey; break;
+            case "useitem": UseItemKey = newKey; break;
+            case "item1": Item1Key = newKey; break;
+            case "item2": Item2Key = newKey; break;
+            case "item3": Item3Key = newKey; break;
+            case "item4": Item4Key = newKey; break;
+        }
+        SaveKeybinds();
+    }
+
+    public KeyCode GetKeybind(string action)
+    {
+        switch (action.ToLower())
+        {
+            case "moveleft": return MoveLeftKey;
+            case "moveright": return MoveRightKey;
+            case "jump": return JumpKey;
+            case "crouch": return CrouchKey;
+            case "dash": return DashKey;
+            case "shoot": return ShootKey;
+            case "moveleftalt": return MoveLeftAlt;
+            case "moverightalt": return MoveRightAlt;
+            case "jumpalt": return JumpAlt;
+            case "crouchalt": return CrouchAlt;
+            case "pause": return PauseKey;
+            case "useitem": return UseItemKey;
+            case "item1": return Item1Key;
+            case "item2": return Item2Key;
+            case "item3": return Item3Key;
+            case "item4": return Item4Key;
+            default: return KeyCode.None;
+        }
+    }
+
+    public void SaveKeybinds()
+    {
+        PlayerPrefs.SetInt("Key_MoveLeft", (int)MoveLeftKey);
+        PlayerPrefs.SetInt("Key_MoveRight", (int)MoveRightKey);
+        PlayerPrefs.SetInt("Key_Jump", (int)JumpKey);
+        PlayerPrefs.SetInt("Key_Crouch", (int)CrouchKey);
+        PlayerPrefs.SetInt("Key_Dash", (int)DashKey);
+        PlayerPrefs.SetInt("Key_Shoot", (int)ShootKey);
+        PlayerPrefs.SetInt("Key_MoveLeftAlt", (int)MoveLeftAlt);
+        PlayerPrefs.SetInt("Key_MoveRightAlt", (int)MoveRightAlt);
+        PlayerPrefs.SetInt("Key_JumpAlt", (int)JumpAlt);
+        PlayerPrefs.SetInt("Key_CrouchAlt", (int)CrouchAlt);
+        PlayerPrefs.SetInt("Key_Pause", (int)PauseKey);
+        PlayerPrefs.SetInt("Key_UseItem", (int)UseItemKey);
+        PlayerPrefs.SetInt("Key_Item1", (int)Item1Key); PlayerPrefs.SetInt("Key_Item2", (int)Item2Key);
+        PlayerPrefs.SetInt("Key_Item3", (int)Item3Key); PlayerPrefs.SetInt("Key_Item4", (int)Item4Key);
+        PlayerPrefs.SetInt("Key_ItemBindingsVersion", 1);
+        PlayerPrefs.Save();
+    }
+
+    public void LoadKeybinds()
+    {
+        if (PlayerPrefs.HasKey("Key_MoveLeft"))
+            MoveLeftKey = (KeyCode)PlayerPrefs.GetInt("Key_MoveLeft");
+        if (PlayerPrefs.HasKey("Key_MoveRight"))
+            MoveRightKey = (KeyCode)PlayerPrefs.GetInt("Key_MoveRight");
+        if (PlayerPrefs.HasKey("Key_Jump"))
+            JumpKey = (KeyCode)PlayerPrefs.GetInt("Key_Jump");
+        if (PlayerPrefs.HasKey("Key_Crouch"))
+            CrouchKey = (KeyCode)PlayerPrefs.GetInt("Key_Crouch");
+        if (PlayerPrefs.HasKey("Key_Dash"))
+            DashKey = (KeyCode)PlayerPrefs.GetInt("Key_Dash");
+        if (PlayerPrefs.HasKey("Key_Shoot"))
+            ShootKey = (KeyCode)PlayerPrefs.GetInt("Key_Shoot");
+        if (PlayerPrefs.HasKey("Key_MoveLeftAlt"))
+            MoveLeftAlt = (KeyCode)PlayerPrefs.GetInt("Key_MoveLeftAlt");
+        if (PlayerPrefs.HasKey("Key_MoveRightAlt"))
+            MoveRightAlt = (KeyCode)PlayerPrefs.GetInt("Key_MoveRightAlt");
+        if (PlayerPrefs.HasKey("Key_JumpAlt"))
+            JumpAlt = (KeyCode)PlayerPrefs.GetInt("Key_JumpAlt");
+        if (PlayerPrefs.HasKey("Key_CrouchAlt"))
+            CrouchAlt = (KeyCode)PlayerPrefs.GetInt("Key_CrouchAlt");
+        if (PlayerPrefs.HasKey("Key_Pause"))
+            PauseKey = (KeyCode)PlayerPrefs.GetInt("Key_Pause");
+        UseItemKey = (KeyCode)PlayerPrefs.GetInt("Key_UseItem", (int)KeyCode.Mouse1);
+        Item1Key = (KeyCode)PlayerPrefs.GetInt("Key_Item1", (int)KeyCode.Alpha1);
+        Item2Key = (KeyCode)PlayerPrefs.GetInt("Key_Item2", (int)KeyCode.Alpha2);
+        Item3Key = (KeyCode)PlayerPrefs.GetInt("Key_Item3", (int)KeyCode.Alpha3);
+        Item4Key = (KeyCode)PlayerPrefs.GetInt("Key_Item4", (int)KeyCode.Alpha4);
+        if (PlayerPrefs.HasKey("Key_ItemBindingsVersion")) return;
+        // One-time migration from the old reserved-item controls.
+        if (ReservedForItems(MoveLeftKey)) MoveLeftKey = KeyCode.A;
+        if (ReservedForItems(MoveRightKey)) MoveRightKey = KeyCode.D;
+        if (ReservedForItems(JumpKey)) JumpKey = KeyCode.Space;
+        if (ReservedForItems(CrouchKey)) CrouchKey = KeyCode.S;
+        if (ReservedForItems(DashKey)) DashKey = KeyCode.LeftShift;
+        if (ReservedForItems(ShootKey)) ShootKey = KeyCode.Mouse0;
+        if (ReservedForItems(MoveLeftAlt)) MoveLeftAlt = KeyCode.LeftArrow;
+        if (ReservedForItems(MoveRightAlt)) MoveRightAlt = KeyCode.RightArrow;
+        if (ReservedForItems(JumpAlt)) JumpAlt = KeyCode.W;
+        if (ReservedForItems(CrouchAlt)) CrouchAlt = KeyCode.DownArrow;
+        if (ReservedForItems(PauseKey)) PauseKey = KeyCode.Escape;
+        SaveKeybinds();
+    }
+
+    public static bool ReservedForItems(KeyCode key) => key == KeyCode.Mouse1 || key >= KeyCode.Alpha1 && key <= KeyCode.Alpha4;
+
+    public void ResetToDefaults()
+    {
+        MoveLeftKey = KeyCode.A;
+        MoveLeftAlt = KeyCode.LeftArrow;
+        MoveRightKey = KeyCode.D;
+        MoveRightAlt = KeyCode.RightArrow;
+        JumpKey = KeyCode.Space;
+        JumpAlt = KeyCode.W;
+        CrouchKey = KeyCode.S;
+        CrouchAlt = KeyCode.DownArrow;
+        DashKey = KeyCode.LeftShift;
+        ShootKey = KeyCode.Mouse0;
+        PauseKey = KeyCode.Escape;
+        UseItemKey = KeyCode.Mouse1; Item1Key = KeyCode.Alpha1; Item2Key = KeyCode.Alpha2; Item3Key = KeyCode.Alpha3; Item4Key = KeyCode.Alpha4;
+        SaveKeybinds();
+    }
+}
