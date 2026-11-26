@@ -3,20 +3,26 @@ using System.IO;
 using System.Linq;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 [InitializeOnLoad]
 public static class UIUpdateVerification
 {
     const string SnapshotKey = "DuckDefender.UIVerificationPrefs";
+    const string DevicesKey = "DuckDefender.UIVerificationDevices";
     [Serializable] class PreferenceSnapshot { public Entry[] entries; }
     [Serializable] class Entry { public string key, text; public bool exists, floating, isString; public int integer; public float number; }
+    [Serializable] class DeviceSnapshot { public DeviceEntry[] entries; }
+    [Serializable] class DeviceEntry { public int id; public bool enabled; }
     static int _checks;
     static void Check(bool value, string message) { if (!value) throw new InvalidOperationException("UI verification: " + message); _checks++; }
     static UIUpdateVerification()
     {
         EditorApplication.playModeStateChanged += state =>
         {
+            if (state == PlayModeStateChange.ExitingPlayMode) RestoreDevices(false);
             if (state != PlayModeStateChange.EnteredEditMode) return;
+            RestoreDevices(true);
             string json = SessionState.GetString(SnapshotKey, "");
             if (!string.IsNullOrEmpty(json))
             {
@@ -36,6 +42,27 @@ public static class UIUpdateVerification
             GameDifficulty.Load();
         };
     }
+    static void RestoreDevices(bool complete)
+    {
+        string json = SessionState.GetString(DevicesKey, "");
+        if (string.IsNullOrEmpty(json)) return;
+        var entries = JsonUtility.FromJson<DeviceSnapshot>(json).entries;
+        // Input devices survive script/domain reloads. Scene OnDestroy alone is
+        // insufficient for ad-hoc probes or interrupted verification sessions.
+        foreach (var pad in Gamepad.all.ToArray())
+        {
+            var original = Array.Find(entries, entry => entry.id == pad.deviceId);
+            if (original == null)
+            {
+                // Never remove physical controllers connected during the test.
+                if (!pad.native) InputSystem.RemoveDevice(pad);
+                continue;
+            }
+            if (original.enabled && !pad.enabled) InputSystem.EnableDevice(pad);
+            else if (!original.enabled && pad.enabled) InputSystem.DisableDevice(pad);
+        }
+        if (complete) SessionState.EraseString(DevicesKey);
+    }
     [MenuItem("Duck Defender/UI/Start Isolated Play Verification")]
     public static void StartPlay()
     {
@@ -45,6 +72,9 @@ public static class UIUpdateVerification
     {
         if (EditorApplication.isPlaying) throw new InvalidOperationException("Exit Play Mode first.");
         if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().isDirty) throw new InvalidOperationException("Save scene changes first.");
+        SessionState.SetString(DevicesKey, JsonUtility.ToJson(new DeviceSnapshot {
+            entries = Gamepad.all.Select(pad => new DeviceEntry { id = pad.deviceId, enabled = pad.enabled }).ToArray()
+        }));
         string[] floats={"DuckDefender_MasterVolume","DuckDefender_SFXVolume","DuckDefender_MusicVolume",WorldCamera.ZoomPreference};
         string[] ints={GameDifficulty.PreferenceKey,ParticleVisibility.PreferenceKey,"Key_MoveLeft","Key_MoveRight","Key_Jump","Key_Crouch","Key_Dash","Key_Shoot","Key_Pause","Key_MoveLeftAlt","Key_MoveRightAlt","Key_JumpAlt","Key_CrouchAlt"};
         ints = ints.Concat(new[] { "Key_UseItem", "Key_Item1", "Key_Item2", "Key_Item3", "Key_Item4", "Key_ItemBindingsVersion", "Key_Tutorial", ControllerBindings.Prefix + "ItemBindingsVersion", ControllerBindings.Prefix + "MenuBindingsVersion" }).ToArray();
@@ -278,7 +308,7 @@ public static class UIUpdateVerification
                     var enemy=UnityEngine.Object.Instantiate(prefab,staging.transform).GetComponent<EnemyBase>();enemy.HealthBarPrefab=null;
                     enemy.Initialize(number);
                     float baseHealth=enemy is TankEnemy ? 3*wave.BasicGroundHealth(number) : GameDifficulty.HealthAtWave(enemy.BaseHealth,number);
-                    Check(Mathf.Approximately(enemy.MaxHealth,baseHealth),"enemy health: "+enemy.EnemyKind+" difficulty "+difficulty+" wave "+number);
+                    Check(Mathf.Approximately(enemy.MaxHealth,Mathf.Floor(baseHealth)),"enemy health: "+enemy.EnemyKind+" difficulty "+difficulty+" wave "+number);
                     float baseSpeed=enemy is TankEnemy ? wave.BasicGroundSpeed()*((TankEnemy)enemy).GroundSpeedMultiplier : enemy.BaseSpeed;
                     Check(Mathf.Approximately((float)speedField.GetValue(enemy),baseSpeed*GameDifficulty.SpeedMultiplier),"enemy speed: "+enemy.EnemyKind);
                 }

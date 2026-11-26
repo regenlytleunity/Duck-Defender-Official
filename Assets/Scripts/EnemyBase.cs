@@ -92,7 +92,7 @@ public abstract class EnemyBase : MonoBehaviour
     Vector2 _tutorialStop;
     public void ConfigureTutorial(Vector2 stop)
     {
-        TutorialEnemy = true; MaxHealth = CurrentHealth = 2; XPValue = 0; CoinPrefab = null;
+        TutorialEnemy = true; MaxHealth = CurrentHealth = 2; XPValue = 0;
         _tutorialStop = stop;
         // This short scripted approach must not overshoot or get stuck on terrain.
         // Kinematic movement ignores static ledges; player collision is ignored by the lesson.
@@ -189,16 +189,17 @@ public abstract class EnemyBase : MonoBehaviour
     public virtual void Initialize(float waveDifficulty)
     {
         WorldCamera.Instance?.AllowEnemyThroughPlayerWalls(gameObject);
-        MaxHealth = Mathf.Max(1, HealthAtWave(Mathf.Max(1, (int)waveDifficulty)) * (IsElite ? EliteHealthMultiplier : 1f));
+        float scaledHealth = HealthAtWave(Mathf.Max(1, (int)waveDifficulty)) * (IsElite ? EliteHealthMultiplier : 1f);
+        MaxHealth = Mathf.Max(1, Mathf.Floor(scaledHealth));
         CurrentHealth = MaxHealth;
         _isDead = false;
         _fractionalDamage = 0;
 
-        // Apply the team's existing missing-health effect once, retaining fractional HP.
+        // Starting HP stays whole after the team's missing-health effect.
         float missingPct = Mathf.Clamp(LocalCoopSession.TeamSabotage(), 0f, .95f);
         if (missingPct > 0f)
         {
-            CurrentHealth = Mathf.Max(1, MaxHealth * (1 - missingPct));
+            CurrentHealth = Mathf.Max(1, Mathf.Floor(MaxHealth * (1 - missingPct)));
         }
 
         _originalSpeed = SpeedAtSpawn * GameDifficulty.SpeedMultiplier;
@@ -589,6 +590,7 @@ public abstract class EnemyBase : MonoBehaviour
     {
         if (TutorialEnemy)
         {
+            DropCoins();
             TutorialDirector.Instance?.PracticeEnemyDefeated();
             Destroy(gameObject); return;
         }
@@ -603,6 +605,16 @@ public abstract class EnemyBase : MonoBehaviour
         if (DamageOwner != null)
             DamageOwner.RegisterEnemyKill();
 
+        DropCoins();
+
+        if (WaveManager.Instance != null)
+            WaveManager.Instance.OnEnemyKilled();
+
+        Destroy(gameObject);
+    }
+
+    void DropCoins()
+    {
         if (CoinPrefab != null && !PlayerItems.SuppressEnemyCoins)
         {
             int baseAmount = Random.Range(CoinDropRange.x, CoinDropRange.y + 1);
@@ -616,10 +628,5 @@ public abstract class EnemyBase : MonoBehaviour
             for (int i = 0; i < finalAmount; i++)
                 Instantiate(CoinPrefab, transform.position, Quaternion.identity);
         }
-
-        if (WaveManager.Instance != null)
-            WaveManager.Instance.OnEnemyKilled();
-
-        Destroy(gameObject);
     }
 }

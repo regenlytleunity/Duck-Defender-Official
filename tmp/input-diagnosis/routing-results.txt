@@ -1,0 +1,26 @@
+PASS: 25 input-routing regression checks
+Only the enabled controller is counted.
+Menu routing skips disabled controllers ahead of the active controller.
+Invalid enabled-controller seat indexes safely return null.
+Solo auto assignment skips disabled controllers.
+Desktop scene has mobile input disabled.
+Tutorial gates permit normal gameplay in a completed profile.
+Player movement and weapon components are enabled and alive.
+Controller input moves the actual player body.
+Controller trigger reaches the weapon input route.
+Controller aim reaches the weapon.
+Releasing the controller clears movement and fire.
+An assigned disabled controller is immediately disconnected.
+Disabled devices cannot supply buttons, movement, aim or menu state.
+Solo falls back to keyboard when every controller is disabled.
+Disabled gamepads do not occupy menus or count as connected.
+Movement routes to saved keyboard bindings after fallback.
+Jump and fire route to saved keyboard/mouse bindings after fallback.
+Aim routes to the mouse after fallback.
+Re-enabling a controller restores solo controller control.
+Removing the only enabled controller restores keyboard control.
+Reconnecting restores controller control.
+A second controller does not steal an existing solo assignment.
+Disabling the assigned controller switches solo to another available controller.
+Disabled co-op controllers pause the run.
+Re-enabled co-op controllers resume the run.

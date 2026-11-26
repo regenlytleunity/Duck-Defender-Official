@@ -82,11 +82,11 @@ public static class InputHelper
         return InputManager.Instance != null ? InputManager.Instance.IsShootHeld() : Input.GetButton("Fire1");
     }
 
-    public static Vector3 GetMousePosition(Component owner = null)
+    public static Vector3 GetMousePosition(Component owner = null, bool effectCursor = false)
     {
         var clone = owner != null ? owner.GetComponent<ItemClone>() : null; if (clone != null) return clone.AimScreenPosition();
         var player = Player(owner);
-        if (player != null && player.UsesGamepad) return player.AimScreenPosition();
+        if (player != null && player.UsesGamepad) return player.AimScreenPosition(effectCursor);
         if (IsMobile)
             return MobileInputController.Instance.GetMousePosition();
         return Input.mousePosition;

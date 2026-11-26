@@ -16,7 +16,7 @@ public class LocalPlayer : MonoBehaviour
     public Color Color { get; private set; } = Color.white;
     public string DisplayName { get; private set; }
     public bool Alive => Health != null && !Health.IsDead;
-    public bool Connected => !UsesGamepad || Controller != null && Controller.added;
+    public bool Connected => !UsesGamepad || ControllerBindings.IsAvailable(Controller);
     public double DamageDealt;
     public long CoinsCollected;
     public int Kills, Healing, CardsPicked, Deaths;
@@ -25,6 +25,9 @@ public class LocalPlayer : MonoBehaviour
     public Vector2 Aim { get; private set; } = Vector2.right;
     public bool JumpDown { get; private set; }
     public bool JumpHeld => Connected && Controller != null && (ControllerBindings.Get("Jump") == "MoveUp" ? Move.y > .65f : ControllerBindings.Held(Controller, "Jump"));
+    const float MaxCursorDistance = 10f;
+    float _cursorDistance = MaxCursorDistance;
+    public Vector3 EffectCursorPosition => transform.position + (Vector3)Aim * _cursorDistance;
     bool _stickUp;
     SpriteRenderer _aimArrow;
     static Sprite _arrowSprite;
@@ -70,6 +73,13 @@ public class LocalPlayer : MonoBehaviour
         Vector2 stick = ControllerBindings.Aim(Controller);
         if (stick.sqrMagnitude > .04f)
         {
+            // Light pressure pulls the cursor in, firm pressure pushes it out.
+            // At the rim the player can track enemies without altering the chosen reach.
+            float pressure = stick.magnitude;
+            if (pressure < .5f)
+                _cursorDistance = Mathf.MoveTowards(_cursorDistance, 0, 8f * Time.deltaTime);
+            else if (pressure >= .6f && pressure < .92f)
+                _cursorDistance = Mathf.MoveTowards(_cursorDistance, MaxCursorDistance, 8f * Time.deltaTime);
             Aim = stick.normalized;
             // A narrow horizontal snap matches the touch controls, without target lock-on.
             if (Mathf.Abs(Aim.y) < .12f) Aim = new Vector2(Mathf.Sign(Aim.x), 0);
@@ -118,11 +128,13 @@ public class LocalPlayer : MonoBehaviour
 
     public Vector2 Move => !Connected || Controller == null ? Vector2.zero :
         ControllerBindings.Move(Controller);
-    public Vector3 AimScreenPosition()
+    public Vector3 AimScreenPosition(bool effectCursor = false)
     {
         var camera = Camera.main;
+        if (camera == null) return Vector3.zero;
+        if (effectCursor) return camera.WorldToScreenPoint(EffectCursorPosition);
         var origin = Weapon != null && Weapon.FirePoint != null ? Weapon.FirePoint.position : transform.position;
-        return camera != null ? camera.WorldToScreenPoint(origin + (Vector3)Aim * 10) : Vector3.zero;
+        return camera.WorldToScreenPoint(origin + (Vector3)Aim * 10);
     }
     void OnDestroy() { if (_paletteMaterial != null) Destroy(_paletteMaterial); }
 }

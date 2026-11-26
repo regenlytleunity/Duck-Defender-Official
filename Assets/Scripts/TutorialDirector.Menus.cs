@@ -13,7 +13,7 @@ public partial class TutorialDirector
             return Progress.Stage == TutorialStage.ShopReturn && panel == menu.ShopPanel && _continueConsumedFrame == Time.frameCount;
         if (Progress.CoreActive)
         {
-            if (Progress.Stage == TutorialStage.Basics || Progress.Stage == TutorialStage.Waves) return panel == menu.MenuPanel;
+            if (Progress.Stage == TutorialStage.Basics) return panel == menu.MenuPanel;
             if (Progress.Stage == TutorialStage.PackPurchased) return panel == menu.ShopPanel;
             return panel == menu.MenuPanel || panel == menu.ShopPanel || panel == menu.IndexPanel;
         }
@@ -32,7 +32,6 @@ public partial class TutorialDirector
             switch (Progress.Stage)
             {
                 case TutorialStage.Basics: StartGame(); return;
-                case TutorialStage.Play: Prompt(_menu.MenuPanel.activeSelf ? "Press Play to enter a game. You can also browse your collection." : "Explore your collection, then return to the main menu and press Play."); break;
                 case TutorialStage.Shop:
                     Prompt(_menu.ShopPanel.activeSelf ? "Unlock new upgrades by purchasing card packs. Each pack gives 3 upgrades. Choose a pack to buy and open." : "Enter the shop."); break;
                 case TutorialStage.PackPurchased: Prompt("Open your card pack. Swipe across it or press " + ControllerBindings.Label("Confirm") + "."); break;
@@ -119,7 +118,7 @@ public partial class TutorialDirector
             return CoreActive && Progress.Stage == TutorialStage.Shop && (button == _menu.YesButton || button.name == "NoButton");
         if (button.name == "Cancel" || button.name == "BackButton") return true;
         if (_menu.MenuPanel.activeSelf)
-            return button.name == "IndexButton" || CoreActive && (button.name == "ShopButton" || button.name == "PlayButton" && Progress.Stage == TutorialStage.Play);
+            return button.name == "IndexButton" || CoreActive && button.name == "ShopButton";
         if (_menu.ShopPanel.activeSelf)
             return CoreActive && Progress.Stage == TutorialStage.Shop && button.transform.IsChildOf(_menu.PackContainer);
         if (_menu.IndexPanel.activeSelf)
@@ -145,7 +144,7 @@ public partial class TutorialDirector
         var selected = UnityEngine.EventSystems.EventSystem.current?.currentSelectedGameObject;
         if (_menu.MenuPanel.activeSelf)
         {
-            string name = !CoreActive || Progress.Stage >= TutorialStage.Index ? "IndexButton" : Progress.Stage == TutorialStage.Play ? "PlayButton" : "ShopButton";
+            string name = !CoreActive || Progress.Stage >= TutorialStage.Index ? "IndexButton" : "ShopButton";
             return _menu.MenuPanel.transform.Find(name) as RectTransform;
         }
         if (_menu.ConfirmPanel.activeSelf) return _menu.YesButton.transform as RectTransform;
@@ -239,6 +238,7 @@ public sealed class TutorialGlowFollower : MonoBehaviour
 {
     public UnityEngine.UI.Image Glow { get; private set; }
     static Sprite _sprite;
+    const float GlowPadding = 40f;
     public UnityEngine.UI.Image EnsureGlow()
     {
         if (Glow != null) return Glow;
@@ -247,8 +247,9 @@ public sealed class TutorialGlowFollower : MonoBehaviour
             var texture = new Texture2D(64, 64, TextureFormat.RGBA32, false) { name = "Tutorial soft glow", filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
             for (int y = 0; y < 64; y++) for (int x = 0; x < 64; x++)
             {
-                float edge = Mathf.Min(x, y, 63 - x, 63 - y);
-                float alpha = Mathf.SmoothStep(0, 1, edge / 24f);
+                float dx = Mathf.Max(0, 22 - Mathf.Min(x, 63 - x));
+                float dy = Mathf.Max(0, 22 - Mathf.Min(y, 63 - y));
+                float alpha = 1f - Mathf.SmoothStep(0, 1, Mathf.Sqrt(dx * dx + dy * dy) / 22f);
                 texture.SetPixel(x, y, new Color(1, 1, 1, alpha));
             }
             texture.Apply();
@@ -257,7 +258,10 @@ public sealed class TutorialGlowFollower : MonoBehaviour
         var go = new GameObject("Tutorial green glow", typeof(RectTransform), typeof(UnityEngine.UI.Image), typeof(UnityEngine.UI.LayoutElement));
         Glow = go.GetComponent<UnityEngine.UI.Image>();
         Glow.sprite = _sprite; Glow.type = UnityEngine.UI.Image.Type.Sliced;
-        Glow.color = new Color(.3f, 1, .18f, .30f); Glow.raycastTarget = false;
+        // Keep the feathered border 22 canvas units wide on both authored and runtime canvases.
+        var canvas = GetComponentInParent<Canvas>();
+        if (canvas != null) Glow.pixelsPerUnitMultiplier = canvas.referencePixelsPerUnit / _sprite.pixelsPerUnit;
+        Glow.color = new Color(.32f, 1, .16f, .78f); Glow.raycastTarget = false;
         go.GetComponent<UnityEngine.UI.LayoutElement>().ignoreLayout = true;
         Sync(); return Glow;
     }
@@ -275,8 +279,8 @@ public sealed class TutorialGlowFollower : MonoBehaviour
             var spriteSize = face.sprite.rect.size;
             visibleSize = spriteSize * Mathf.Min(visibleSize.x / spriteSize.x, visibleSize.y / spriteSize.y);
         }
-        rect.anchoredPosition = target.anchoredPosition + (target.pivot - Vector2.one * .5f) * 24;
-        rect.sizeDelta = target.sizeDelta + visibleSize - target.rect.size + Vector2.one * 24;
+        rect.anchoredPosition = target.anchoredPosition + (target.pivot - Vector2.one * .5f) * GlowPadding;
+        rect.sizeDelta = target.sizeDelta + visibleSize - target.rect.size + Vector2.one * GlowPadding;
         rect.localScale = target.localScale; rect.localRotation = target.localRotation;
         if (rect.GetSiblingIndex() != target.GetSiblingIndex() - 1)
             rect.SetSiblingIndex(target.GetSiblingIndex() - (rect.GetSiblingIndex() < target.GetSiblingIndex() ? 1 : 0));

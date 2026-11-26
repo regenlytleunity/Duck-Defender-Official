@@ -25,6 +25,7 @@ public class Coin : MonoBehaviour
     const float MergeRadius = 2f;
     const float MergeDuration = .18f;
     static readonly HashSet<Coin> Active = new HashSet<Coin>();
+    internal static bool AnyActive => Active.Count != 0;
     static readonly List<Coin> Snapshot = new List<Coin>();
     static readonly List<Coin> Group = new List<Coin>(10);
     static readonly Dictionary<Vector3Int, List<Coin>> Cells = new Dictionary<Vector3Int, List<Coin>>();
@@ -125,7 +126,7 @@ public class Coin : MonoBehaviour
         if (!_isFlyingToPlayer && Time.time - _spawnTime >= delay)
         {
             float range = _collector != null ? _collector.MagnetRange : 3f;
-            if (distance <= range || (IsPassiveCoin && Time.time - _spawnTime >= PassiveForceMagnetDelay))
+            if (distance <= range || TutorialDirector.Practice || (IsPassiveCoin && Time.time - _spawnTime >= PassiveForceMagnetDelay))
             {
                 _isFlyingToPlayer = true;
                 _rb.linearVelocity = Vector2.zero;

@@ -40,7 +40,7 @@ public class CoopRunUI : MonoBehaviour
             foreach (string decoration in new[] { "HeartDecor", "ExpDecor" })
             { var item = hud.Find(decoration); if (item != null) item.gameObject.SetActive(false); }
             var coin = hud.Find("CoinDecor") as RectTransform;
-            if (coin != null) CoopUIElements.Stretch(coin, new Vector2(.012f, .937f), new Vector2(.03f, .979f));
+            if (coin != null) CoopUIElements.Stretch(coin, new Vector2(.012f, .875f), new Vector2(.03f, .913f));
             var xp = ui.XPBar;
             xp.Background.preserveAspect = xp.Overlay.preserveAspect = false;
             CoopUIElements.Stretch((RectTransform)xp.transform, new Vector2(.2f, .92f), new Vector2(.8f, .965f));
@@ -50,7 +50,7 @@ public class CoopRunUI : MonoBehaviour
             if (ui.LevelText != null) { CoopUIElements.Stretch(ui.LevelText.rectTransform, new Vector2(.43f, .875f), new Vector2(.57f, .92f)); CoopUIElements.WhiteInfill(ui.LevelText); }
             if (ui.WaveText != null) CoopUIElements.Stretch(ui.WaveText.rectTransform, new Vector2(.81f, .93f), new Vector2(.99f, .99f));
             if (ui.EnemiesLeftText != null) CoopUIElements.Stretch(ui.EnemiesLeftText.rectTransform, new Vector2(.81f, .87f), new Vector2(.99f, .93f));
-            if (ui.CoinText != null) CoopUIElements.Stretch(ui.CoinText.rectTransform, new Vector2(.035f, .925f), new Vector2(.18f, .98f));
+            if (ui.CoinText != null) CoopUIElements.Stretch(ui.CoinText.rectTransform, new Vector2(.035f, .87f), new Vector2(.18f, .916f));
             foreach (var label in new TMP_Text[] { ui.LevelText, ui.WaveText, ui.EnemiesLeftText, ui.CoinText })
                 if (label != null)
                 {

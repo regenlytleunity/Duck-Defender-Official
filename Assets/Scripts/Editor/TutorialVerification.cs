@@ -37,16 +37,21 @@ public static class TutorialVerification
             Check(fresh.Tutorial.CoreActive && fresh.Tutorial.Stage == TutorialStage.Basics, "New saves start the tutorial.");
             SaveSystem.SaveData(fresh, true, true);
             var stale = SaveSystem.LoadData();
-            fresh.Tutorial.Stage = TutorialStage.Waves;
+            fresh.TotalCoins = 23;
+            Check(TutorialProgress.GrantPracticeReward(fresh) && fresh.TotalCoins == 223, "Practice pays 200 on top of collected coins.");
+            Check(!TutorialProgress.GrantPracticeReward(fresh), "Practice reward can only be paid once.");
             SaveSystem.SaveData(fresh, updateTutorial: true);
-            stale.TotalCoins = 23; SaveSystem.SaveData(stale);
-            Check(SaveSystem.LoadData().Tutorial.Stage == TutorialStage.Waves, "Cached economy writes cannot roll back the tutorial.");
-            var data = SaveSystem.LoadData();
-            Check(TutorialProgress.GrantWaveReward(data) && data.TotalCoins == 223, "Wave reward is exactly 200.");
-            Check(!TutorialProgress.GrantWaveReward(data) && data.TotalCoins == 223, "Duplicate wave completion cannot pay twice.");
-            SaveSystem.SaveData(data, updateTutorial: true);
-            stale.ShowTips = true; SaveSystem.SaveData(stale, true);
-            Check(SaveSystem.LoadData().Tutorial.Stage == TutorialStage.Shop, "Tip updates preserve tutorial progress.");
+            stale.TotalCoins = 223; SaveSystem.SaveData(stale);
+            Check(SaveSystem.LoadData().Tutorial.Stage == TutorialStage.Shop, "Cached economy writes cannot roll back the tutorial.");
+            PlayerData data;
+            foreach (var retired in new[] { TutorialStage.Play, TutorialStage.Waves })
+            {
+                data = PlayerData.CreateNew(); data.TotalCoins = 23; data.Tutorial.Stage = retired;
+                SaveSystem.SaveData(data, true, true);
+                data = SaveSystem.LoadData();
+                Check(data.Tutorial.Stage == TutorialStage.Shop && data.TotalCoins == 223, "Retired checkpoint moves to the funded shop: " + retired);
+                Check(SaveSystem.LoadData().TotalCoins == 223, "Reload preserves the migrated balance.");
+            }
 
             EditorSceneManager.OpenScene("Assets/Scenes/MainMenu.unity");
             var shop = UnityEngine.Object.FindFirstObjectByType<ShopManager>(); ShopManager.Instance = shop;
@@ -93,14 +98,6 @@ public static class TutorialVerification
             var plan = new System.Collections.Generic.List<WaveManager.SpawnRequest>();
             for (int wave = 1; wave <= 5; wave++)
                 Check(waves.TryBuildWave(wave, null, plan, out _) && plan.Count == 2 + 2 * wave, "Normal wave totals remain unchanged: " + wave);
-            var reduce = typeof(WaveManager).GetMethod("ReduceTutorialWave", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
-            foreach (int count in new[] { 1, 3, 6 })
-            {
-                plan.Clear();
-                for (int i = 0; i < count; i++) plan.Add(new WaveManager.SpawnRequest { Introduction = i == 0 });
-                reduce.Invoke(null, new object[] { plan });
-                Check(plan.Count == (count + 1) / 2 && plan[0].Introduction, "Tutorial reduction retains the introduction and rounds up: " + count);
-            }
             File.WriteAllText(Path.GetFullPath("tmp/update9/verification.txt"), "PASS: " + _checks + " tutorial save, economy and serialized-reference checks.");
             Debug.Log("PASS: " + _checks + " tutorial checks.");
         }

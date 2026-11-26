@@ -10,10 +10,18 @@ public static class ControllerBindings
     public static readonly string[] Defaults = { "MoveUp", "leftShoulder", "rightTrigger", "buttonSouth", "buttonEast", "rightShoulder", "dpad/up", "dpad/right", "dpad/down", "dpad/left", "buttonNorth", "buttonWest" };
     public static readonly string[] Controls = { "buttonSouth", "buttonEast", "buttonWest", "buttonNorth", "leftShoulder", "rightShoulder", "leftTrigger", "rightTrigger", "leftStickPress", "rightStickPress", "start", "select", "dpad/up", "dpad/down", "dpad/left", "dpad/right" };
     public const string Prefix = "DuckDefender_Controller_";
-    public static Gamepad MenuPad
+    public static bool IsAvailable(Gamepad pad) => pad != null && pad.added && pad.enabled;
+    public static int ConnectedCount
     {
-        get { foreach (var pad in Gamepad.all) if (pad.enabled) return pad; return null; }
+        get { int count = 0; foreach (var pad in Gamepad.all) if (IsAvailable(pad)) count++; return count; }
     }
+    public static Gamepad GamepadAt(int index)
+    {
+        if (index < 0) return null;
+        foreach (var pad in Gamepad.all) if (IsAvailable(pad) && index-- == 0) return pad;
+        return null;
+    }
+    public static Gamepad MenuPad => GamepadAt(0);
     public static string Get(string action)
     {
         MigrateMenuDefaults();
@@ -85,14 +93,14 @@ public static class ControllerBindings
             default: return control.Replace("dpad/", "D-pad ");
         }
     }
-    public static ButtonControl Button(Gamepad pad, string action) => pad != null && pad.added ? pad.TryGetChildControl<ButtonControl>(Get(action)) : null;
+    public static ButtonControl Button(Gamepad pad, string action) => IsAvailable(pad) ? pad.TryGetChildControl<ButtonControl>(Get(action)) : null;
     public static bool Pressed(Gamepad pad, string action) => Button(pad, action)?.wasPressedThisFrame == true;
     public static bool Held(Gamepad pad, string action) => Button(pad, action)?.isPressed == true;
     public static bool RightMoveStick => PlayerPrefs.GetInt(Prefix + "RightMoveStick", 0) != 0;
-    public static Vector2 Move(Gamepad pad) => pad == null || !pad.added ? Vector2.zero :
+    public static Vector2 Move(Gamepad pad) => !IsAvailable(pad) ? Vector2.zero :
         (RightMoveStick ? pad.rightStick : pad.leftStick).ReadValue();
-    public static Vector2 Aim(Gamepad pad) => pad == null || !pad.added ? Vector2.zero : (RightMoveStick ? pad.leftStick : pad.rightStick).ReadValue();
-    public static Vector2 MenuMove(Gamepad pad) => pad == null || !pad.added ? Vector2.zero : pad.dpad.ReadValue().sqrMagnitude > .1f ? pad.dpad.ReadValue() : pad.leftStick.ReadValue();
+    public static Vector2 Aim(Gamepad pad) => !IsAvailable(pad) ? Vector2.zero : (RightMoveStick ? pad.leftStick : pad.rightStick).ReadValue();
+    public static Vector2 MenuMove(Gamepad pad) => !IsAvailable(pad) ? Vector2.zero : pad.dpad.ReadValue().sqrMagnitude > .1f ? pad.dpad.ReadValue() : pad.leftStick.ReadValue();
     public static void SwapSticks() { PlayerPrefs.SetInt(Prefix + "RightMoveStick", RightMoveStick ? 0 : 1); PlayerPrefs.Save(); }
     public static bool TrySet(string action, string control, out string error)
     {

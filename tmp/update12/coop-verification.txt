@@ -1,0 +1,193 @@
+PASS: 192 co-op integration checks
+Test save is isolated from the host account
+Purchase confirmation locks shop input and navigation scope
+Purchase confirmation takes controller focus
+Cancel restores shop input
+Zoom is visible on the main settings screen
+Keybinds hides zoom and includes controller tab
+Controller remapping captures and saves the chosen button
+Conflicting gameplay mappings are rejected
+ALL layout displays every card in the current category
+Index cards are reachable with explicit controller navigation
+Confirm on an index card focuses its modal upgrade action
+Host menu opens exclusively
+Host controller A activates a menu option exactly once
+Host card index hides economy counters
+Host cards are selectable
+Host can disable a card
+Filter replaces both the copies and cost labels
+Host can re-enable a card
+Start co-op opens independent customization panels
+Only the sending controller changes its duck color
+All seats preview the authored duck sprite with its aspect ratio intact
+Duck preview palette updates independently for color 0
+Duck preview palette updates independently for color 1
+Duck preview palette updates independently for color 2
+Duck preview palette updates independently for color 3
+Duck preview palette updates independently for color 4
+Duck preview palette updates independently for color 5
+Selecting Name clears only the editing player's default name
+Finishing an empty name restores the seat's default
+Whitespace-only names also restore the default
+Reopening Name clears a previous custom name too
+Names cap at ten characters and remain isolated by seat
+Four independent player instances spawn
+Four devices are assigned independently
+Compatibility singleton stays on player one
+Co-op UI uses the exact authored DuckDefenderTestFontv2 asset
+Four-player shared XP target scales by four
+Player blue uses palette replacement instead of multiplying yellow artwork
+Movement stays on the assigned controller
+Only the firing controller shoots
+Aim directions remain independent
+Controller disconnection pauses the run
+Reconnection retains the same seat and resumes
+A damage upgrade affects only its recipient
+Card histories are independent
+Special feathers belong to the selecting player
+Team XP bonuses add together
+Sabotage combines across builds
+Coins credit the host and track the collecting seat
+Four-player level up presents twelve cards while paused
+Card artwork remains inside its player's pane
+Co-op card description fits
+Card artwork remains inside its player's pane
+Co-op card description fits
+Card artwork remains inside its player's pane
+Co-op card description fits
+Card artwork remains inside its player's pane
+Co-op card description fits
+Card artwork remains inside its player's pane
+Co-op card description fits
+Card artwork remains inside its player's pane
+Co-op card description fits
+Card artwork remains inside its player's pane
+Co-op card description fits
+Card artwork remains inside its player's pane
+Co-op card description fits
+Card artwork remains inside its player's pane
+Co-op card description fits
+Card artwork remains inside its player's pane
+Co-op card description fits
+Card artwork remains inside its player's pane
+Co-op card description fits
+Card artwork remains inside its player's pane
+Co-op card description fits
+Card navigation changes only the assigned player's selection
+B marks only the sending player's card pending without applying it
+B deselects without granting or removing an upgrade
+One selection cannot resume other players' choices
+Queued level-ups present the next choices without unpausing
+All four selections resume gameplay
+Wave one contains exactly four times its normal enemies
+Camera respects its zoom cap and shows both offscreen player arrows
+Valid spawn exists near the map edge 0
+Spawn remains on extended terrain and outside the camera 0
+Valid spawn exists near the map edge 1
+Spawn remains on extended terrain and outside the camera 1
+Valid spawn exists near the map edge 2
+Spawn remains on extended terrain and outside the camera 2
+Valid spawn exists near the map edge 3
+Spawn remains on extended terrain and outside the camera 3
+Valid spawn exists near the map edge 4
+Spawn remains on extended terrain and outside the camera 4
+Valid spawn exists near the map edge 5
+Spawn remains on extended terrain and outside the camera 5
+Valid spawn exists near the map edge 6
+Spawn remains on extended terrain and outside the camera 6
+Valid spawn exists near the map edge 7
+Spawn remains on extended terrain and outside the camera 7
+Valid spawn exists near the map edge 8
+Spawn remains on extended terrain and outside the camera 8
+Valid spawn exists near the map edge 9
+Spawn remains on extended terrain and outside the camera 9
+Valid spawn exists near the map edge 10
+Spawn remains on extended terrain and outside the camera 10
+Valid spawn exists near the map edge 11
+Spawn remains on extended terrain and outside the camera 11
+Valid spawn exists near the map edge 12
+Spawn remains on extended terrain and outside the camera 12
+Valid spawn exists near the map edge 13
+Spawn remains on extended terrain and outside the camera 13
+Valid spawn exists near the map edge 14
+Spawn remains on extended terrain and outside the camera 14
+Valid spawn exists near the map edge 15
+Spawn remains on extended terrain and outside the camera 15
+Valid spawn exists near the map edge 16
+Spawn remains on extended terrain and outside the camera 16
+Valid spawn exists near the map edge 17
+Spawn remains on extended terrain and outside the camera 17
+Valid spawn exists near the map edge 18
+Spawn remains on extended terrain and outside the camera 18
+Valid spawn exists near the map edge 19
+Spawn remains on extended terrain and outside the camera 19
+Valid spawn exists near the map edge 20
+Spawn remains on extended terrain and outside the camera 20
+Valid spawn exists near the map edge 21
+Spawn remains on extended terrain and outside the camera 21
+Valid spawn exists near the map edge 22
+Spawn remains on extended terrain and outside the camera 22
+Valid spawn exists near the map edge 23
+Spawn remains on extended terrain and outside the camera 23
+Valid spawn exists near the map edge 24
+Spawn remains on extended terrain and outside the camera 24
+Valid spawn exists near the map edge 25
+Spawn remains on extended terrain and outside the camera 25
+Valid spawn exists near the map edge 26
+Spawn remains on extended terrain and outside the camera 26
+Valid spawn exists near the map edge 27
+Spawn remains on extended terrain and outside the camera 27
+Valid spawn exists near the map edge 28
+Spawn remains on extended terrain and outside the camera 28
+Valid spawn exists near the map edge 29
+Spawn remains on extended terrain and outside the camera 29
+Enemies can spawn on both sides while players stand at the right edge
+Valid spawn exists at the left edge 0
+Valid spawn exists at the left edge 1
+Valid spawn exists at the left edge 2
+Valid spawn exists at the left edge 3
+Valid spawn exists at the left edge 4
+Valid spawn exists at the left edge 5
+Valid spawn exists at the left edge 6
+Valid spawn exists at the left edge 7
+Valid spawn exists at the left edge 8
+Valid spawn exists at the left edge 9
+Valid spawn exists at the left edge 10
+Valid spawn exists at the left edge 11
+Valid spawn exists at the left edge 12
+Valid spawn exists at the left edge 13
+Valid spawn exists at the left edge 14
+Valid spawn exists at the left edge 15
+Valid spawn exists at the left edge 16
+Valid spawn exists at the left edge 17
+Valid spawn exists at the left edge 18
+Valid spawn exists at the left edge 19
+Valid spawn exists at the left edge 20
+Valid spawn exists at the left edge 21
+Valid spawn exists at the left edge 22
+Valid spawn exists at the left edge 23
+Valid spawn exists at the left edge 24
+Valid spawn exists at the left edge 25
+Valid spawn exists at the left edge 26
+Valid spawn exists at the left edge 27
+Valid spawn exists at the left edge 28
+Valid spawn exists at the left edge 29
+Enemies can spawn on both sides while players stand at the left edge
+Enemies can cross player boundary colliders
+Projectile damage and attribution use its owner
+Pooled reuse replaces the previous owner's upgrades
+One death does not end co-op
+Co-op death plays the animation and retains the player's palette
+Next-wave respawn restores health and preserves upgrades
+Respawn toggle is respected
+Game over waits for all four deaths
+Results leave time for the final death animation
+Three-player run has three seats and triple XP target
+Classic style clones the existing health artwork for every player
+Three-player card screen offers three options per seat
+Developer mode assigns keyboard and controller to different seats
+Two-player XP target scales by two
+Solo mode retains one player, normal XP, and its original HUD
+A connected controller takes priority in solo gameplay
+Solo falls back to keyboard and mouse after disconnect
+Solo hotplug switches back to the connected controller

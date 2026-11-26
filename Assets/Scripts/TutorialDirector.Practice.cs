@@ -3,7 +3,7 @@ using UnityEngine;
 
 public partial class TutorialDirector
 {
-    enum PracticeStep { Welcome, Move, Jump, Aim, Shoot, Approach, Combat, Cards, Health, Finished }
+    enum PracticeStep { Welcome, Move, Jump, Shoot, Approach, Combat, Cards, Health, Finished }
     PracticeStep _step;
     Vector3 _origin;
     readonly List<GameObject> _practiceObjects = new List<GameObject>();
@@ -13,9 +13,9 @@ public partial class TutorialDirector
     BoxCollider2D _box;
     SpriteRenderer _landingGoal;
     int _kills;
-    bool _jumpLeftGround;
-    bool _aimEngaged;
-    Vector2 _initialAim;
+    Collider2D _playerCollider;
+    bool _jumpedForBox;
+    readonly ContactPoint2D[] _boxContacts = new ContactPoint2D[8];
     static Sprite _square, _goalGradient, _dartboard;
     static Material _targetParticleMaterial;
     bool UsingPad => _player != null && _player.UsesGamepad;
@@ -24,6 +24,7 @@ public partial class TutorialDirector
 
     void ResetPlayer()
     {
+        _jumpedForBox = false;
         _player.transform.position = _origin;
         var body = _player.GetComponent<Rigidbody2D>(); body.position = _origin; body.linearVelocity = Vector2.zero;
         _player.Movement.ResetAfterRespawn();
@@ -46,17 +47,16 @@ public partial class TutorialDirector
                 }
                 Prompt(MovePrompt(), () => BeginPractice(PracticeStep.Jump), false); break;
             case PracticeStep.Jump:
-                _jumpLeftGround = false;
+                _player.Movement.Jumped += OnPracticeJump;
                 float height = Mathf.Max(.8f, _player.GetComponent<Collider2D>().bounds.size.y);
                 var box = Marker("Practice box", GroundPosition(_origin.x + 2.5f) + Vector3.up * height * .5f, new Vector2(1.8f, height), new Color(.4f, .45f, .55f));
                 box.layer = LayerMask.NameToLayer("Ground"); box.tag = "Ground";
                 _box = box.AddComponent<BoxCollider2D>();
                 _landingGoal = Goal("Land here", box.transform.position + Vector3.up * (height * .5f), 1.8f);
-                Prompt(JumpPrompt(), () => BeginPractice(PracticeStep.Aim), false); break;
-            case PracticeStep.Aim:
+                Prompt(JumpPrompt(), () => BeginPractice(PracticeStep.Shoot), false); break;
             case PracticeStep.Shoot:
                 SpawnTargets();
-                Prompt(step == PracticeStep.Aim ? AimPrompt() : ShootPrompt(), () => BeginPractice(step == PracticeStep.Aim ? PracticeStep.Shoot : PracticeStep.Approach), false); break;
+                Prompt(ShootPrompt(), () => BeginPractice(PracticeStep.Approach), false); break;
             case PracticeStep.Approach:
                 _kills = 0;
                 LevelManager.Instance.CurrentXP = 0; LevelManager.Instance.CurrentLevel = 1;
@@ -81,7 +81,7 @@ public partial class TutorialDirector
             case PracticeStep.Health:
                 Prompt("Health is a valuable resource. Don't let it reach 0 or you lose!", () => BeginPractice(PracticeStep.Finished)); break;
             case PracticeStep.Finished:
-                Prompt("Tutorial stage 1 complete! Ready to return to the home menu.", () => { SaveStage(TutorialStage.Play); ReturnToMenu(); }); break;
+                Prompt("Practice complete! Collect your 200-coin bonus and head to the shop.", FinishPractice, !Coin.AnyActive); break;
         }
     }
     string MovePrompt() => UsingTouch ? "Use the movement stick to touch both highlighted areas." : UsingPad ?
@@ -89,9 +89,12 @@ public partial class TutorialDirector
         "Move left and right using " + Binding("MoveLeft", KeyCode.A) + " / " + Binding("MoveRight", KeyCode.D) + ". Touch both highlighted areas.";
     string JumpPrompt() => UsingTouch ? "Flick the movement stick up to jump. Land on top of the highlighted box." : UsingPad && ControllerBindings.Get("Jump") == "MoveUp" ?
         "Quickly move the movement thumbstick up to jump. Land on top of the box." : "Press " + Binding("Jump", KeyCode.Space) + " to jump. Land on top of the box.";
-    string AimPrompt() => UsingTouch ? "Drag the aiming stick toward all five targets." : UsingPad ?
-        "Use the " + (ControllerBindings.RightMoveStick ? "left" : "right") + " thumbstick to aim at all five targets." : "Use the cursor to aim at all five targets.";
-    string ShootPrompt() => UsingTouch ? "Hold the aiming stick to fire feathers. Destroy all five targets." : "Press " + Binding("Shoot", KeyCode.Mouse0) + " to fire feathers. Destroy all five targets.";
+    string ShootPrompt()
+    {
+        if (UsingTouch) return "Point the aiming stick and hold it to fire. Destroy all 5 targets.";
+        string aim = UsingPad ? "Use the " + (ControllerBindings.RightMoveStick ? "left" : "right") + " thumbstick to aim" : "Aim with the cursor";
+        return aim + " and press " + Binding("Shoot", KeyCode.Mouse0) + " to fire. Destroy all 5 targets.";
+    }
     Vector3 GroundPosition(float x)
     {
         var hit = Physics2D.Raycast(new Vector2(x, _origin.y + 4), Vector2.down, 30, _player.Movement.GroundLayer);
@@ -156,7 +159,6 @@ public partial class TutorialDirector
     {
         float radius = Camera.main != null ? Mathf.Clamp(Camera.main.orthographicSize, 4, 8.5f) : 6.5f;
         Vector3 origin = _player.Weapon.FirePoint != null ? _player.Weapon.FirePoint.position : _origin;
-        _initialAim = _player.Weapon.AimDirection; _aimEngaged = false;
         for (int i = 0; i < 5; i++)
         {
             float angle = Mathf.PI * i / 4;
@@ -164,40 +166,43 @@ public partial class TutorialDirector
             go.GetComponent<SpriteRenderer>().sprite = Dartboard();
             go.layer = LayerMask.NameToLayer("Enemy");
             var target = go.AddComponent<TutorialTarget>(); target.Index = i; _targets.Add(target);
-            if (_step == PracticeStep.Shoot) { var collider = go.AddComponent<CircleCollider2D>(); collider.isTrigger = true; collider.radius = .5f; }
+            var collider = go.AddComponent<CircleCollider2D>(); collider.isTrigger = true; collider.radius = .5f;
         }
     }
+    void OnPracticeJump() => _jumpedForBox = true;
+
     void UpdatePractice()
     {
         if (_player.transform.position.y < _origin.y - 8 || Mathf.Abs(_player.transform.position.x - _origin.x) > 18) ResetPlayer();
         if (_step == PracticeStep.Move)
         {
-            for (int i = 0; i < 2 && i < _practiceObjects.Count; i++)
-                if (Mathf.Abs(_player.transform.position.x - _practiceObjects[i].transform.position.x) < .7f)
-                    _visited[i] = true;
-            for (int i = 0; i < 2 && i < _practiceObjects.Count; i++)
-                if (_visited[i]) FadeGoal(_practiceObjects[i].GetComponent<SpriteRenderer>());
+            var body = _playerCollider.bounds;
+            for (int i = 0; i < 2; i++)
+            {
+                var goal = _practiceObjects[i].GetComponent<SpriteRenderer>();
+                var pad = goal.bounds;
+                _visited[i] |= body.max.x >= pad.min.x && body.min.x <= pad.max.x &&
+                    body.max.y >= pad.min.y && body.min.y <= pad.max.y;
+                if (_visited[i]) FadeGoal(goal);
+            }
             _ready = _visited[0] && _visited[1]; SetPromptText(MovePrompt());
         }
         else if (_step == PracticeStep.Jump && _box != null)
         {
-            var bounds = _player.GetComponent<Collider2D>().bounds;
-            _jumpLeftGround |= !_player.Movement.IsGrounded;
-            _ready |= _jumpLeftGround && _player.Movement.IsGrounded && Mathf.Abs(bounds.min.y - _box.bounds.max.y) < .3f &&
-                bounds.center.x > _box.bounds.min.x && bounds.center.x < _box.bounds.max.x;
+            if (_jumpedForBox && !_ready)
+            {
+                int count = _playerCollider.GetContacts(_boxContacts);
+                for (int i = 0; i < count; i++)
+                {
+                    var hit = _boxContacts[i];
+                    if (hit.collider == _box && hit.normal.y > .5f) { _ready = true; break; }
+                }
+            }
             if (_ready) FadeGoal(_landingGoal);
             SetPromptText(JumpPrompt());
         }
-        else if (_step == PracticeStep.Aim)
-        {
-            Vector3 origin = _player.Weapon.FirePoint != null ? _player.Weapon.FirePoint.position : _player.transform.position;
-            _aimEngaged |= Vector2.Dot(_initialAim, _player.Weapon.AimDirection) < .995f;
-            for (int i = 0; i < _targets.Count; i++)
-                if (_aimEngaged && Vector2.Dot(_player.Weapon.AimDirection, (_targets[i].transform.position - origin).normalized) > .986f)
-                { _visited[i] = true; _targets[i].GetComponent<SpriteRenderer>().color = Color.green; }
-            _ready = System.Array.TrueForAll(_visited, v => v); SetPromptText(AimPrompt());
-        }
         else if (_step == PracticeStep.Shoot) { _ready = System.Array.TrueForAll(_visited, v => v); SetPromptText(ShootPrompt()); }
+        else if (_step == PracticeStep.Finished) _ready = !Coin.AnyActive;
         else if (_step == PracticeStep.Approach)
         {
             foreach (var enemy in _practiceEnemies)
@@ -206,7 +211,7 @@ public partial class TutorialDirector
                 if (!enemy.TutorialStopped) return;
             }
             _step = PracticeStep.Combat;
-            Prompt("Defeat enemies to earn experience. Earn enough experience to level up.");
+            Prompt("Defeat enemies to earn experience and level up. They also drop coins. Watch the coins fly to you!");
         }
     }
     static void FadeGoal(SpriteRenderer goal)
@@ -283,11 +288,11 @@ public partial class TutorialDirector
     void UpdatePracticeHUD()
     {
         var ui = GameUI.Instance; if (ui == null) return;
-        ui.ShowTutorialDecor(_step >= PracticeStep.Combat, false);
+        ui.ShowTutorialDecor(_step >= PracticeStep.Combat, _step >= PracticeStep.Combat);
         if (ui.XPBar != null) ui.XPBar.gameObject.SetActive(_step >= PracticeStep.Combat);
         if (ui.LevelText != null) ui.LevelText.gameObject.SetActive(_step >= PracticeStep.Combat);
         if (ui.PlayerHealthBar != null) ui.PlayerHealthBar.gameObject.SetActive(_step >= PracticeStep.Health);
-        if (ui.CoinText != null) ui.CoinText.gameObject.SetActive(false);
+        if (ui.CoinText != null) ui.CoinText.gameObject.SetActive(_step >= PracticeStep.Combat);
         if (ui.WaveText != null) ui.WaveText.gameObject.SetActive(false);
         if (ui.EnemiesLeftText != null) ui.EnemiesLeftText.gameObject.SetActive(false);
         if (_step == PracticeStep.Cards && LevelUpUI.Instance != null)
@@ -303,6 +308,7 @@ public partial class TutorialDirector
     }
     void ClearPractice()
     {
+        if (_player != null && _player.Movement != null) _player.Movement.Jumped -= OnPracticeJump;
         foreach (var go in _practiceObjects) if (go != null) { go.SetActive(false); Destroy(go); }
         _practiceObjects.Clear(); _targets.Clear(); _practiceEnemies.Clear(); _box = null; _landingGoal = null;
     }

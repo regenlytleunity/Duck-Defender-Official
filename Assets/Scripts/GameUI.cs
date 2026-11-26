@@ -79,6 +79,16 @@ public class GameUI : MonoBehaviour
         label.GetComponent<UnityEngine.UI.Image>().raycastTarget = false;
         _soloHealthText = CoopUIElements.Text(label, _healthCurrent + " / " + _healthMax, Vector2.zero, Vector2.one, 22);
         if (XPBar != null) CoopUIElements.Stretch((RectTransform)XPBar.transform, new Vector2(.02f, .795f), new Vector2(.23f, .835f));
+        if (_coinDecor is RectTransform icon)
+            CoopUIElements.Stretch(icon, new Vector2(.02f, .739f), new Vector2(.048f, .782f));
+        if (CoinText != null)
+        {
+            CoopUIElements.Stretch(CoinText.rectTransform, new Vector2(.053f, .735f), new Vector2(.23f, .786f));
+            CoinText.margin = Vector4.zero;
+            CoinText.alignment = TextAlignmentOptions.MidlineLeft;
+            CoinText.enableAutoSizing = true;
+            CoinText.fontSizeMax = 42;
+        }
         if (LevelText != null)
         {
             CoopUIElements.Stretch(LevelText.rectTransform, new Vector2(.02f, .837f), new Vector2(.23f, .869f));
@@ -166,7 +176,7 @@ public class GameUI : MonoBehaviour
         if (GameOverScreen != null) GameOverScreen.SetActive(true);
     }
 
-    public void UpdateWaveText(int wave) => WaveText.text = "WAVE: " + wave + (TutorialDirector.ProtectedRun && !TutorialDirector.Practice ? "/5" : "");
+    public void UpdateWaveText(int wave) => WaveText.text = "WAVE: " + wave;
     public void UpdateEnemiesLeft(int count) => EnemiesLeftText.text = "ENEMIES: " + count;
     public void ShowWaveBanner(int wave) => StartCoroutine(BannerRoutine(wave));
 

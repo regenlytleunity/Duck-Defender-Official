@@ -136,6 +136,7 @@ public class PlayerController : MonoBehaviour
     float _lastShockwaveTime = -100;
     float _flightUntil = -1, _flightReady;
     public bool IsGrounded => _isGrounded;
+    public event System.Action Jumped;
     public float EffectiveMaxSpeed => (_clone != null ? _clone.SpawnMoveSpeed : MaxRunSpeed * (OwnerStats != null ? OwnerStats.SpeedMultiplier : 1f)) * (_health != null ? _health.MovementMultiplier : 1f);
     float RebirthMultiplier => OwnerStats != null ? OwnerStats.RebirthStatMultiplier : 1f;
     public float EffectiveAcceleration => _clone != null ? _clone.SpawnAcceleration : Acceleration * RebirthMultiplier;
@@ -553,6 +554,7 @@ public class PlayerController : MonoBehaviour
         _rb.AddForce(Vector2.up * EffectiveJumpForce, ForceMode2D.Impulse);
         _currentJumpCount++;
         _jumpedSinceLanding = true;
+        Jumped?.Invoke();
         if (!_isGrounded && CloudBurstPrefab != null && FeetPos != null)
             Instantiate(CloudBurstPrefab, FeetPos.position, Quaternion.identity);
     }

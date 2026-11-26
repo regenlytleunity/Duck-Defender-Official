@@ -24,28 +24,20 @@ public static class ItemCatalog
     };
     public static bool Valid(int id) => id > 0 && id <= Count;
     public static bool IsThrowable(int id) => id == (int)ItemKind.Bomb;
-    static Sprite[] _icons;
-    // Deliberately simple placeholder sprites; no replacement artwork or authored assets.
+    // The four-column sheet follows the stable item IDs from left to right, top to bottom.
+    const int IconSize = 32;
+    static readonly Sprite[] Icons = new Sprite[Count + 1];
+    static Texture2D _sheet;
+
     public static Sprite Icon(int id)
     {
         if (!Valid(id)) return null;
-        if (_icons == null) _icons = new Sprite[Count + 1];
-        if (_icons[id] != null) return _icons[id];
-        var texture = new Texture2D(24, 24, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, name = Names[id] + " placeholder" };
-        var pixels = new Color32[24 * 24];
-        Color fill = Color.HSVToRGB(Mathf.Repeat((id - 1) / 8f, 1), .65f, .95f);
-        for (int y = 2; y < 22; y++) for (int x = 2; x < 22; x++)
-        {
-            bool body = id == 1 ? (x - 12) * (x - 12) + (y - 10) * (y - 10) < 70 :
-                id == 2 || id == 7 ? (y < 14 && x > 5 && x < 19) || (y >= 14 && x > 9 && x < 15) :
-                id == 3 ? Mathf.Abs(x - 12) < (y + 1) / 2 :
-                id == 4 ? x < 5 || y > 11 && x < 20 :
-                id == 5 ? (x - 12) * (x - 12) + (y - 12) * (y - 12) < 95 :
-                id == 6 ? x < 10 || x > 13 : Mathf.Abs(x - 12) < 10 - Mathf.Abs(y - 10) / 2;
-            if (body) pixels[y * 24 + x] = (x + y) % 9 == 0 ? Color.white : fill;
-        }
-        texture.SetPixels32(pixels); texture.Apply();
-        _icons[id] = Sprite.Create(texture, new Rect(0, 0, 24, 24), Vector2.one * .5f, 24);
-        return _icons[id];
+        if (Icons[id] != null) return Icons[id];
+        if (_sheet == null) _sheet = Resources.Load<Texture2D>("ItemIcons");
+        int index = id - 1;
+        var tile = new Rect(index % 4 * IconSize, _sheet.height - (index / 4 + 1) * IconSize, IconSize, IconSize);
+        Icons[id] = Sprite.Create(_sheet, tile, Vector2.one * .5f, IconSize, 0, SpriteMeshType.FullRect);
+        Icons[id].name = Names[id];
+        return Icons[id];
     }
 }

@@ -130,6 +130,10 @@ public static class SaveSystem
             if (data.CardCollection == null)
                 data.CardCollection = new System.Collections.Generic.List<CardSaveData>();
             data.NormalizeShopData();
+            // Players at these retired checkpoints already finished the basics.
+            if ((data.Tutorial.Stage == TutorialStage.Play || data.Tutorial.Stage == TutorialStage.Waves) &&
+                TutorialProgress.GrantPracticeReward(data))
+                SaveData(data, updateTutorial: true);
             
             return data;
         }

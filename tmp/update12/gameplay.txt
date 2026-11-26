@@ -1,0 +1,24 @@
+PASS: 23 targeted gameplay checks
+Wave two ground enemy spawns with two HP.
+One feather's base damage leaves one HP.
+Second point of damage defeats the enemy.
+Unique cached 32-pixel icon for Bomb
+Unique cached 32-pixel icon for Health Potion
+Unique cached 32-pixel icon for Shield
+Unique cached 32-pixel icon for Battle Banner
+Unique cached 32-pixel icon for Pocket Casino
+Unique cached 32-pixel icon for Clone
+Unique cached 32-pixel icon for Experience Potion
+Unique cached 32-pixel icon for Flamethrower
+Unique cached 32-pixel icon for Sawblade
+Unique cached 32-pixel icon for Shock
+Unique cached 32-pixel icon for Divine Intervention
+Unique cached 32-pixel icon for Nuke
+Co-op coin row fits between XP and the first classic health label.
+Light stick reaches the duck and the second seat retains its own distance.
+Firm partial tilt moves the effects outward.
+Full tilt changes direction and neutral holds that reach.
+Actual saw orbit and ascended aura stay centered together.
+Second player's actual aura follows its own controller.
+Ordinary weapon aim keeps its full projection.
+Swapped aiming stick extends left to the ten-unit limit.

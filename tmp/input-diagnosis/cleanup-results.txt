@@ -1,0 +1,2 @@
+PASS: Stop Play Mode removed all simulated pads, restored the original physical controller, and cleared verification state.
+85 XInputControllerWindows native=True enabled=True

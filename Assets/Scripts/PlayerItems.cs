@@ -228,7 +228,7 @@ public class PlayerItems : MonoBehaviour
     {
         if (_saws.Count == 0 || Camera.main == null) return;
         _orbit += Time.deltaTime / 1.5f;
-        Vector3 center = Camera.main.ScreenToWorldPoint(InputHelper.GetMousePosition(this)); center.z = 0;
+        Vector3 center = Camera.main.ScreenToWorldPoint(InputHelper.GetMousePosition(this, effectCursor: true)); center.z = 0;
         EnemyBase.CopyActiveEnemies(_targets);
         if (Mathf.FloorToInt(_orbit) != _lastPrunedOrbit)
         {

@@ -38,7 +38,7 @@ public class TutorialPlayProbe : MonoBehaviour
     IEnumerator Start()
     {
         if (string.IsNullOrEmpty(SaveSystem.VerificationSavePath)) throw new InvalidOperationException("Start isolated Play verification first.");
-        Directory.CreateDirectory("tmp/update11/tutorial");
+        Directory.CreateDirectory("tmp/update12/tutorial");
         DontDestroyOnLoad(gameObject);
         while (!TutorialDirector.Practice || LocalCoopSession.Instance == null || LocalCoopSession.Instance.Players.Count == 0) yield return null;
         foreach (var pad in Gamepad.all.ToArray()) if (pad.enabled) { _realPads.Add(pad); InputSystem.DisableDevice(pad); }
@@ -62,8 +62,8 @@ public class TutorialPlayProbe : MonoBehaviour
     }
     void Finish(string result)
     {
-        Result = result; Directory.CreateDirectory("tmp/update11/tutorial");
-        File.WriteAllText("tmp/update11/tutorial/play-verification.txt", result + "\n" + string.Join("\n", _checks));
+        Result = result; Directory.CreateDirectory("tmp/update12/tutorial");
+        File.WriteAllText("tmp/update12/tutorial/play-verification.txt", result + "\n" + string.Join("\n", _checks));
         Debug.Log(result); Destroy(gameObject);
     }
     void OnDestroy()
@@ -162,7 +162,7 @@ public class TutorialPlayProbe : MonoBehaviour
         Check(tailMesh != null && tailMesh.vertexCount > 0 && tailMesh.colors.All(c => Mathf.Abs(c.a - .76f) < .01f), "Tail fill and outline retain the bubble transparency.");
         yield return Until(() => !Field<RectTransform>(TutorialDirector.Instance, "_panel").gameObject.activeSelf, "Dialogue hides after its reading time.", 14);
         Check(!Field<RectTransform>(TutorialDirector.Instance, "_panel").gameObject.activeSelf && !Field<RectTransform>(TutorialDirector.Instance, "_portrait").gameObject.activeSelf, "Popup and duck fully hide without leaving a collapsed panel.");
-        ScreenCapture.CaptureScreenshot("tmp/update11/tutorial/hidden.png");
+        ScreenCapture.CaptureScreenshot("tmp/update12/tutorial/hidden.png");
         InputSystem.QueueStateEvent(_pad, new GamepadState().WithButton(GamepadButton.North));
         yield return null; yield return null; Input();
         Check(Field<RectTransform>(TutorialDirector.Instance, "_panel").gameObject.activeSelf && Step == "Welcome", "Show tutorial binding restores text without advancing the lesson.");
@@ -174,7 +174,7 @@ public class TutorialPlayProbe : MonoBehaviour
         Call(TutorialDirector.Instance, "ConfirmSkip");
         Check(TutorialDirector.CoreActive && TutorialDirector.SkipConfirmationOpen, "Opening input cannot accidentally confirm skipping.");
         yield return new WaitForSecondsRealtime(.4f);
-        ScreenCapture.CaptureScreenshot("tmp/update11/tutorial/skip-confirmation.png");
+        ScreenCapture.CaptureScreenshot("tmp/update12/tutorial/skip-confirmation.png");
         InputSystem.QueueStateEvent(_pad, new GamepadState().WithButton(GamepadButton.South));
         yield return null; yield return null; Input();
         Check(!TutorialDirector.SkipConfirmationOpen && Step == "Welcome", "Default controller confirmation cancels skipping and preserves the lesson.");
@@ -182,7 +182,7 @@ public class TutorialPlayProbe : MonoBehaviour
         var decor = GameUI.Instance.PlayerHealthBar.transform.parent;
         Check(!decor.Find("HeartDecor").gameObject.activeSelf && !decor.Find("ExpDecor").gameObject.activeSelf && !decor.Find("CoinDecor").gameObject.activeSelf, "All HUD decorations are hidden before their lessons.");
         yield return new WaitForSecondsRealtime(.4f);
-        ScreenCapture.CaptureScreenshot("tmp/update11/tutorial/welcome.png");
+        ScreenCapture.CaptureScreenshot("tmp/update12/tutorial/welcome.png");
         yield return Continue(true);
         var objects = Field<List<GameObject>>(TutorialDirector.Instance, "_practiceObjects");
         var stick = Field<RectTransform>(TutorialDirector.Instance, "_stick");
@@ -191,8 +191,12 @@ public class TutorialPlayProbe : MonoBehaviour
         Check(Mathf.Abs(circleRect.rect.width - circleRect.rect.height) < .01f && Mathf.Abs(stick.rect.width - stick.rect.height) < .01f, "Thumbstick base and knob remain circular.");
         Check(objects.All(g => g.GetComponent<SpriteRenderer>().sprite.texture.name == "Tutorial goal gradient"), "Walking goals use the upward fading gradient.");
         yield return ReadPrompt();
-        ScreenCapture.CaptureScreenshot("tmp/update11/tutorial/movement.png");
-        yield return MoveTo(objects[0].transform.position.x);
+        ScreenCapture.CaptureScreenshot("tmp/update12/tutorial/movement.png");
+        var padBounds = objects[0].GetComponent<SpriteRenderer>().bounds;
+        var body = Player.GetComponent<Collider2D>();
+        Player.transform.position += Vector3.right * (padBounds.max.x - body.bounds.min.x - .02f);
+        yield return null; yield return null;
+        Check(Player.transform.position.x > padBounds.max.x && Field<bool[]>(TutorialDirector.Instance, "_visited")[0], "Grazing a pad with the collider counts with the duck center outside.");
         Check(!Field<bool>(TutorialDirector.Instance, "_ready"), "One movement goal cannot skip the other.");
         Player.transform.position += Vector3.down * 30; yield return null; yield return null;
         Check(Player.transform.position.y > Field<Vector3>(TutorialDirector.Instance, "_origin").y - 2, "Falling out of practice returns the player to the lesson.");
@@ -203,8 +207,12 @@ public class TutorialPlayProbe : MonoBehaviour
         var box = Field<BoxCollider2D>(TutorialDirector.Instance, "_box");
         Check(objects[1].GetComponent<SpriteRenderer>().sprite.texture.name == "Tutorial goal gradient", "Box landing goal also uses the gradient.");
         yield return ReadPrompt();
-        ScreenCapture.CaptureScreenshot("tmp/update11/tutorial/jump.png");
+        ScreenCapture.CaptureScreenshot("tmp/update12/tutorial/jump.png");
         yield return new WaitForSecondsRealtime(.6f);
+        Input(Vector2.right); yield return new WaitForSecondsRealtime(.45f); Input();
+        Check(!Field<bool>(TutorialDirector.Instance, "_ready"), "Walking into the side of the box cannot count as a landing.");
+        Call(TutorialDirector.Instance, "ResetPlayer");
+        yield return new WaitForSecondsRealtime(.3f);
         float start = Time.realtimeSinceStartup;
         while (!Field<bool>(TutorialDirector.Instance, "_ready") && Time.realtimeSinceStartup - start < 5)
         {
@@ -228,7 +236,7 @@ public class TutorialPlayProbe : MonoBehaviour
         var arrow = Player.transform.Find("Aim direction").GetComponent<SpriteRenderer>();
         Check(arrow != null && arrow.sprite.texture.name == "Outlined aim arrow" && Player.GetComponentsInChildren<LineRenderer>().All(l => l.name != "Aim outline"), "Aim arrow uses one closed silhouette without crossing lines.");
         yield return ReadPrompt();
-        ScreenCapture.CaptureScreenshot("tmp/update11/tutorial/aim.png");
+        ScreenCapture.CaptureScreenshot("tmp/update12/tutorial/aim.png");
         var originalScale = Player.transform.localScale; var originalAim = Player.Aim;
         var aimField = typeof(LocalPlayer).GetField("<Aim>k__BackingField", Private);
         foreach (var direction in new[] { Vector2.right, Vector2.up, new Vector2(.6f, .8f), new Vector2(-.6f, .8f) })
@@ -239,10 +247,7 @@ public class TutorialPlayProbe : MonoBehaviour
                 Check(Vector2.Dot(arrow.transform.TransformVector(Vector3.right).normalized, direction) > .999f, "Arrow follows actual aim with facing " + sign + " and direction " + direction);
             }
         Player.transform.localScale = originalScale; aimField.SetValue(Player, originalAim); Call(Player, "LateUpdate");
-        foreach (var target in targets) { Input(aim: (target.transform.position - Player.Weapon.FirePoint.position).normalized); yield return new WaitForSecondsRealtime(.15f); }
-        yield return Continue();
-        Check(Step == "Shoot" && Field<List<TutorialTarget>>(TutorialDirector.Instance, "_targets").Count == 5, "All five aim goals unlock shooting targets.");
-        targets = Field<List<TutorialTarget>>(TutorialDirector.Instance, "_targets");
+        Check(Step == "Shoot" && targets.Count == 5 && TutorialDirector.AllowShooting, "Aiming and shooting share one set of five targets.");
         foreach (var target in targets)
         {
             Input(aim: (target.transform.position - Player.Weapon.FirePoint.position).normalized, shoot: true);
@@ -253,7 +258,7 @@ public class TutorialPlayProbe : MonoBehaviour
             {
                 var samples = new ParticleSystem.Particle[28]; int count = burst.GetComponent<ParticleSystem>().GetParticles(samples);
                 Check(count > 0 && Vector3.Distance(samples[0].position, target.transform.position) < 1, "Burst particles originate at the struck target.");
-                ScreenCapture.CaptureScreenshot("tmp/update11/tutorial/particles.png");
+                ScreenCapture.CaptureScreenshot("tmp/update12/tutorial/particles.png");
             }
         }
         Input(); yield return Continue();
@@ -280,6 +285,7 @@ public class TutorialPlayProbe : MonoBehaviour
         Check(approaching.All(e => Mathf.Abs(Mathf.Abs(e.transform.position.x - practiceOrigin.x) - 4) < .05f), "Both enemies freeze at the designated points.");
         Check(EnemyBase.ActiveEnemies.Count == 2 && EnemyBase.ActiveEnemies.All(e => e.HealthRemaining == 2), "Exactly two practice enemies have 2 HP.");
         var enemies = EnemyBase.ActiveEnemies.ToArray();
+        var practiceDropRange = enemies[0].CoinDropRange;
         enemies[0].TakeDamage(2, Player.Stats); yield return null;
         Check(LevelManager.Instance.CurrentLevel == 1 && LevelManager.Instance.CurrentXP == LevelManager.Instance.TargetXP / 2, "First enemy awards exactly half the XP bar.");
         enemies[1].TakeDamage(2, Player.Stats); yield return null;
@@ -289,7 +295,7 @@ public class TutorialPlayProbe : MonoBehaviour
         var healthGlow = options[0].BackgroundImage.GetComponent<TutorialGlowFollower>().Glow;
         Check(healthGlow.transform.parent == options[0].BackgroundImage.transform.parent && healthGlow.transform.GetSiblingIndex() < options[0].BackgroundImage.transform.GetSiblingIndex() && !healthGlow.raycastTarget, "Required Health glow renders behind its graphic and does not intercept input.");
         yield return ReadPrompt();
-        ScreenCapture.CaptureScreenshot("tmp/update11/tutorial/cards.png");
+        ScreenCapture.CaptureScreenshot("tmp/update12/tutorial/cards.png");
         UnityEngine.EventSystems.EventSystem.current.SetSelectedGameObject(options[0].ClickButton.gameObject);
         InputSystem.QueueStateEvent(_pad, new GamepadState().WithButton(GamepadButton.DpadRight));
         yield return new WaitForSecondsRealtime(.08f); Input();
@@ -319,58 +325,16 @@ public class TutorialPlayProbe : MonoBehaviour
         Check(healthRect.anchorMax.x == .23f && healthRect.anchorMax.y < .94f && xpRect.anchorMax.x == healthRect.anchorMax.x && GameUI.Instance.XPBar.Overlay.sprite == GameUI.Instance.PlayerHealthBar.Overlay.sprite, "Health and XP share longer classic bars below the top margin.");
         Check(!decor.Find("ExpDecor").gameObject.activeSelf, "XP orb stays removed after XP is revealed.");
         yield return ReadPrompt();
-        ScreenCapture.CaptureScreenshot("tmp/update11/tutorial/health.png");
-        Check(LevelManager.Instance.TotalCoins == 0, "Practice grants no coins.");
+        ScreenCapture.CaptureScreenshot("tmp/update12/tutorial/health.png");
+        yield return Until(() => LevelManager.Instance.TotalCoins >= practiceDropRange.x * 2 && FindObjectsByType<Coin>(FindObjectsSortMode.None).Length == 0, "Practice coins fly to the player.");
+        int earned = LevelManager.Instance.TotalCoins;
+        Check(earned <= practiceDropRange.y * 2, "Both enemies use their ordinary coin drop ranges.");
+        Check(GameUI.Instance.CoinText.gameObject.activeSelf && decor.Find("CoinDecor").gameObject.activeSelf &&
+            GameUI.Instance.CoinText.rectTransform.anchorMax.y < xpRect.anchorMin.y, "Coin HUD is visible below XP.");
         yield return Continue(); yield return Continue();
-        yield return Until(() => MainMenuUI.Instance != null, "Stage 1 returns to menu."); yield return new WaitForSecondsRealtime(.5f);
-        Check(MenuButton(MainMenuUI.Instance.MenuPanel, "IndexButton").IsInteractable(), "Collection browsing is available before stage 2.");
-        yield return Submit(MenuButton(MainMenuUI.Instance.MenuPanel, "IndexButton"));
-        var browse = MainMenuUI.Instance.IndexPanel.GetComponent<CardIndexUI>();
-        yield return Submit(browse.PackButtons[3]);
-        Check(browse.SelectedPack == CardPackType.Gadget && TutorialDirector.Progress.Stage == TutorialStage.Play, "Browsing other packs preserves the tutorial checkpoint.");
-        yield return Submit(MenuButton(MainMenuUI.Instance.IndexPanel, "BackButton"));
-        yield return Submit(MenuButton(MainMenuUI.Instance.MenuPanel, "PlayButton"));
-        yield return Until(() => LocalCoopSession.Instance != null && TutorialDirector.Progress.Stage == TutorialStage.Waves, "Stage 2 opens."); yield return new WaitForSecondsRealtime(.5f);
-        yield return Continue();
-        Check(!TutorialDirector.Instance.GetComponentsInChildren<UnityEngine.UI.Button>(true).Any(b => b.name.Contains("Restart")), "Stage 2 has no restart button.");
-        SceneManager.LoadScene("MainMenu"); yield return new WaitForSecondsRealtime(.7f);
-        Check(TutorialDirector.Progress.Stage == TutorialStage.Play, "Interrupted waves resume from the Play checkpoint.");
-        yield return Submit(MenuButton(MainMenuUI.Instance.MenuPanel, "PlayButton"));
-        yield return new WaitForSecondsRealtime(.5f); yield return Continue();
-        EnemyTipUI.Instance.ShowTip("ground", EnemyTipUI.TitleFor("ground"), EnemyTipUI.DescriptionFor("ground"));
-        Check(EnemyTipUI.Instance.IsShowing && Time.timeScale == 0, "Stage 2 enemy explanation pauses the run.");
-        Input(); yield return new WaitForSecondsRealtime(1.2f);
-        Check(EnemyTipUI.Instance.IsShowing, "Enemy tip waits for Interact.");
-        InputSystem.QueueStateEvent(_pad, new GamepadState().WithButton(GamepadButton.South));
-        yield return Until(() => !EnemyTipUI.Instance.IsShowing, "Interact dismisses the enemy tip.");
-        Input(); yield return null;
-        Player.Health.TryTakeDamage(10000); Check(Player.Health.CurrentHealth == 1 && !Player.Health.IsDead, "Lethal tutorial damage stops at 1 health.");
-        Check(!LocalCoopSession.Instance.ItemDropsEnabled && !TutorialDirector.AllowItems, "Stage 2 blocks item drops and use.");
-        // Retain the authored inter-wave gap so the previous spawn coroutine finishes.
-        WaveManager.Instance.BaseSpawnInterval = .04f; WaveManager.Instance.MinSpawnInterval = .04f;
-        var waveCounts = new Dictionary<int, int>();
-        bool keptIntroduction = false;
-        float end = Time.realtimeSinceStartup + 35;
-        while (TutorialDirector.Progress.Stage == TutorialStage.Waves && Time.realtimeSinceStartup < end)
-        {
-            int wave = WaveManager.Instance.GetCurrentWave();
-            var plan = Field<List<WaveManager.SpawnRequest>>(WaveManager.Instance, "_spawnPlan");
-            if (wave > 0) waveCounts[wave] = plan.Count;
-            if (wave == 3) keptIntroduction |= plan.Any(p => p.Introduction);
-            if (EnemyTipUI.Instance.IsShowing) EnemyTipUI.Instance.Dismiss();
-            if (LevelUpUI.Instance.IsOffering)
-            {
-                var option = LevelUpUI.Instance.CardContainer.GetComponentsInChildren<CardDisplay>().FirstOrDefault();
-                if (option != null) LevelUpUI.Instance.SelectCard(option.AssignedCard);
-            }
-            foreach (var enemy in EnemyBase.ActiveEnemies.ToArray()) enemy.TakeItemDamage(10000, Player.Stats, true);
-            yield return null;
-        }
-        Check(WaveManager.Instance.GetCurrentWave() == 5 && TutorialDirector.Progress.Stage == TutorialStage.Shop && Time.timeScale == 0, "Stage 2 ends at wave 5, saves reward and pauses.");
-        Check(waveCounts.Count == 5 && waveCounts.All(pair => pair.Value == pair.Key + 1), "Tutorial waves 1-5 spawn 2, 3, 4, 5, 6 enemies: half the normal totals.");
-        Check(keptIntroduction, "Halving waves preserves the flying enemy introduction.");
-        if (LevelUpUI.Instance.IsOffering) LevelUpUI.Instance.SelectCard(LevelUpUI.Instance.CardContainer.GetComponentsInChildren<CardDisplay>()[0].AssignedCard);
-        yield return Continue(); yield return Until(() => MainMenuUI.Instance != null, "Reward returns to shop lesson."); yield return new WaitForSecondsRealtime(.4f);
+        yield return Until(() => MainMenuUI.Instance != null && TutorialDirector.Progress.Stage == TutorialStage.Shop, "Practice returns directly to the shop lesson.");
+        yield return new WaitForSecondsRealtime(.5f);
+        Check(ShopManager.Instance.CurrentCoins == earned + 200, "Shop balance includes every pickup and the practice bonus.");
         var menu = MainMenuUI.Instance;
         yield return Submit(MenuButton(menu.MenuPanel, "ShopButton"));
         var packs = menu.PackContainer.GetComponentsInChildren<UnityEngine.UI.Button>();
@@ -383,10 +347,10 @@ public class TutorialPlayProbe : MonoBehaviour
         var packGlow = focusedPack.GetComponentInChildren<TutorialGlowFollower>();
         Check(glows.Length == 1 && glows[0] == packGlow.Glow && glows[0].transform.GetSiblingIndex() < packGlow.transform.GetSiblingIndex(), "One green underglow follows the focused pack behind its visible art.");
         yield return ReadPrompt();
-        ScreenCapture.CaptureScreenshot("tmp/update11/tutorial/shop.png");
+        ScreenCapture.CaptureScreenshot("tmp/update12/tutorial/shop.png");
         yield return Submit(focusedPack.GetComponent<UnityEngine.UI.Button>());
         yield return ReadPrompt();
-        ScreenCapture.CaptureScreenshot("tmp/update11/tutorial/confirmation.png");
+        ScreenCapture.CaptureScreenshot("tmp/update12/tutorial/confirmation.png");
         yield return Submit(menu.YesButton);
         int coins = ShopManager.Instance.CurrentCoins;
         menu.BackToMainMenu(); Check(menu.OpeningOverlay.activeSelf, "Back cannot escape an unopened tutorial pack.");
@@ -398,7 +362,7 @@ public class TutorialPlayProbe : MonoBehaviour
         yield return Until(() => menu.TutorialPackRevealed, "Pack reveal completes.");
         Check(!menu.ContinueButton.gameObject.activeSelf, "Tutorial pack reveal has no manual Continue button.");
         yield return ReadPrompt();
-        ScreenCapture.CaptureScreenshot("tmp/update11/tutorial/pack.png");
+        ScreenCapture.CaptureScreenshot("tmp/update12/tutorial/pack.png");
         yield return Continue();
         Check(!menu.OpeningOverlay.activeSelf && menu.ShopPanel.activeSelf, "Interact closes the pack reveal without activating a pack.");
         yield return Submit(MenuButton(menu.ShopPanel, "BackButton"));
@@ -408,7 +372,7 @@ public class TutorialPlayProbe : MonoBehaviour
         while (index.CurrentPage < page) yield return Submit(index.NextButton);
         while (index.CurrentPage > page) yield return Submit(index.PreviousButton);
         yield return ReadPrompt();
-        ScreenCapture.CaptureScreenshot("tmp/update11/tutorial/index.png");
+        ScreenCapture.CaptureScreenshot("tmp/update12/tutorial/index.png");
         Check(TutorialDirector.Progress.Stage == TutorialStage.Upgrade, "Browsing enters the upgrade lesson without an extra confirmation.");
         var targetPack = index.SelectedPack;
         yield return Submit(index.PackButtons[((int)targetPack + 1) % 4]);
@@ -437,7 +401,7 @@ public class TutorialPlayProbe : MonoBehaviour
         var panel = Field<RectTransform>(TutorialDirector.Instance, "_panel");
         Check(panel.GetComponent<UnityEngine.UI.Image>().color == new Color(.025f, .04f, .065f, .76f), "Item tutorial restores the normal prompt color after chromatic completion.");
         yield return ReadPrompt();
-        ScreenCapture.CaptureScreenshot("tmp/update11/tutorial/item.png");
+        ScreenCapture.CaptureScreenshot("tmp/update12/tutorial/item.png");
         yield return Submit(MenuButton(menu.ShopPanel, "BackButton"));
         yield return Submit(MenuButton(menu.MenuPanel, "IndexButton"));
         yield return Submit(MenuButton(menu.IndexPanel, "ItemsTab"));
@@ -481,7 +445,7 @@ public class TutorialPlayProbe : MonoBehaviour
 
     IEnumerator VerifySkipping()
     {
-        foreach (var stage in new[] { TutorialStage.Basics, TutorialStage.Waves, TutorialStage.Shop, TutorialStage.PackPurchased, TutorialStage.Upgrade, TutorialStage.Complete })
+        foreach (var stage in new[] { TutorialStage.Basics, TutorialStage.Shop, TutorialStage.PackPurchased, TutorialStage.Upgrade, TutorialStage.Complete })
         {
             var data = PlayerData.CreateNew(); data.TotalCoins = 432; data.CompletedRuns = 2;
             data.CardCollection[0].Level = 3; data.ItemInventory[(int)ItemKind.Bomb] = 2;
@@ -490,7 +454,7 @@ public class TutorialPlayProbe : MonoBehaviour
             data.Tutorial.UpgradeCardID = data.CardCollection[0].CardID;
             data.Tutorial.NewCardID = data.CardCollection[1].CardID;
             SaveSystem.SaveData(data, true, true);
-            Time.timeScale = 1; SceneManager.LoadScene(stage == TutorialStage.Basics || stage == TutorialStage.Waves ? "SampleScene" : "MainMenu");
+            Time.timeScale = 1; SceneManager.LoadScene(stage == TutorialStage.Basics ? "SampleScene" : "MainMenu");
             yield return new WaitForSecondsRealtime(.8f);
             var director = TutorialDirector.Instance;
             ClickTutorialControl(Field<UnityEngine.UI.Button>(director, "_skipButton"));

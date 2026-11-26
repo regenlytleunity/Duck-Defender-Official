@@ -77,14 +77,15 @@ public class HostMenuUI : MonoBehaviour
         _respawn.text = "Respawn next wave: " + (LocalCoopSession.Respawning ? "ON" : "OFF");
         _colors.text = "Health bar style: " + (LocalCoopSession.HealthStyle == LocalCoopSession.HealthBarStyle.Classic ? "Classic" : "Above player");
         _loadoutMode.text = "Loadouts style: " + (LocalCoopSession.AdvancedLoadouts ? "Advanced" : "Simple");
-        _start.interactable = Gamepad.all.Count >= required;
-        _status.text = (test ? "Dev mode: P1 keyboard/mouse + P2 controller. " : "") + Gamepad.all.Count + "/" + required + " controllers connected. Press a controller button if it is not detected.";
+        int connected = ControllerBindings.ConnectedCount;
+        _start.interactable = connected >= required;
+        _status.text = (test ? "Dev mode: P1 keyboard/mouse + P2 controller. " : "") + connected + "/" + required + " controllers connected. Press a controller button if it is not detected.";
     }
     public void StartGame()
     {
         if (TutorialDirector.MenuLocked) return;
         int required = LocalCoopSession.KeyboardTest && _count == 2 ? 1 : _count;
-        if (Gamepad.all.Count < required) { Refresh(); return; }
+        if (ControllerBindings.ConnectedCount < required) { Refresh(); return; }
         LocalCoopSession.RequestedPlayers = _count;
         Hide();
         (GetComponent<CoopLobbyUI>() ?? gameObject.AddComponent<CoopLobbyUI>()).Open(this);

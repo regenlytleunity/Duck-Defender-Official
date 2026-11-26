@@ -1,5 +1,6 @@
 using System;
 
+// Play and Waves retain their serialized values for saves made before the shop followed Basics.
 public enum TutorialStage { Basics, Play, Waves, Shop, PackPurchased, ShopReturn, Index, Upgrade, IndexReturn, Complete }
 public enum ItemTutorialStage { None, Index, Tab, Equip, Controls, Complete }
 
@@ -25,9 +26,11 @@ public class TutorialProgress
             for (int i = 1; i < data.ItemInventory.Length; i++) HasObtainedItem |= data.ItemInventory[i] > 0;
     }
 
-    public static bool GrantWaveReward(PlayerData data)
+    public static bool GrantPracticeReward(PlayerData data)
     {
-        if (!data.Tutorial.CoreActive || data.Tutorial.Stage != TutorialStage.Waves) return false;
+        var progress = data.Tutorial;
+        if (!progress.CoreActive || (progress.Stage != TutorialStage.Basics &&
+            progress.Stage != TutorialStage.Play && progress.Stage != TutorialStage.Waves)) return false;
         data.TotalCoins = (int)Math.Min(int.MaxValue, (long)data.TotalCoins + 200);
         data.Tutorial.Stage = TutorialStage.Shop;
         return true;

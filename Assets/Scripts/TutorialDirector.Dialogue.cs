@@ -141,7 +141,7 @@ public partial class TutorialDirector
         bool showStick = _practice && _step >= PracticeStep.Move && _step <= PracticeStep.Shoot && (UsingPad || UsingTouch);
         _stick.parent.gameObject.SetActive(showStick);
         _stick.anchoredPosition = _step == PracticeStep.Jump ? new Vector2(0, Mathf.Abs(Mathf.Sin(Time.unscaledTime * 3)) * 16) :
-            _step >= PracticeStep.Aim ? new Vector2(Mathf.Cos(Time.unscaledTime * 2), Mathf.Sin(Time.unscaledTime * 2)) * 16 :
+            _step >= PracticeStep.Shoot ? new Vector2(Mathf.Cos(Time.unscaledTime * 2), Mathf.Sin(Time.unscaledTime * 2)) * 16 :
             new Vector2(Mathf.Sin(Time.unscaledTime * 3) * 16, 0);
         _portrait.anchoredPosition = !blocked && !DialogueRevealed ? new Vector2(0, Mathf.Sin(Time.unscaledTime * 5) * 3) : Vector2.zero;
         if (_lastPrompt != null && _lastPrompt.StartsWith("TUTORIAL COMPLETE"))

@@ -85,13 +85,12 @@ public class ControllerMenuNavigation : MonoBehaviour
     void Update()
     {
         if (TutorialDirector.BlocksMenuSubmit || EnemyTipUI.Instance != null && EnemyTipUI.Instance.IsShowing) { ClearSliderInput(); return; }
-        if (Gamepad.all.Count == 0 || EventSystem.current == null) { ClearSliderInput(); return; }
+        if (ControllerBindings.MenuPad == null || EventSystem.current == null) { ClearSliderInput(); return; }
         if (CoopLobbyUI.Instance != null && CoopLobbyUI.Instance.IsOpen) return;
         var menu = MainMenuUI.Instance;
         if (menu != null && menu.SettingsPanel.activeInHierarchy && menu.SettingsPanel.GetComponent<SettingsMenuUI>().CapturingInput) { ClearSliderInput(); return; }
         if (LocalCoopSession.Multiplayer && LevelUpUI.Instance != null && LevelUpUI.Instance.IsOffering) return;
-        Gamepad pad = null;
-        foreach (var device in Gamepad.all) if (device.enabled) { pad = device; break; }
+        var pad = ControllerBindings.MenuPad;
         if (pad == null) return;
         if (menu != null && menu.HandlePackControllerInput(pad)) return;
         var events = EventSystem.current;
@@ -171,7 +170,7 @@ public class ControllerMenuNavigation : MonoBehaviour
         var selected = events != null && events.currentSelectedGameObject != null
             ? events.currentSelectedGameObject.GetComponent<UnityEngine.UI.Selectable>() : null;
         bool separateCards = LocalCoopSession.Multiplayer && LevelUpUI.Instance != null && LevelUpUI.Instance.IsOffering;
-        if (Gamepad.all.Count == 0 || separateCards || CoopLobbyUI.Instance != null && CoopLobbyUI.Instance.IsOpen || selected == null || !selected.IsActive() || !selected.IsInteractable())
+        if (ControllerBindings.MenuPad == null || separateCards || CoopLobbyUI.Instance != null && CoopLobbyUI.Instance.IsOpen || selected == null || !selected.IsActive() || !selected.IsInteractable())
         { _selectionFrame?.Hide(); return; }
         if (_selectionFrame == null) _selectionFrame = new ControllerSelectionFrame("Controller menu selection");
         var target = (RectTransform)selected.transform;

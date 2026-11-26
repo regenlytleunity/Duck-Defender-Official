@@ -524,14 +524,14 @@ Enemy health uses a run-start snapshot of persistent collection progression in
 `GameDifficulty`: E = max(0, (unlockedCards * combinedLevels - 72) / 53), with
 starting-health multiplier 1 + .03E and additive-wave multiplier 1 + .02E.
 WaveManager's piecewise cumulative increases stay unscaled; EnemyBase combines
-the two terms once and retains fractional health. The gameplay card registry has
+the two terms and floors maximum HP after enemy-type and elite multipliers. The gameplay card registry has
 47 eligible collection cards plus four Basics; only owned, registered non-Basics
 count, once per ID. Co-op uses the host collection, independently of enabled-card
 filters and current run picks. Solo and host menus no longer offer difficulty
 selection; old preferences/callbacks cannot alter combat or coin multipliers.
 Damage, speed, coins, spawn schedules and counts use their base rates. Elite
 health and the team's existing Sabotage reduction apply once after scaling;
-Sabotage keeps its 95% cap and 1-HP minimum, now without integer truncation.
+Sabotage keeps its 95% cap and rounds starting HP down to a minimum of 1. Damage during combat can still be fractional.
 Tanks derive health as three times the normal ground health including growth.
 Elite enemies
 reuse the normal prefabs with preserved enlarged/darker visuals, double coin rewards,
@@ -1019,7 +1019,7 @@ regeneration and lightning at 10% of the baseline shot interval. Lightning deals
 fraction. Cards picked during Divine are recorded immediately and applied once
 after restoration. Existing projectiles, areas and companions respect suppression.
 The twelve item IDs preserve the original eight IDs; older inventories expand on
-load. Item icons and world effects retain procedural placeholders.
+load. ItemCatalog slices twelve distinct 32-pixel icons from the ItemIcons resource for menus, pickups and item effects.
 
 `ItemWheelUI` provides the temporary four-way selection HUD, pickup text, casino
 display with a fixed landing tick and outcome-matched stopping angle, and
@@ -1046,22 +1046,21 @@ Speech-box prompts stay at one fixed top position across gameplay and menus, wit
 `TutorialDirector.Controls.cs` provides Show tutorial (default T or controller Y, rebindable in existing settings) and a bottom-right Skip tutorial button (controller X by default). Holding the keyboard Show tutorial key for 0.85 seconds also opens the skip confirmation. The modal pauses gameplay, defaults to Keep playing and requires released input before confirmation. Confirming skips core and item lessons, preserves earned resources without granting rewards, and returns to MainMenu.
 Enemy tips also require Interact during protected tutorial runs.
 
-Fresh profiles opt into `TutorialProgress.Version = 1`: movement/jump/aim/shoot
-practice, two fixed-XP enemies and a required Basic Health choice; five protected
-waves at half the normal enemy counts (rounded up, retaining introductions); one
-guaranteed-duplicate pack and its index upgrade. The wave reward is
-200 coins once. The pack charge/cards/checkpoint and upgrade/checkpoint each save
+Fresh profiles opt into `TutorialProgress.Version = 1`. After movement and jumping,
+players aim and shoot five dartboards in one lesson. Two fixed-XP enemies drop
+the ground prefab's ordinary coin amount. All practice coins fly to the player.
+After the Basic Health lesson, finishing practice grants 200 additional coins
+and opens the shop lesson for the guaranteed pack and its index upgrade. The pack charge/cards/checkpoint and upgrade/checkpoint each save
 together. A saved unopened pack resumes its reveal without another charge.
 Practice uses fading green goals and dartboard targets. Its enemies enter from
 outside the camera and stop before combat. All three Basic cards remain focusable,
 but only Health can be activated. Falling out returns the player without losing
-completed objectives. Neither stage has a restart button. Hidden informational prompts retain their pending action; the first Interact press reopens them. Learned movement/jump controls remain available during
-later lessons. Soft green glows render as siblings behind the visible button/card art,
+completed objectives. Practice has no restart button. Hidden informational prompts retain their pending action; the first Interact press reopens them. Learned movement/jump controls remain available during
+later lessons. Soft green glows extend 20 canvas units beyond the visible button/card art and render as siblings behind it,
 separately from yellow controller focus. They follow layout changes without blocking raycasts. Blocked tutorial actions produce a brief unscaled shake.
-Raised semicircle targets require a change in aim before awarding aim progress;
-shooting them emits a short dartboard-colored burst respecting particle visibility. The index permits browsing packs, layouts, pages and card
+Feather hits destroy the raised semicircle targets and emit a short dartboard-colored burst respecting particle visibility. The index permits browsing packs, layouts, pages and card
 previews while purchase/equipment services retain the tutorial restrictions.
-Interrupted waves resume from the Play menu checkpoint. Tutorial runs do not count
+Older Play and Waves checkpoints migrate directly to Shop with the one-time 200-coin reward. Tutorial runs do not count
 toward the two completed normal runs needed for item drops. LocalCoopSession remembers
 whether a run started in the tutorial, including when skipping changes the saved stage
 before scene teardown.
@@ -1079,7 +1078,7 @@ ordinary cached economy/tip writes preserve the latest saved tutorial state.
 The progression schema remains version 2. `GameUI` gives solo health the classic
 bar proportions and a numeric white-infill label. Health and XP bars are longer
 and inset farther from the top; XP reuses the health-bar silhouette with blue fill
-and no orb decoration. The controller aim indicator is one closed outlined arrow.
+and no orb decoration. Solo and co-op coin icons and amounts sit below XP. The controller aim indicator is one closed outlined arrow.
 
 See [TUTORIAL_IMPLEMENTATION.md](TUTORIAL_IMPLEMENTATION.md) for recovery behavior,
 the file manifest, isolated verification and manual Play Mode checks.
@@ -1395,7 +1394,9 @@ Assets/Scripts/VirtualJoystick.cs
 
 Gameplay passes its owning component to InputHelper. An assigned LocalPlayer
 reads only its own Input System Gamepad: D-pad/left stick movement and upward jump,
-right stick aim with a narrow horizontal snap, RT fire, LB dash. Shared menus use
+right stick aim with a narrow horizontal snap, RT fire, LB dash. For sawblades and Cursor Aura,
+light stick pressure retracts the center toward the duck and firm pressure extends it up to 10 units.
+Full tilt turns with the chosen radius, and releasing the stick retains direction and radius. Shared menus use
 ControllerMenuNavigation with the first controller, bottom face/A to confirm and
 right face/B to go back by default. The old default pair migrates together once;
 customized pairs and unrelated gameplay mappings are preserved. `ControllerBindings` saves remappable Jump,
@@ -1406,7 +1407,8 @@ draws a symmetric dual-stick Logitech-style diagram with live pathways to the
 current bindings; focused callouts highlight their path in yellow. Tutorial
 shortcuts cannot overlap gameplay or menu actions. Menu movement stays
 on D-pad/left stick. Solo automatically prioritizes an attached controller and
-falls back to keyboard/mouse when disconnected. Co-op card panes handle their assigned controllers
+falls back to keyboard/mouse when disconnected or disabled. Device selection, controller reads,
+host counts and lobby seats exclude disabled gamepads. Co-op card panes handle their assigned controllers
 separately; the shared EventSystem's controller submit/move bindings are replaced
 with keyboard-only bindings to prevent duplicate or cross-player submissions.
 Controller focus uses a yellow frame with a dark border drawn in screen pixels,

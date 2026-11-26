@@ -1,0 +1,8 @@
+Physical controller routing: PASS
+Assigned=XInputControllerWindows
+Available=1
+Synthetic=0
+MobileInput=False
+PlayerAlive=True
+MovementEnabled=True
+WeaponEnabled=True

@@ -14,7 +14,7 @@ using UnityEngine.InputSystem.LowLevel;
 public class ItemUpdatePlayProbe : MonoBehaviour
 {
     public static string Result;
-    public static string ReportPath => Path.GetFullPath("tmp/item-update/verification.txt");
+    public static string ReportPath => Path.GetFullPath("tmp/update12/items/verification.txt");
     readonly List<string> _checks = new List<string>();
     readonly List<Gamepad> _pads = new List<Gamepad>(), _realPads = new List<Gamepad>();
     const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
@@ -39,7 +39,7 @@ public class ItemUpdatePlayProbe : MonoBehaviour
             catch (Exception ex) { Result = "FAILED: " + ex; Finish(); yield break; }
             yield return next;
         }
-        Result = "PASS: " + _checks.Count + " update 6 checks"; Finish();
+        Result = "PASS: " + _checks.Count + " item integration checks"; Finish();
     }
     void Finish()
     {
@@ -112,24 +112,26 @@ public class ItemUpdatePlayProbe : MonoBehaviour
         lobby.Close(); LocalCoopSession.RequestedPlayers = 1;
         menu.ShowPanel(menu.SettingsPanel); var settings = menu.SettingsPanel.GetComponent<SettingsMenuUI>();
         settings.OpenKeybinds(); yield return null;
-        Check(settings.KeybindLabels.Length == 15 && settings.KeybindLabels.All(t => t != null), "settings includes all keyboard item controls");
+        Check(settings.KeybindLabels.Length == SettingsMenuUI.BindingActions.Length && settings.KeybindLabels.All(t => t != null), "settings includes all keyboard item controls");
         Check(settings.TryAssignBinding(10, KeyCode.Mouse2) && settings.TryAssignBinding(5, KeyCode.Mouse1), "keyboard item use and shooting can trade former reserved key");
         settings.RestoreKeybinds();
         var controllerUI = Field<ControllerBindingsUI>(settings, "_controllerBindings"); controllerUI.Show(true); yield return null;
-        Check(settings.KeybindPanel.GetComponentsInChildren<TMPro.TMP_Text>().Any(t => t.text == "Item slot 4"), "controller settings includes every item slot");
+        Check(settings.KeybindPanel.GetComponentsInChildren<TMPro.TMP_Text>().Any(t => t.text.StartsWith("Item slot 4\n")), "controller settings includes every item slot");
         foreach (var label in settings.KeybindPanel.GetComponentsInChildren<TMPro.TMP_Text>())
         { label.ForceMeshUpdate(); Check(label.font == menu.UIFont && label.color == Color.white && !label.isTextOverflowing, "controller text fits with original white font: " + label.text); }
-        ScreenCapture.CaptureScreenshot("tmp/item-update/controller-settings.png"); yield return null;
+        ScreenCapture.CaptureScreenshot("tmp/update12/items/controller-settings.png"); yield return null;
         settings.CloseKeybinds(); yield return null;
         var slider = settings.MasterSlider; slider.value = .5f;
         EventSystem.current.SetSelectedGameObject(slider.gameObject);
         yield return Pad(new GamepadState { leftStick = Vector2.right }, .2f);
         Check(Mathf.Approximately(slider.value, .5f), "browsing past a slider does not change its value");
         EventSystem.current.SetSelectedGameObject(slider.gameObject);
-        yield return Pad(new GamepadState().WithButton(GamepadButton.East));
+        yield return Pad(new GamepadState().WithButton(GamepadButton.South));
+        Check(Mathf.Approximately(slider.value, .5f), "first Interact retains slider navigation");
+        yield return Pad(new GamepadState().WithButton(GamepadButton.South));
         yield return Pad(new GamepadState { leftStick = Vector2.right }, .3f);
         Check(slider.value > .55f && EventSystem.current.currentSelectedGameObject == slider.gameObject, "Interact locks slider focus and thumbstick adjusts smoothly");
-        yield return Pad(new GamepadState().WithButton(GamepadButton.East));
+        yield return Pad(new GamepadState().WithButton(GamepadButton.South));
         float value = slider.value;
         yield return Pad(new GamepadState { leftStick = Vector2.right }, .2f);
         Check(Mathf.Approximately(slider.value, value), "second Interact exits slider editing");
@@ -146,7 +148,7 @@ public class ItemUpdatePlayProbe : MonoBehaviour
             Check(menu.CardRevealCenter.GetComponentsInChildren<CardDisplay>().Length == count * 3, "all cards revealed for " + count + " packs");
             if (count == 3) { tripleHeight = menu.RevealGrid.cellSize.y; Check(menu.RevealGrid.constraintCount == 5, "three-pack reveal uses five columns and two rows"); }
             else Check(tripleHeight > menu.RevealGrid.cellSize.y * 1.3f, "three-pack cards are substantially larger than six-pack cards");
-            ScreenCapture.CaptureScreenshot("tmp/item-update/reveal-" + count + ".png"); yield return null;
+            ScreenCapture.CaptureScreenshot("tmp/update12/items/reveal-" + count + ".png"); yield return null;
             menu.ContinueButton.onClick.Invoke(); yield return null;
         }
         menu.OpenIndex(); yield return null;
@@ -247,7 +249,7 @@ public class ItemUpdatePlayProbe : MonoBehaviour
         Check(Mathf.Abs(factor - .5f) < .001f, "radiation slows newly spawned enemies by fifty percent");
         for (int i = 0; i < 9; i++) LocalCoopSession.Instance.CompleteWave(); yield return null; Check(radiation != null, "radiation survives nine waves");
         LocalCoopSession.Instance.CompleteWave(); yield return null; yield return null; Check(radiation == null, "radiation expires after ten waves"); ClearEnemies();
-        Vector2 cursor = Camera.main.ScreenToWorldPoint(player.AimScreenPosition());
+        Vector2 cursor = player.EffectCursorPosition;
         a = Enemy(cursor); a.GetComponent<BoxCollider2D>().size = Vector2.one * 5;
         for (int i = 0; i < 4; i++) Use(items, ItemKind.Sawblade);
         yield return null; yield return null; float sawHealth = a.HealthRemaining;
@@ -255,8 +257,27 @@ public class ItemUpdatePlayProbe : MonoBehaviour
         yield return new WaitForSeconds(.3f); Check(a.HealthRemaining == sawHealth, "each sawblade hits an enemy only once during an orbit");
         yield return new WaitForSeconds(1.4f); Check(a.HealthRemaining <= a.MaxHealth - 8 && a.HealthRemaining >= a.MaxHealth - 12, "sawblades hit again after a full orbit");
         var saws = FindObjectsByType<SpriteRenderer>(FindObjectsSortMode.None).Where(s => s.name == "Item sawblade").ToArray();
-        Check(saws.Length == 4 && Vector2.Distance((saws[0].transform.position + saws[2].transform.position) * .5f, cursor) < .15f, "four sawblades remain evenly spaced around the cursor");
-        ScreenCapture.CaptureScreenshot("tmp/item-update/sawblades.png"); yield return null;
+        Vector2 orbitCenter = Vector2.zero;
+        foreach (var saw in saws) orbitCenter += (Vector2)saw.transform.position / saws.Length;
+        Check(saws.Length == 4 && Vector2.Distance(orbitCenter, player.EffectCursorPosition) < .15f &&
+            saws.All(s => Mathf.Abs(Vector2.Distance(s.transform.position, orbitCenter) - 1.5f) < .02f) &&
+            saws.All(s => saws.All(other => s == other || Vector2.Distance(s.transform.position, other.transform.position) > 2)),
+            "four sawblades remain evenly spaced around the cursor");
+        ScreenCapture.CaptureScreenshot("tmp/update12/items/sawblades.png"); yield return null;
+        stats.ActivateAscension(CardAscension.CursorAura);
+        yield return Pad(new GamepadState { rightStick = Vector2.right * .4f }, 1.6f);
+        Check(Vector2.Distance(player.EffectCursorPosition, player.transform.position) < .01f, "Light pressure pulls the effect cursor onto the duck.");
+        yield return Pad(new GamepadState { rightStick = Vector2.up * .72f }, .4f);
+        float reach = Vector2.Distance(player.EffectCursorPosition, player.transform.position);
+        Check(reach > 1 && reach < 9, "Firm pressure extends reach incrementally.");
+        yield return Pad(new GamepadState { rightStick = Vector2.left }, .3f);
+        Vector2 center = player.EffectCursorPosition;
+        Check(Vector2.Distance(center, (Vector2)player.transform.position + Vector2.left * reach) < .02f, "Full tilt turns the effect cursor and releasing holds the radius.");
+        Vector2 sawCenter = Vector2.zero;
+        foreach (var saw in saws) sawCenter += (Vector2)saw.transform.position / saws.Length;
+        Check(Vector2.Distance(center, sawCenter) < .03f && Vector2.Distance(center, player.Movement.AuraChild.transform.position) < .03f, "The aura and four-saw orbit share the adjustable center.");
+        yield return Pad(new GamepadState { rightStick = Vector2.right * .72f }, 1.6f);
+        Check(Mathf.Abs(Vector2.Distance(player.EffectCursorPosition, player.transform.position) - 10) < .01f, "Extended reach caps at ten units.");
         stats.HasSecondWind = false; player.Health.TryTakeDamage(10000); yield return null;
         Check(items.SawbladeCount == 0, "sawblades are removed on player death");
     }

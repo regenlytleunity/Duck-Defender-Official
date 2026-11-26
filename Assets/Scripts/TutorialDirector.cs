@@ -16,18 +16,18 @@ public partial class TutorialDirector : MonoBehaviour
     public static bool Practice => Instance != null && Instance._practice;
     public static bool ProtectedRun => Instance != null && Instance._protectedRun;
     public static bool HoldsPause => Instance != null && (Instance._pause || Instance._skipOpen);
-    public static bool HoldWaves => CoreActive && (Progress.Stage != TutorialStage.Waves || Instance == null || !Instance._wavesStarted);
+    public static bool HoldWaves => CoreActive;
     public static bool AllowMovement => !Practice || Instance._step >= PracticeStep.Move;
     public static bool AllowJump => !Practice || Instance._step >= PracticeStep.Jump;
-    public static bool AllowAim => !Practice || Instance._step >= PracticeStep.Aim;
+    public static bool AllowAim => !Practice || Instance._step >= PracticeStep.Shoot;
     public static bool AllowShooting => !Practice || Instance._step == PracticeStep.Shoot || Instance._step == PracticeStep.Combat;
     public static bool AllowItems => !CoreActive;
-    public static bool CanPlay => !MenuLocked || CoreActive && Progress.Stage == TutorialStage.Play;
+    public static bool CanPlay => !MenuLocked;
     public static void RefreshProgress(PlayerData data) { if (Application.isPlaying) Progress = data.Tutorial; }
 
     MainMenuUI _menu;
     LocalPlayer _player;
-    bool _practice, _protectedRun, _pause, _wavesStarted, _ready, _transitioning, _failed;
+    bool _practice, _protectedRun, _pause, _ready, _transitioning, _failed;
     float _promptElapsed, _readyElapsed;
     bool _continueReleased;
     static int _continueConsumedFrame = -1;
@@ -98,7 +98,6 @@ public partial class TutorialDirector : MonoBehaviour
         {
             Time.timeScale = 1;
             if (CoreActive && Progress.Stage == TutorialStage.Basics) { StartGame(); yield break; }
-            if (CoreActive && Progress.Stage == TutorialStage.Waves) SaveStage(TutorialStage.Play);
             EnsureUI();
             if (CoreActive && Progress.Stage == TutorialStage.PackPurchased) _menu.ResumeTutorialPack();
             UpdateMenu();
@@ -107,13 +106,7 @@ public partial class TutorialDirector : MonoBehaviour
         {
             _player = LocalCoopSession.Instance != null && LocalCoopSession.Instance.Players.Count > 0 ? LocalCoopSession.Instance.Players[0] : null;
             if (_protectedRun && _player == null) { Failure("The tutorial player is missing. Return to the menu and retry."); yield break; }
-            if (_practice) { EnsureUI(); _origin = _player.transform.position; BeginPractice(PracticeStep.Welcome); }
-            else if (CoreActive && (Progress.Stage == TutorialStage.Play || Progress.Stage == TutorialStage.Waves))
-            {
-                SaveStage(TutorialStage.Waves); EnsureUI();
-                Prompt("Defeat enemies to level up and earn coins.", () => { _wavesStarted = true; Pause(false); HidePrompt(); });
-                Pause(true);
-            }
+            if (_practice) { EnsureUI(); _origin = _player.transform.position; _playerCollider = _player.GetComponent<Collider2D>(); BeginPractice(PracticeStep.Welcome); }
             else if (CoreActive) ReturnToMenu();
         }
     }
@@ -165,8 +158,6 @@ public partial class TutorialDirector : MonoBehaviour
         if (_skipOpen) { UpdateSkipConfirmation(); return; }
         if (_menu != null) UpdateMenu();
         else if (_practice && _player != null) UpdatePractice();
-        else if (_protectedRun && WaveManager.Instance != null && WaveManager.Instance.HasWaveError)
-            Failure("This wave could not start. Return to the menu to retry the stage.");
         if (_panel == null || _lastPrompt == null) return;
         bool covered = !_failed && (EnemyTipUI.Instance != null && EnemyTipUI.Instance.IsShowing || LevelUpUI.Instance != null && LevelUpUI.Instance.IsOffering && (!_practice || _step != PracticeStep.Cards));
         bool disconnected = LocalCoopSession.Instance != null && LocalCoopSession.Instance.DevicesMissing;
@@ -225,17 +216,18 @@ public partial class TutorialDirector : MonoBehaviour
         SceneManager.LoadScene("MainMenu");
     }
     void Failure(string message) { _failed = true; Prompt(message, ReturnToMenu); Pause(true); }
-    public static bool CompleteWave(int wave)
+    void FinishPractice()
     {
-        if (Instance == null || !Instance._protectedRun || wave < 5 || Progress.Stage != TutorialStage.Waves) return false;
-        LevelManager.Instance?.FlushCoinSave();
+        var level = LevelManager.Instance;
+        level.FlushCoinSave();
         var data = SaveSystem.LoadData();
-        TutorialProgress.GrantWaveReward(data);
-        SaveSystem.SaveData(data, updateTutorial: true);
-        if (LevelManager.Instance != null) LevelManager.Instance.TotalCoins = data.TotalCoins;
-        Instance.Prompt("Stage 2 complete! Let's spend those coins at the shop.", Instance.ReturnToMenu);
-        Instance.Pause(true);
-        return true;
+        if (TutorialProgress.GrantPracticeReward(data))
+        {
+            SaveSystem.SaveData(data, updateTutorial: true);
+            level.TotalCoins = data.TotalCoins;
+            GameUI.Instance?.UpdateCoinText(data.TotalCoins);
+        }
+        ReturnToMenu();
     }
     void OnDestroy()
     {

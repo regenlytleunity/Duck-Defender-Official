@@ -49,7 +49,7 @@ public class AuraController : MonoBehaviour
         if (OwnerStats != null && OwnerStats.HasAscension(CardAscension.CursorAura))
         {
             Camera cam = Camera.main;
-            if (cam != null) { Vector3 point = cam.ScreenToWorldPoint(InputHelper.GetMousePosition(this)); point.z = 0; transform.position = point; }
+            if (cam != null) { Vector3 point = cam.ScreenToWorldPoint(InputHelper.GetMousePosition(this, effectCursor: true)); point.z = 0; transform.position = point; }
         }
         else if (OwnerStats != null) transform.position = OwnerStats.transform.position;
         _currentRadius = radius;

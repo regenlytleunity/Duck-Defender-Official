@@ -55,10 +55,9 @@ public class CoopVerificationProbe : MonoBehaviour
     {
         Directory.CreateDirectory(OutputPath);
         Check(!string.IsNullOrEmpty(SaveSystem.VerificationSavePath), "Test save is isolated from the host account");
-        // The host uses Gamepad.all[0]; temporarily isolate simulated devices from
-        // connected hardware so a real controller cannot take the test host seat.
-        _originalPads.AddRange(Gamepad.all);
-        foreach (var pad in _originalPads) InputSystem.RemoveDevice(pad);
+        // Preserve native device registration while isolating the simulated seats.
+        _originalPads.AddRange(Gamepad.all.Where(pad => pad.enabled));
+        foreach (var pad in _originalPads) InputSystem.DisableDevice(pad);
         for (int i = 0; i < 4; i++) _pads.Add(InputSystem.AddDevice<Gamepad>());
         ControllerBindings.Reset();
         yield return null;
@@ -94,7 +93,10 @@ public class CoopVerificationProbe : MonoBehaviour
         if (indexCard.UpgradeButton.IsInteractable())
         {
             indexCard.ClickButton.onClick.Invoke();
-            Check(UnityEngine.EventSystems.EventSystem.current.currentSelectedGameObject == indexCard.UpgradeButton.gameObject, "Confirm on an index card focuses its upgrade action");
+            var action = UnityEngine.EventSystems.EventSystem.current.currentSelectedGameObject;
+            Check(action != null && action.name.StartsWith("Upgrade - ") &&
+                action.transform.IsChildOf(menu.NavigationScope.transform), "Confirm on an index card focuses its modal upgrade action");
+            menu.IndexPanel.GetComponent<IndexLoadoutUI>().HandleBack();
         }
         ScreenCapture.CaptureScreenshot(Path.Combine(OutputPath, "index-all.png")); yield return new WaitForEndOfFrame();
         var host = MainMenuUI.Instance.GetComponent<HostMenuUI>(); host.Open();
@@ -103,7 +105,7 @@ public class CoopVerificationProbe : MonoBehaviour
         UnityEngine.EventSystems.EventSystem.current.SetSelectedGameObject(playerRow.gameObject);
         InputSystem.QueueStateEvent(_pads[0], new GamepadState().WithButton(GamepadButton.South));
         yield return null; yield return null;
-        Check(playerRow.GetComponentInChildren<TMPro.TMP_Text>().text.Contains("3"), "Host controller B activates a menu option exactly once");
+        Check(playerRow.GetComponentInChildren<TMPro.TMP_Text>().text.Contains("3"), "Host controller A activates a menu option exactly once");
         InputSystem.QueueStateEvent(_pads[0], new GamepadState());
         Set(host, "_count", 4); Call(host, "Refresh");
         yield return null; Canvas.ForceUpdateCanvases();
@@ -323,7 +325,7 @@ public class CoopVerificationProbe : MonoBehaviour
     void OnDestroy()
     {
         foreach (var pad in _pads) if (pad != null && pad.added) InputSystem.RemoveDevice(pad);
-        foreach (var pad in _originalPads) if (pad != null && !pad.added) InputSystem.AddDevice(pad);
+        foreach (var pad in _originalPads) if (pad != null && pad.added) InputSystem.EnableDevice(pad);
     }
 }
 #endif

@@ -43,10 +43,10 @@ public class LocalCoopSession : MonoBehaviour
         }
         for (int i = 0; i < count; i++)
         {
-            bool pad = count == 1 ? Gamepad.all.Count > 0 : !(KeyboardTest && count == 2 && i == 0);
+            bool pad = count == 1 ? ControllerBindings.ConnectedCount > 0 : !(KeyboardTest && count == 2 && i == 0);
             int deviceIndex = KeyboardTest && count == 2 ? i - 1 : i;
             var player = bodies[i].GetComponent<LocalPlayer>() ?? bodies[i].AddComponent<LocalPlayer>();
-            var controller = count > 1 && PlayerControllers[i] != null ? PlayerControllers[i] : pad && deviceIndex >= 0 && deviceIndex < Gamepad.all.Count ? Gamepad.all[deviceIndex] : null;
+            var controller = count > 1 && PlayerControllers[i] != null ? PlayerControllers[i] : pad ? ControllerBindings.GamepadAt(deviceIndex) : null;
             player.Configure(i, controller, pad);
             Players.Add(player);
             if (turretTemplate != null)
@@ -103,7 +103,7 @@ public class LocalCoopSession : MonoBehaviour
         {
             if (Players.Count == 0) return;
             var current = Players[0].Controller;
-            var controller = current != null && current.added ? current : Gamepad.all.Count > 0 ? Gamepad.all[0] : null;
+            var controller = ControllerBindings.IsAvailable(current) ? current : ControllerBindings.MenuPad;
             if (current != controller || Players[0].UsesGamepad != (controller != null)) Players[0].AssignController(controller, controller != null);
             return;
         }

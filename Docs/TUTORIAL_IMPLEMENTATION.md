@@ -1,16 +1,16 @@
 # Guided tutorial implementation
 
 Implemented from `Duck Defender Update (7).pdf` (three pages), with the refinements
-in `Duck Defender Update (8).pdf` (one page) and Updates (9), (10) and (11). These documents supply the gameplay
+in `Duck Defender Update (8).pdf` (one page) and Updates (9) through (12). These documents supply the gameplay
 outline; repository rules govern implementation and Unity assets.
 
 ## Behavior and recovery
 
 - A fresh save automatically enters practice. Existing version-2 saves keep their
   coins/cards and skip the core tutorial. Reset Game Data creates a fresh tutorial.
-- Practice unlocks movement, jumping, aiming and shooting in order. Both movement
-  goals, landing on the box, all five aim goals and five real feather hits are
-  required. Instructions reflect the current keyboard/controller bindings and
+- Practice teaches movement, then jumping, then aiming and shooting together.
+  Touching both pads with the player collider, jumping onto the top of the box
+  and destroying all five targets with feathers complete the objectives. Instructions reflect the current keyboard/controller bindings and
   move/aim stick assignment. Touch practice instructions use the existing sticks.
 - Walking and box-landing goals fade upward from green to transparent. Five
   dartboards appear farther from the player for aiming and shooting. These visuals
@@ -20,16 +20,14 @@ outline; repository rules govern implementation and Unity assets.
   objectives. Closing the game still restarts stage 1 from its saved checkpoint.
 - Two existing ground-enemy prefabs enter from outside the camera and move toward
   fixed stop points, then freeze. They cannot take damage during the approach.
-  They have 2 HP, give exactly half a level each and no coins. All three Basic
+  They have 2 HP, give exactly half a level each and drop their usual coins.
+  Coins fly to the duck from any distance and the coin HUD appears below XP. All three Basic
   offers can be focused/hovered; only Health can be activated. XP and health HUDs
   appear at their lessons. Sibling decorations are hidden with the locked HUD.
-- Stage 2 holds waves until the introduction's Interact press, runs waves 1–5 with
-  half the normal enemies (2, 3, 4, 5, 6 with current assets), keeps enemy tips, disables
-  items/drops and floors incoming damage at 1 HP. There is no Restart stage button.
-  Returning to MainMenu during it returns to the Play checkpoint.
-  Wave 5 saves the 200-coin reward and next checkpoint together before pausing;
-  repeat completion calls cannot grant it again. These tutorial sessions do not
-  count toward the existing normal-run item-drop eligibility.
+- Finishing practice awards 200 coins in addition to collected drops. The reward
+  and Shop checkpoint are saved together. Saves at the retired Play and Waves
+  checkpoints receive the same reward once and resume at Shop. Practice does
+  not count toward normal-run item-drop eligibility.
 - Menu controls and underlying purchase/equipment methods both enforce the
   tutorial restrictions. The guaranteed pack has two copies of one starter and
   one previously locked Common in the selected pack. Pack purchase and the later
@@ -83,8 +81,8 @@ outline; repository rules govern implementation and Unity assets.
 
 Checkpoints use the existing player save. Ordinary cached economy/tip writes
 preserve newer tutorial progress. Practice objectives are intentionally ephemeral:
-closing the application during stage 1 restarts practice from Welcome. Stage 2
-restarts at wave 1, preserving coins already saved and the one-time reward rule.
+closing the application during stage 1 restarts practice from Welcome. Finishing
+practice or migrating an old second-stage save resumes the shop lesson.
 
 ## Unity setup
 
@@ -102,7 +100,7 @@ Artist-authored visuals and device/resolution-specific visual tuning remain the
 user's responsibility. The solo health and XP bars share the longer classic silhouette, sit farther below
 the top edge, and retain white text. XP uses blue fill and no orb decoration.
 
-## Changed files
+## Original tutorial implementation files
 
 All paths below are relative to the repository root.
 
@@ -226,11 +224,8 @@ require fixing their assignments; the current required references were checked.
 
 ## Play Mode checklist
 
-The current Update (9) file manifest, verified results, balance assumptions and
-manual checklist are in [UPDATE_9_IMPLEMENTATION.md](UPDATE_9_IMPLEMENTATION.md).
-The Update (8) and Update (9) results above are historical; the current probe writes
-to `tmp/update10/` to preserve the earlier screenshots and verification records.
-
+For Update (12), use the checklist and file manifest at the end of this document.
+Earlier update reports record the behavior and verification for their respective versions.
 
 ### Update (10) original changes and manual checks (historical)
 
@@ -486,3 +481,140 @@ compiled, but their full suites were not rerun. No physical-controller acceptanc
 mobile device or WebGL/player build verification was performed. Final artwork
 approval and behavior on other screen sizes remain user checks. The temporary
 Play Mode sessions restore saved preferences on exit; the Editor is left stopped.
+
+## Update (12) implementation and acceptance
+
+The coin icon and amount sit below XP in solo and co-op. Enemy spawning floors
+maximum health after collection, wave, type and elite scaling. Sabotage also
+floors the resulting starting health, with a minimum of 1 HP. Combat damage
+still supports fractions.
+
+Sawblades and Cursor Aura share a per-player adjustable center. Processed aim
+pressure from 0.2 to 0.5 retracts it at 8 world units per second. Pressure from
+0.6 to 0.92 extends it. The neutral, middle and outer bands hold the radius.
+The radius spans 0 to 10 units from the duck. Full tilt changes direction at the
+selected reach. The assigned aiming stick is respected after swapping sticks.
+These thresholds and speed are implementation choices for physical playtesting.
+
+The item sheet contains twelve distinct 32-pixel illustrations with transparent
+backgrounds. ItemCatalog uses the sheet for shop, inventory, pickups, the item
+wheel and applicable world effects. Unity imported it with point filtering,
+uncompressed color and no mipmaps.
+
+Practice combines aiming and shooting into five targets. Its two ground enemies
+drop their usual 4–6 coins each and the coins automatically fly to the player.
+Completing the health lesson and collecting the drops unlocks the end prompt.
+Continue saves 200 additional coins and the Shop checkpoint together, then
+returns to MainMenu. Older Play/Waves saves receive that reward once and resume
+the shop. The serialized stage numbers remain stable.
+
+Movement pads accept the player's collider edge. The box requires an actual jump
+event followed by upward-facing contact with its top. The button glow extends
+20 canvas units beyond each edge and uses a soft falloff sized consistently for
+both authored and runtime canvases.
+
+### Files changed for Update (12)
+
+| File | Reason |
+| --- | --- |
+| Assets/Scripts/GameUI.cs | Place solo coins below XP and remove the retired five-wave suffix. |
+| Assets/Scripts/CoopRunUI.cs | Place co-op coins below the shared XP bar. |
+| Assets/Scripts/EnemyBase.cs | Floor spawn health and share ordinary coin drops with practice enemies. |
+| Assets/Scripts/LocalPlayer.cs | Store and adjust each controller player's effect reach. |
+| Assets/Scripts/Inputhelper.cs | Route adjustable effect positions through existing input ownership. |
+| Assets/Scripts/AuraController.cs | Use the adjustable position for Cursor Aura. |
+| Assets/Scripts/PlayerItems.cs | Center sawblade orbits at the adjustable position. |
+| Assets/Scripts/ItemCatalog.cs | Load and cache the twelve item sprites from the sheet. |
+| Assets/Resources/ItemIcons.png | Distinct placeholder illustrations for every item. |
+| Assets/Resources/ItemIcons.png.meta | Unity-generated texture metadata and import settings. |
+| Assets/Scripts/PlayerController.cs | Notify the tutorial when a jump actually occurs. |
+| Assets/Scripts/TutorialDirector.Practice.cs | Combined shooting lesson, forgiving pad contacts, top landings and practice coin lesson. |
+| Assets/Scripts/TutorialDirector.cs | End practice at the shop and transact its completion reward. |
+| Assets/Scripts/TutorialDirector.Dialogue.cs | Match the stick demonstration to the combined lesson. |
+| Assets/Scripts/TutorialDirector.Menus.cs | Remove retired Play guidance and enlarge/soften the green glow. |
+| Assets/Scripts/TutorialProgress.cs | Grant the practice reward once while retaining serialized checkpoint values. |
+| Assets/Scripts/SaveSystem.cs | Migrate retired Play/Waves checkpoints into the funded shop. |
+| Assets/Scripts/Coin.cs | Vacuum practice coins and expose pending pickups for completion. |
+| Assets/Scripts/WaveManager.cs | Remove the retired tutorial wave reduction and wave-five completion. |
+| Assets/Scripts/Editor/EnemyUpdateVerification.cs | Assert floored normal, elite and Sabotage spawn health. |
+| Assets/Scripts/Editor/TutorialVerification.cs | Verify the practice reward and old-checkpoint migration. |
+| Assets/Scripts/Editor/UIUpdateVerification.cs | Expect floored health in gameplay verification. |
+| Assets/Scripts/TutorialPlayProbe.cs | Exercise the shortened tutorial, edge contacts, coins and direct shop transition. |
+| Assets/Scripts/ItemUpdatePlayProbe.cs | Exercise adjustable sawblade/aura reach and current controller UI behavior. |
+| Assets/Scripts/CoopVerificationProbe.cs | Verify card upgrade focus in the current modal before continuing co-op checks. |
+| Docs/ARCHITECTURE.md | Describe current health, tutorial, icons and controller behavior. |
+| Docs/TUTORIAL_IMPLEMENTATION.md | Record implementation choices, file reasons, setup and acceptance checks. |
+
+### Unity setup and manual acceptance
+
+The existing MainMenu and SampleScene references support this update. No extra
+Inspector assignments or scene/prefab setup are required. The item texture and
+its Unity-generated metadata must accompany the source changes.
+
+1. Start a disposable fresh profile. Graze each movement pad, then jump onto an
+   edge of the box. Walking against its side must leave the objective incomplete.
+2. Aim and shoot all five targets in one lesson. Test keyboard/mouse and a physical
+   controller, including remapped fire and swapped sticks.
+3. Defeat both enemies. Check the coin popup, coins flying to the duck and the
+   counter below XP. Finish the health lesson, collect the 200-coin bonus and
+   proceed directly to the shop.
+4. Complete the pack and upgrade lessons. Reload the menu and confirm purchases,
+   rewards and the completed tutorial persist.
+5. With sawblades and Cursor Aura, use light tilt to retract, firm partial tilt
+   to extend, and full tilt to aim at a fixed reach. Release the stick, pause,
+   reconnect and test a second player controlling their own effects.
+6. Inspect all twelve item icons in inventory, shop and the item wheel. Check the
+   green glow and white text at the intended game resolution.
+7. On a fresh collection, confirm ordinary ground enemies on wave 2 take two
+   points of damage to defeat. Repeat with elites and collection upgrades.
+
+### Verification completed for Update (12)
+
+- Unity 6000.0.35f1 successfully compiled the final scripts.
+- 69 isolated save, economy and serialized-reference checks passed, including
+  the one-time 200-coin reward and both retired-checkpoint migrations.
+- 184 collection difficulty checks passed for normal enemies, elites, Sabotage,
+  collection scaling and repeated initialization.
+- 217 tutorial Play Mode checks passed with a simulated controller and a temporary
+  save. These covered a real jump/top landing, a collider grazing a movement pad,
+  five real feather hits, ordinary coin drops and vacuum collection, the 200-coin
+  shop handoff, purchases, upgrades, reload recovery, item guidance and skipping.
+- 23 targeted gameplay checks passed for two-hit wave-two enemies, all twelve icon
+  resources, co-op coin layout, two independent effect cursors, full-tilt hold,
+  release hold, swapped sticks and actual aura/sawblade centers.
+- 218 item integration checks passed. These covered item consumption, bomb impact,
+  Shock, clone expiry, fire damage, Divine Intervention/restoration, Nuke radiation,
+  sawblade damage per orbit and adjustable reach, plus menu/input integration.
+- 95 controller/settings checks passed for navigation, toggles, slider double
+  presses, rebinding, capture cancellation and return paths.
+- 192 co-op integration checks passed for device ownership, movement, shooting,
+  disconnection/reconnection, independent card offers, respawn, game-over results,
+  2–4-player sessions, and solo keyboard fallback/controller hotplug.
+- Reviewed item artwork, the solo HUD, combined tutorial prompt, card guidance and
+  shop glow at 1920x1080. A second glow pass corrected its sliced-border scale for
+  the authored canvas. Static diff review and whitespace checks passed.
+
+The older item/co-op probes assumed an earlier controller layout, single-press
+slider editing and inline card upgrades. Their assertions now follow the current
+UI. The sawblade assertion now checks all four positions instead of assuming a
+scene-search enumeration order. The final suites passed after these corrections.
+The Console retains an earlier corrected probe failure and historical command
+errors. Its captured log has no subsequent error from the successful final runs.
+Existing missing-script import warnings and device-disconnection warnings remain.
+
+Tests used isolated saves and restored saved preferences on exit. The Editor is
+stopped with the clean MainMenu scene open. Physical-controller feel, mobile
+device behavior, other resolutions and standalone/WebGL builds have not been
+verified for this update. The broader card/combat suite was not rerun.
+
+Verification records are under tmp/update12. The saved reports are
+save-verification.txt, difficulty-verification.txt, gameplay.txt,
+controller-verification.txt, coop-verification.txt, tutorial/play-verification.txt
+and items/verification.txt. The folder also contains the external
+gameplay-check.cs and controller-check.cs verification scripts and PNG/JPEG
+captures used for visual review. These supporting files are outside Assets.
+The final glow capture is glow-final.png. Older tutorial screenshots show the
+first glow pass.
+
+Local uGUI Basic Layout and Rect Transform documentation, and the installed
+Unity Pipeline scripts/build-and-compilation documentation informed the checks.

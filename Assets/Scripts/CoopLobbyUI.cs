@@ -47,7 +47,7 @@ public class CoopLobbyUI : MonoBehaviour
             int seat = i;
             bool keyboard = LocalCoopSession.KeyboardTest && count == 2 && i == 0;
             int device = LocalCoopSession.KeyboardTest && count == 2 ? i - 1 : i;
-            LocalCoopSession.PlayerControllers[i] = keyboard ? null : Gamepad.all[device];
+            LocalCoopSession.PlayerControllers[i] = keyboard ? null : ControllerBindings.GamepadAt(device);
             _ready[i] = false; _focus[i] = _key[i] = 0; _repeat[i] = 0;
             var panel = CoopRunUI.PlayerPanel(_root, i, count);
             CoopUIElements.Text(panel, "PLAYER " + (i + 1) + " - CUSTOMIZE", new Vector2(.03f, .9f), new Vector2(.97f, .99f), 32);
@@ -116,7 +116,7 @@ public class CoopLobbyUI : MonoBehaviour
         {
             var pad = LocalCoopSession.PlayerControllers[i];
             bool keyboard = LocalCoopSession.KeyboardTest && LocalCoopSession.RequestedPlayers == 2 && i == 0;
-            if (!keyboard && (pad == null || !pad.added))
+            if (!keyboard && !ControllerBindings.IsAvailable(pad))
             { _ready[i] = false; _status[i].text = "Reconnect your controller"; allReady = false; _frames[i].Hide(); continue; }
             if (Time.unscaledTime >= _inputAfter)
             {

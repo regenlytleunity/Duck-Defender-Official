@@ -118,7 +118,8 @@ public static class EnemyUpdateVerification
                 {
                     stats.EnemyHealthMissingPercent = 0;
                     enemy.IsElite = false; enemy.Initialize(wave);
-                    float expected = enemy is TankEnemy ? 3 * GameDifficulty.HealthAtWave(2, wave) : GameDifficulty.HealthAtWave(enemy.EnemyKind == "ground" ? 2 : 1, wave);
+                    float rawHealth = enemy is TankEnemy ? 3 * GameDifficulty.HealthAtWave(2, wave) : GameDifficulty.HealthAtWave(enemy.EnemyKind == "ground" ? 2 : 1, wave);
+                    float expected = Mathf.Max(1, Mathf.Floor(rawHealth));
                     Near(enemy.MaxHealth, expected, "Spawn health " + enemy.EnemyKind + " wave " + wave);
                     enemy.TakeItemDamage(.5f, null);
                     Near(enemy.HealthRemaining, expected - .5f, "Fractional damage retained.");
@@ -126,12 +127,12 @@ public static class EnemyUpdateVerification
                     Near(enemy.HealthRemaining, expected, "Reinitialization uses unscaled values, not remaining HP.");
                     stats.EnemyHealthMissingPercent = .37f; enemy.Initialize(wave);
                     Near(enemy.MaxHealth, expected, "Sabotage does not change maximum HP.");
-                    Near(enemy.HealthRemaining, Mathf.Max(1, expected * .63f), "Sabotage applied once to fractional HP.");
+                    Near(enemy.HealthRemaining, Mathf.Max(1, Mathf.Floor(expected * .63f)), "Sabotage spawn HP rounds down.");
                     enemy.Initialize(wave);
-                    Near(enemy.HealthRemaining, Mathf.Max(1, expected * .63f), "Sabotage does not compound on reuse.");
+                    Near(enemy.HealthRemaining, Mathf.Max(1, Mathf.Floor(expected * .63f)), "Sabotage does not compound on reuse.");
                     enemy.IsElite = true; enemy.Initialize(wave);
                     float elite = enemy.EnemyKind == "ground" ? 1.5f : enemy.EnemyKind == "lobber" ? 1.25f : 1;
-                    Near(enemy.MaxHealth, expected * elite, "Elite modifier retained.");
+                    Near(enemy.MaxHealth, Mathf.Max(1, Mathf.Floor(rawHealth * elite)), "Elite health rounds after its multiplier.");
                     var size = enemy.transform.localScale; var color = enemy.GetComponent<SpriteRenderer>().color;
                     enemy.Initialize(wave);
                     Check(enemy.transform.localScale == size && enemy.GetComponent<SpriteRenderer>().color == color, "Repeated elite initialization preserves size and tint.");
@@ -175,7 +176,7 @@ public static class EnemyUpdateVerification
 
             var normal = Enemy(false);
             var elite = Enemy(false, true);
-            Near(elite.MaxHealth, normal.MaxHealth * 1.5f, "elite ground health");
+            Near(elite.MaxHealth, Mathf.Floor(normal.MaxHealth * 1.5f), "elite ground health");
             var tank = (TankEnemy)Enemy(true);
             Near(tank.MaxHealth, 6, "tank uses three times basic ground health");
             tank.transform.position = new Vector3(20, 0);
