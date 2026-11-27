@@ -7,6 +7,8 @@ public class GameUI : MonoBehaviour
 {
     public static GameUI Instance; 
     public TMP_FontAsset UIFont;
+    [Tooltip("Optional artwork for dropped keys. An amber placeholder is used when unassigned.")]
+    public Sprite KeyIcon;
 
     [Header("HUD")]
     public TextMeshProUGUI WaveText;

@@ -594,7 +594,8 @@ public abstract class EnemyBase : MonoBehaviour
             TutorialDirector.Instance?.PracticeEnemyDefeated();
             Destroy(gameObject); return;
         }
-        ItemPickup.TryDrop(transform.position);
+        ItemPickup.TryDrop(transform.position, IsElite, DamageOwner);
+        DailyQuests.RecordRun(DailyQuestKind.Kills, 1);
 
         if (DamageOwner != null && DamageOwner.HasAscension(CardAscension.Vampire))
             DamageOwner.GetComponent<AscensionEffects>()?.DropHealingOrb(transform.position);

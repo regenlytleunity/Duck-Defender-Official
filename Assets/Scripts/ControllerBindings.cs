@@ -5,9 +5,9 @@ using UnityEngine.InputSystem.Controls;
 // Saved controller mappings used by the existing input and menu owners.
 public static class ControllerBindings
 {
-    public static readonly string[] Actions = { "Jump", "Dash", "Shoot", "Confirm", "Back", "UseItem", "Item1", "Item2", "Item3", "Item4", "Tutorial", "SkipTutorial" };
-    public static readonly string[] ActionNames = { "Jump / fly up", "Dash / blink", "Shoot", "Interact", "Back", "Use item", "Item slot 1", "Item slot 2", "Item slot 3", "Item slot 4", "Show tutorial", "Skip tutorial" };
-    public static readonly string[] Defaults = { "MoveUp", "leftShoulder", "rightTrigger", "buttonSouth", "buttonEast", "rightShoulder", "dpad/up", "dpad/right", "dpad/down", "dpad/left", "buttonNorth", "buttonWest" };
+    public static readonly string[] Actions = { "Jump", "Dash", "Shoot", "Confirm", "Back", "UseItem", "Item1", "Item2", "Tutorial", "SkipTutorial" };
+    public static readonly string[] ActionNames = { "Jump / fly up", "Dash / blink", "Shoot", "Interact", "Back", "Use item", "Item slot 1", "Item slot 2", "Show tutorial", "Skip tutorial" };
+    public static readonly string[] Defaults = { "MoveUp", "leftShoulder", "rightTrigger", "buttonSouth", "buttonEast", "rightShoulder", "dpad/left", "dpad/right", "buttonNorth", "buttonWest" };
     public static readonly string[] Controls = { "buttonSouth", "buttonEast", "buttonWest", "buttonNorth", "leftShoulder", "rightShoulder", "leftTrigger", "rightTrigger", "leftStickPress", "rightStickPress", "start", "select", "dpad/up", "dpad/down", "dpad/left", "dpad/right" };
     public const string Prefix = "DuckDefender_Controller_";
     public static bool IsAvailable(Gamepad pad) => pad != null && pad.added && pad.enabled;
@@ -25,6 +25,12 @@ public static class ControllerBindings
     public static string Get(string action)
     {
         MigrateMenuDefaults();
+        if (!PlayerPrefs.HasKey(Prefix + "TwoItemSlots"))
+        {
+            if (PlayerPrefs.GetString(Prefix + "Item1", "dpad/up") == "dpad/up") PlayerPrefs.DeleteKey(Prefix + "Item1");
+            PlayerPrefs.DeleteKey(Prefix + "Item3"); PlayerPrefs.DeleteKey(Prefix + "Item4");
+            PlayerPrefs.SetInt(Prefix + "TwoItemSlots", 1); PlayerPrefs.Save();
+        }
         if (!PlayerPrefs.HasKey(Prefix + "ItemBindingsVersion"))
         {
             // Migrate the former reserved controls once; subsequent choices are freely remappable.

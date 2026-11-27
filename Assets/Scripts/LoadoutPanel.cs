@@ -21,9 +21,9 @@ public sealed class LoadoutPanel
     TMP_Text _message;
     int _page, _focus;
     int _layoutIndex = 1;
-    int Columns => _layoutIndex == 0 ? 3 : _layoutIndex == 1 ? (CardsMode ? 3 : 4) : Mathf.Max(1, Mathf.CeilToInt(Mathf.Sqrt(EntryCount * 1.6f)));
+    int Columns => _layoutIndex == 0 ? 3 : _layoutIndex == 1 ? (CardsMode ? 3 : 2) : Mathf.Max(1, Mathf.CeilToInt(Mathf.Sqrt(EntryCount * 1.6f)));
     int Rows => _layoutIndex == 0 ? 1 : _layoutIndex == 1 ? 2 : Mathf.Max(1, Mathf.CeilToInt(EntryCount / (float)Columns));
-    int EntryCount => CardsMode ? _cards.Count : ItemCatalog.Count;
+    int EntryCount => CardsMode ? _cards.Count : ItemCatalog.Available.Length;
     int PerPage => Columns * Rows;
     public string LayoutLabel => _layoutIndex == 2 ? "LAYOUT: ALL" : "LAYOUT: " + Columns + " x " + Rows;
     UnityEngine.UI.Button _returnFocus;
@@ -69,13 +69,13 @@ public sealed class LoadoutPanel
             var layout = CoopUIElements.Button(_body, LayoutLabel, new Vector2(.012f, .035f), new Vector2(.282f, .145f), CycleLayout);
             layout.name = "Layout";
         }
-        int slots = CardsMode ? _shop.Progress.StartingCardSlots : 4;
+        int slots = CardsMode ? _shop.Progress.StartingCardSlots : ItemCatalog.SlotCount;
         for (int i = 0; i < slots; i++)
         {
             if (CardsMode) MiniCard(_body, _shop.Loadout(Seat).Cards[i], new Vector2(.91f, .81f - i * .197f), new Vector2(.987f, 1 - i * .197f), i, true);
             else
             {
-                float left = _lobby ? .385f : .115f, width = _lobby ? .127f : .197f;
+                float left = _lobby ? .445f : .30f, width = .20f;
                 ItemButton(_body, _shop.Loadout(Seat).Items[i], new Vector2(left + i * width, .765f), new Vector2(left + (i + 1) * width - .009f, .976f), i);
             }
         }
@@ -94,7 +94,7 @@ public sealed class LoadoutPanel
             var min = new Vector2(gridLeft + i % Columns * width + .005f, top - (i / Columns + 1) * height / Rows + .005f);
             var max = new Vector2(gridLeft + (i % Columns + 1) * width - .005f, top - i / Columns * height / Rows - .005f);
             if (CardsMode) MiniCard(_body, _cards[_page * PerPage + i].ID, min, max, -1, false);
-            else ItemButton(_body, _page * PerPage + i + 1, min, max, -1);
+            else ItemButton(_body, ItemCatalog.Available[_page * PerPage + i], min, max, -1);
         }
         float middle = (gridLeft + gridRight) * .5f;
         CoopUIElements.Button(_body, "<", new Vector2(middle - .14f, .02f), new Vector2(middle - .055f, .13f), () => { _page--; Rebuild(); }).interactable = _page > 0;
@@ -111,7 +111,7 @@ public sealed class LoadoutPanel
         if (slot < 0 && _shop.Progress.Tutorial.ItemActive && _shop.Progress.ItemInventory[id] > 0)
             TutorialGuidance.Attach((RectTransform)button.transform);
         var text = button.GetComponentInChildren<TMP_Text>(); text.fontSizeMax = 21; text.fontSizeMin = 12;
-        text.text = slot >= 0 ? "Slot " + (slot + 1) + (id == 0 ? "\nEmpty" : "\n" + ItemCatalog.Names[id]) : ItemCatalog.Names[id] + "\nOwned: " + _shop.Progress.ItemInventory[id] + "\nAvailable: " + Mathf.Max(0, _shop.Progress.ItemInventory[id] - _shop.ReservedItems(id, Seat));
+        text.text = slot >= 0 ? "Slot " + (slot + 1) + (id == 0 ? "\nEmpty" : "\n" + ItemCatalog.Names[id]) : ItemCatalog.Names[id] + "\n" + (_shop.Progress.ItemLevels[id] > 0 ? "Level " + _shop.Progress.ItemLevels[id] : "Locked");
         if (slot < 0) _itemAvailability[id] = text;
         CoopUIElements.Stretch(text.rectTransform, new Vector2(.02f, 0), new Vector2(.98f, .38f));
         var icon = CoopUIElements.Panel(button.transform, "Icon", new Vector2(.24f, .39f), new Vector2(.76f, .96f), Color.white).GetComponent<UnityEngine.UI.Image>();
@@ -121,7 +121,7 @@ public sealed class LoadoutPanel
     public void RefreshItemAvailability()
     {
         foreach (var pair in _itemAvailability)
-            if (pair.Value != null) pair.Value.text = ItemCatalog.Names[pair.Key] + "\nOwned: " + _shop.Progress.ItemInventory[pair.Key] + "\nAvailable: " + Mathf.Max(0, _shop.Progress.ItemInventory[pair.Key] - _shop.ReservedItems(pair.Key, Seat));
+            if (pair.Value != null) pair.Value.text = ItemCatalog.Names[pair.Key] + "\n" + (_shop.Progress.ItemLevels[pair.Key] > 0 ? "Level " + _shop.Progress.ItemLevels[pair.Key] : "Locked");
     }
     public UnityEngine.UI.Button MiniCard(Transform parent, string id, Vector2 min, Vector2 max, int slot, bool equipped)
     {
@@ -171,11 +171,42 @@ public sealed class LoadoutPanel
     {
         if (!TutorialDirector.AllowItemMenu(id)) return;
         if (!ItemCatalog.Valid(id)) return;
-        OpenModal(ItemCatalog.Names[id] + "\n" + ItemCatalog.Descriptions[id]);
+        int level = _shop.Progress.ItemLevels[id];
+        OpenModal(ItemCatalog.Names[id] + "\n" + ItemCatalog.UpgradeDescription(id, 1));
         if (slot >= 0) ModalButton("Unequip", () => Change(() => _shop.EquipItem(0, slot, Seat)));
-        else for (int i = 0; i < 4; i++) { int target = i; ModalButton("Equip to slot " + (i + 1), () => Change(() => _shop.EquipItem(id, target, Seat))); }
-        ModalButton("Sell - " + ItemCatalog.Prices[id] / 2 + " Coins", () => Change(() => _shop.SellItem(id, Seat, slot))).interactable = !_shop.TutorialBlocksShopping;
+        else for (int i = 0; i < ItemCatalog.SlotCount; i++)
+        {
+            int target = i;
+            ModalButton("Equip to slot " + (i + 1), () => Change(() => _shop.EquipItem(id, target, Seat))).interactable = level > 0;
+        }
+        string price = level <= 0 ? "Locked" : level >= 10 ? "MAXED" :
+            "Upgrade | Level " + level + "\n" + _shop.Progress.ItemShards[id] + "/" + ItemCatalog.ShardCosts[level] + " shards | " +
+            _shop.CurrentCoins + "/" + ItemCatalog.GoldCosts[level] + " gold";
+        ModalButton(price, () => Change(() => _shop.UpgradeItem(id))).interactable = _shop.CanUpgradeItem(id);
+        ModalButton("Info", () => OpenItemInfo(id, Mathf.Max(0, level - 1) / 5));
         FinishModal();
+    }
+    void OpenItemInfo(int id, int page)
+    {
+        OpenModal(ItemCatalog.Names[id] + " | " + ItemCatalog.Cooldown(id, 1) + "s base cooldown");
+        CoopUIElements.Stretch(_modal.GetChild(0).GetComponent<TMP_Text>().rectTransform, new Vector2(.05f, .90f), new Vector2(.95f, .98f));
+        for (int i = 0; i < 5; i++)
+        {
+            int level = page * 5 + i + 1;
+            float top = .87f - i * .145f;
+            var row = CoopUIElements.Panel(_modal, "Level " + level, new Vector2(.04f, top - .135f), new Vector2(.96f, top), new Color(.09f, .13f, .19f));
+            if (_shop.Progress.ItemLevels[id] == level)
+            {
+                var outline = row.gameObject.AddComponent<UnityEngine.UI.Outline>();
+                outline.effectColor = Color.yellow; outline.effectDistance = new Vector2(2, -2);
+            }
+            string cost = level == 1 ? "Free" : ItemCatalog.ShardCosts[level - 1] + " shards + " + ItemCatalog.GoldCosts[level - 1] + " gold";
+            CoopUIElements.Text(row, "Level " + level + " | " + cost + "\n" + ItemCatalog.UpgradeDescription(id, level), new Vector2(.02f, .02f), new Vector2(.98f, .98f), 22);
+        }
+        CoopUIElements.Button(_modal, page == 0 ? "Levels 6-10" : "Levels 1-5", new Vector2(.52f, .02f), new Vector2(.96f, .12f), () => OpenItemInfo(id, 1 - page));
+        CoopUIElements.Button(_modal, "Back", new Vector2(.04f, .02f), new Vector2(.48f, .12f), () => OpenItem(id));
+        _focus = 0; RefreshControls();
+        if (!_lobby) MainMenuUI.FocusFirstControl(_modal.gameObject);
     }
     public void OpenCard(string id, int slot = -1)
     {
@@ -190,8 +221,8 @@ public sealed class LoadoutPanel
                 ModalButton("Upgrade - " + card.GetUpgradeCost(saved.Level) + " Coins", () => Change(() => _shop.TryUpgradeCard(id))).interactable =
                     _shop.TutorialCanUpgrade(id) && !_shop.Progress.Tutorial.ItemActive && saved.IsUnlocked && (_shop.InfiniteCopies || saved.Duplicates >= card.GetCardsRequired(saved.Level)) && _shop.CanAfford(card.GetUpgradeCost(saved.Level));
             else if (saved != null && !saved.IsAscended && card.Ascension != CardAscension.None)
-                ModalButton("Ascend - " + card.AscensionCost + " Essence", () => Change(() => _shop.TryAscendCard(id))).interactable =
-                    !_shop.TutorialBlocksShopping && (_shop.InfiniteResources || _shop.GetEssence(card.PackCategory) >= card.AscensionCost);
+                ModalButton("Ascend - " + 10 + " Keys", () => Change(() => _shop.TryAscendCard(id))).interactable =
+                    !_shop.TutorialBlocksShopping && (_shop.InfiniteResources || _shop.Progress.Keys >= 10);
         }
         if (slot >= 0) ModalButton("Unequip", () => Change(() => _shop.EquipStartingCard(null, slot, Seat)));
         else for (int i = 0; i < _shop.Progress.StartingCardSlots; i++) { int target = i; ModalButton("Equip to slot " + (i + 1), () => Change(() => _shop.EquipStartingCard(id, target, Seat))); }
@@ -201,10 +232,14 @@ public sealed class LoadoutPanel
     int _modalButtons;
     void OpenModal(string title)
     {
+        bool replacing = _modal != null;
         CloseModal(); _modalButtons = 0;
+        if (!replacing)
+        {
         _returnFocus = _lobby ? Focused != null ? Focused.GetComponent<UnityEngine.UI.Button>() : null : UnityEngine.EventSystems.EventSystem.current?.currentSelectedGameObject?.GetComponent<UnityEngine.UI.Button>();
         _returnFocusName = _returnFocus != null ? _returnFocus.name : null;
         if (_returnFocus != null) _returnFocusPosition = _returnFocus.transform.position;
+        }
         _modalOnly = !Root.gameObject.activeSelf;
         if (_modalOnly) { Root.gameObject.SetActive(true); _body.gameObject.SetActive(false); }
         _modal = CoopUIElements.Panel(Root, "Equip menu", new Vector2(.04f, .04f), new Vector2(.96f, .96f), new Color(.03f, .045f, .07f));

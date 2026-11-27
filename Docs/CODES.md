@@ -1,29 +1,29 @@
 # Duck Defender codes
 
-Open **Settings → Codes** from the main menu, enter the four digits, then choose
-**Apply**. Keep the leading zero in `0381`. Collection changes apply to your next run.
+Open **Settings -> Codes**, enter four digits, then choose **Apply**. Preserve the
+leading zero in `0381`. Collection/loadout changes apply to the next run.
 
 | Code | Effect |
 | --- | --- |
-| `1111` | **New:** adds one of every item to your account inventory (all 12 current items). Repeat to add another set. |
-| `2002` | **New:** unlocks every collection card at level 2 and adds **1,000,000 gold** (1000k). Higher card levels, ascensions and banked copies are preserved. Repeat to add another million gold. |
-| `8672` | Unlocks every collection card. Newly unlocked cards start at level 1; existing upgrades are preserved. |
-| `3619` | Sets every collection card to its maximum level (currently 6) and ascends every eligible card. Clears banked duplicate copies. |
-| `9845` | Enables unlimited gold and all four pack essences. Purchases stop spending these resources; this does not replace the displayed numeric balances. |
-| `0381` | Unlocks every collection card and enables unlimited upgrade copies. Gold costs still apply unless unlimited resources are also enabled. |
-| `5942` | Combines `3619` and `9845`: maximum levels, all eligible ascensions, unlimited gold and essence. Does not enable unlimited copies. |
-| `2048` | Toggles the two-player keyboard/controller co-op test mode for Host. Enter it again to restore controller-only co-op. This setting is session-only. |
+| `1301` | Re-roll today's three daily quests, rewards and bonus-key quest, resetting their progress/claims. |
+| `1302` | Add 1,000 keys. Repeatable. |
+| `1303` | Unlock all four items at level 10. Preserve shards and equipped selections. |
+| `1304` | Unlock all four items at level 1. Preserve any higher levels. |
+| `2002` | Unlock all collection cards at at least level 2 and add 1,000,000 gold. Preserve higher levels, ascensions and copies. |
+| `8672` | Unlock all collection cards, preserving existing upgrades. |
+| `3619` | Max every collection card (currently level 6), ascend eligible cards and clear banked copies. |
+| `0381` | Unlock all collection cards and enable unlimited upgrade copies. Gold costs still apply. |
+| `2048` | Toggle the session-only two-player keyboard/controller co-op test mode for Host. |
 
-Collection codes affect the 47 collectible cards. The four Basic cards are run-only
-upgrades and do not use persistent collection levels.
+`1111`, `9845` and `5942` are retired. They no longer grant consumables or enable
+unlimited essence/resources. Essence has been removed. All ascensions cost ten keys.
 
-`1111` adds Bomb, Health Potion, Shield, Battle Banner, Pocket Casino, Clone,
-Experience Potion, Flamethrower, Sawblade, Shock, Divine Intervention and Nuke.
-Equip items through your loadout before starting a run; the code does not replace
-your equipped items. Grants are saved immediately, and inventory/gold stop at
-2,147,483,647 rather than overflowing.
+The four available items are Bomb, Healing Potion, Battle Banner and Experience
+Potion. Equip two through the index before playing. Items are reusable with charges
+and cooldowns. Co-op seats can share the same unlocked item.
 
-The resource/copy flags remain enabled across restarts. The existing **Reset
-Progress** action clears them together with all account progression; it is not a
-separate code toggle. The code console is available in the Editor and Development
-builds, and in release builds when `AllowInReleaseBuilds` is enabled on its component.
+There are 48 collection cards including Key Finder. Four Basic cards are run-only.
+Numeric grants saturate at 2,147,483,647. The infinite-copy flag persists until
+Reset Progress. Codes are available in the Editor and Development builds; release
+availability still uses DeveloperConsoleUI.AllowInReleaseBuilds. Core tutorial
+restrictions continue to apply to collection/economy codes.

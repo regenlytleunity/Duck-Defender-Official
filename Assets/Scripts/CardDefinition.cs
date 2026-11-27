@@ -187,7 +187,7 @@ public enum StatType
     ElectricFeatherChainCount,
     BuckshotDamageFraction, MetalDamageFraction, RicochetDamageLoss,
     DuplicatorDamageReduction, ElementalTargetCount, NonFeatherDamage,
-    DashDistance
+    DashDistance, KeyDropChance
 }
 
 public enum CardAscension
@@ -195,7 +195,7 @@ public enum CardAscension
     None, QuantumLeap, AbsoluteZero, Vampire, Tungsten, Supercharged, DeadlyToxin,
     Volcano, DeathRay, Wormhole, LearnToFly, Untouchable, ObsidianTrail, Earthquake,
     RecoveryPlus, Pincushion, AbsoluteExtinction, IllegalOperations, Rebirth,
-    DoubleDown, Marksman, Savior, Defender, CursorAura, Elemental, DivineDuplicator
+    DoubleDown, Marksman, Savior, Defender, CursorAura, Elemental, DivineDuplicator, KeySpecialist
 }
 
 public enum CardRarity { Common, Rare, Legendary, Corrupted }
@@ -271,7 +271,8 @@ public class CardDefinition : ScriptableObject
     public string AscendedName;
     [TextArea] public string AscendedDescription;
     public Sprite AscendedIcon;
-    public int AscensionCost = 1000;
+    [Tooltip("Legacy serialized field. All ascensions now cost 10 keys.")]
+    public int AscensionCost = 10;
     [Tooltip("Apply level-6 modifiers before the ascended effect. Only for supplementary ascensions.")]
     public bool AscensionRetainsBase;
     public bool IsBasic => PackCategory == CardPackType.BaseSet;
@@ -350,7 +351,7 @@ public class CardDefinition : ScriptableObject
     static readonly int[] CommonCopies = { 2, 4, 8, 16, 32 };
     static readonly int[] RareCopies = { 2, 4, 6, 10, 16 };
     static readonly int[] LegendaryCopies = { 1, 2, 4, 6, 8 };
-    public int EssencePerCopy => Rarity == CardRarity.Legendary ? 4 : Rarity == CardRarity.Rare ? 2 : 1;
+    public int EssencePerCopy => 0; // Retired currency; retained for older editor tools.
 
     public string GetDescriptionAtLevel(int level)
     {

@@ -3,30 +3,45 @@ using System.Collections.Generic;
 [System.Serializable]
 public class PlayerData
 {
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 3;
+    public int Keys, KeyDropLevel;
+    public int[] ItemLevels = new int[ItemCatalog.Count + 1];
+    public int[] ItemShards = new int[ItemCatalog.Count + 1];
+    public DailyQuestData Daily = new DailyQuestData();
     public int ProgressionVersion;
     public int TotalCoins;
-    public int MunitionsEssence, MobilityEssence, SurvivalEssence, GadgetEssence;
-    public bool InfiniteGoldAndEssence;
+    // Retired fields remain source-compatible with historical editor probes, never in new saves.
+    [System.NonSerialized] public int MunitionsEssence, MobilityEssence, SurvivalEssence, GadgetEssence;
+    [System.NonSerialized] public bool InfiniteGoldAndEssence;
     public bool InfiniteCopies;
     public bool ShowTips;
     public List<string> SeenTipIDs = new List<string>();
     public List<CardSaveData> CardCollection = new List<CardSaveData>();
     public int StartingCardSlots, PackOpeningTier;
-    public int[] PermanentUpgrades = new int[5];
-    public int[] ItemInventory = new int[ItemCatalog.Count + 1]; // Existing IDs keep their positions in old saves.
+    [System.NonSerialized] public int[] PermanentUpgrades = new int[5];
+    [System.NonSerialized] public int[] ItemInventory = new int[ItemCatalog.Count + 1];
     public PlayerLoadout SoloLoadout = new PlayerLoadout();
     public PlayerLoadout[] CoopLoadouts = new PlayerLoadout[4];
     public int CompletedRuns;
     public bool FirstItemDropped;
     public TutorialProgress Tutorial = new TutorialProgress();
-    public bool[] EssenceDiscovered = new bool[4];
-    public long ItemShopRefreshUtc;
-    public int[] ItemShopStock = new int[6];
-    public bool[] ItemShopSold = new bool[6];
+    [System.NonSerialized] public bool[] EssenceDiscovered = new bool[4];
+    [System.NonSerialized] public long ItemShopRefreshUtc;
+    [System.NonSerialized] public int[] ItemShopStock = new int[6];
+    [System.NonSerialized] public bool[] ItemShopSold = new bool[6];
 
     public void NormalizeShopData()
     {
+        Keys = UnityEngine.Mathf.Max(0, Keys);
+        KeyDropLevel = UnityEngine.Mathf.Clamp(KeyDropLevel, 0, 5);
+        NormalizeArray(ref ItemLevels, ItemCatalog.Count + 1);
+        NormalizeArray(ref ItemShards, ItemCatalog.Count + 1);
+        for (int i = 0; i < ItemLevels.Length; i++)
+        {
+            ItemLevels[i] = ItemCatalog.Valid(i) ? UnityEngine.Mathf.Clamp(ItemLevels[i], 0, 10) : 0;
+            ItemShards[i] = UnityEngine.Mathf.Max(0, ItemShards[i]);
+        }
+        Daily ??= new DailyQuestData();
         StartingCardSlots = UnityEngine.Mathf.Clamp(StartingCardSlots, 0, 5);
         PackOpeningTier = UnityEngine.Mathf.Clamp(PackOpeningTier, 0, 2);
         NormalizeArray(ref PermanentUpgrades, 5);
@@ -40,7 +55,6 @@ public class PlayerData
         SoloLoadout ??= new PlayerLoadout(); SoloLoadout.Normalize();
         for (int i = 0; i < CoopLoadouts.Length; i++) { CoopLoadouts[i] ??= new PlayerLoadout(); CoopLoadouts[i].Normalize(); }
         CompletedRuns = UnityEngine.Mathf.Max(0, CompletedRuns);
-        for (int i = 0; i < 4; i++) if (GetEssence((CardPackType)i) > 0) EssenceDiscovered[i] = true;
         Tutorial ??= new TutorialProgress();
         Tutorial.Normalize(this);
     }
@@ -65,40 +79,18 @@ public class PlayerData
         return data;
     }
 
-    public int GetEssence(CardPackType pack)
-    {
-        switch (pack)
-        {
-            case CardPackType.Munitions: return MunitionsEssence;
-            case CardPackType.Mobility: return MobilityEssence;
-            case CardPackType.Survival: return SurvivalEssence;
-            case CardPackType.Gadget: return GadgetEssence;
-            default: return 0;
-        }
-    }
-
-    public void AddEssence(CardPackType pack, int amount)
-    {
-        if (amount > 0 && (int)pack >= 0 && (int)pack < 4) { NormalizeArray(ref EssenceDiscovered, 4); EssenceDiscovered[(int)pack] = true; }
-        int value = (int)System.Math.Max(0L, System.Math.Min(int.MaxValue, (long)GetEssence(pack) + amount));
-        switch (pack)
-        {
-            case CardPackType.Munitions: MunitionsEssence = value; break;
-            case CardPackType.Mobility: MobilityEssence = value; break;
-            case CardPackType.Survival: SurvivalEssence = value; break;
-            case CardPackType.Gadget: GadgetEssence = value; break;
-        }
-    }
+    public int GetEssence(CardPackType pack) => 0;
+    public void AddEssence(CardPackType pack, int amount) { }
 }
 
 [System.Serializable]
 public class PlayerLoadout
 {
-    public int[] Items = new int[4];
+    public int[] Items = new int[ItemCatalog.SlotCount];
     public string[] Cards = new string[5];
     public void Normalize()
     {
-        if (Items == null) Items = new int[4]; else if (Items.Length != 4) System.Array.Resize(ref Items, 4);
+        if (Items == null) Items = new int[ItemCatalog.SlotCount]; else if (Items.Length != ItemCatalog.SlotCount) System.Array.Resize(ref Items, ItemCatalog.SlotCount);
         if (Cards == null) Cards = new string[5]; else if (Cards.Length != 5) System.Array.Resize(ref Cards, 5);
         for (int i = 0; i < Items.Length; i++) if (Items[i] != 0 && !ItemCatalog.Valid(Items[i])) Items[i] = 0;
     }

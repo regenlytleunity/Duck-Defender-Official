@@ -151,7 +151,7 @@ public class PlayerHealth : MonoBehaviour
         if (_controller != null && _controller.IsInvulnerable) return false;
 
         // Incoming damage is enemy contact, ammunition, or lobber poison.
-        _fractionalIncomingDamage += damage * GameDifficulty.DamageMultiplier;
+        _fractionalIncomingDamage += damage * GameDifficulty.DamageMultiplier * (1 - ItemArea.BannerReduction(OwnerStats));
         int wholeDamage = Mathf.FloorToInt(_fractionalIncomingDamage + .00001f);
         _fractionalIncomingDamage -= wholeDamage;
         _currentHealth -= wholeDamage;

@@ -32,30 +32,9 @@ public partial class ShopManager
         if (!ChargeUpgrade(PackUnlockPrice)) return false;
         _playerData.PackOpeningTier++; SaveShopChange(); return true;
     }
-    public bool BuyPermanentUpgrade(PermanentUpgrade stat)
-    {
-        if ((int)stat < 0 || (int)stat >= 5 || _playerData.PermanentUpgrades[(int)stat] >= 50 || !ChargeUpgrade(UpgradePrice(stat))) return false;
-        _playerData.PermanentUpgrades[(int)stat]++; SaveShopChange(); return true;
-    }
-    public bool RefreshItemShop(long utcSeconds = -1)
-    {
-        if (utcSeconds < 0) utcSeconds = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        bool valid = Array.TrueForAll(_playerData.ItemShopStock, ItemCatalog.Valid);
-        if (valid && utcSeconds < _playerData.ItemShopRefreshUtc) return false;
-        for (int i = 0; i < 6; i++) { _playerData.ItemShopStock[i] = UnityEngine.Random.Range(1, ItemCatalog.Count + 1); _playerData.ItemShopSold[i] = false; }
-        _playerData.ItemShopRefreshUtc = (utcSeconds / 600 + 1) * 600;
-        SaveShopChange(); return true;
-    }
-    public bool BuyItem(int slot, int expectedItem, long expectedRefresh)
-    {
-        RefreshItemShop();
-        if (slot < 0 || slot >= 6 || expectedRefresh != _playerData.ItemShopRefreshUtc || _playerData.ItemShopStock[slot] != expectedItem || _playerData.ItemShopSold[slot] || !ItemCatalog.Valid(expectedItem)) return false;
-        if (_playerData.ItemInventory[expectedItem] == int.MaxValue || !ChargeUpgrade(ItemCatalog.Prices[expectedItem])) return false;
-        _playerData.ItemInventory[expectedItem]++; _playerData.ItemShopSold[slot] = true;
-        _playerData.Tutorial.HasObtainedItem = true;
-        _playerData.TotalCoins = CurrentCoins;
-        SaveSystem.SaveData(_playerData, updateTutorial: true); OnCollectionChanged?.Invoke(); return true;
-    }
+    public bool BuyPermanentUpgrade(PermanentUpgrade stat) => false;
+    public bool RefreshItemShop(long utcSeconds = -1) => false;
+    public bool BuyItem(int slot, int expectedItem, long expectedRefresh) => false;
     public int ReservedItems(int id, int seat = -1, int ignoreSlot = -1)
     {
         int count = 0;
@@ -64,15 +43,17 @@ public partial class ShopManager
         {
             int currentSeat = seat < 0 ? -1 : p;
             var loadout = Loadout(currentSeat);
-            for (int s = 0; s < 4; s++) if (!(currentSeat == seat && s == ignoreSlot) && loadout.Items[s] == id) count++;
+            for (int s = 0; s < ItemCatalog.SlotCount; s++) if (!(currentSeat == seat && s == ignoreSlot) && loadout.Items[s] == id) count++;
         }
         return count;
     }
     public bool EquipItem(int id, int slot, int seat = -1)
     {
         if (_playerData.Tutorial.CoreActive || _playerData.Tutorial.ItemActive && (id == 0 || seat >= 0 || _playerData.Tutorial.Items != ItemTutorialStage.Equip)) return false;
-        if (slot < 0 || slot >= 4 || id != 0 && (!ItemCatalog.Valid(id) || ReservedItems(id, seat, slot) >= _playerData.ItemInventory[id])) return false;
-        Loadout(seat).Items[slot] = id;
+        if (slot < 0 || slot >= ItemCatalog.SlotCount || id != 0 && (!ItemCatalog.Valid(id) || _playerData.ItemLevels[id] <= 0)) return false;
+        var items = Loadout(seat).Items;
+        if (id != 0) for (int i = 0; i < items.Length; i++) if (i != slot && items[i] == id) items[i] = 0;
+        items[slot] = id;
         if (_playerData.Tutorial.ItemActive)
         {
             _playerData.Tutorial.Items = ItemTutorialStage.Controls;
@@ -81,15 +62,7 @@ public partial class ShopManager
         else SaveShopChange();
         return true;
     }
-    public bool SellItem(int id, int seat = -1, int equippedSlot = -1)
-    {
-        if (TutorialBlocksShopping) return false;
-        if (!ItemCatalog.Valid(id) || _playerData.ItemInventory[id] <= ReservedItems(id, seat, equippedSlot)) return false;
-        if (equippedSlot >= 0) { if (equippedSlot >= 4 || Loadout(seat).Items[equippedSlot] != id) return false; Loadout(seat).Items[equippedSlot] = 0; }
-        _playerData.ItemInventory[id]--;
-        CurrentCoins = (int)Math.Min(int.MaxValue, (long)CurrentCoins + ItemCatalog.Prices[id] / 2);
-        SanitizeLoadouts(); SaveShopChange(); return true;
-    }
+    public bool SellItem(int id, int seat = -1, int equippedSlot = -1) => false;
     public bool EquipStartingCard(string id, int slot, int seat = -1)
     {
         if (TutorialBlocksShopping) return false;
@@ -111,7 +84,7 @@ public partial class ShopManager
     public bool MoveEquipment(bool card, int from, int to, int seat = -1)
     {
         if (TutorialBlocksShopping) return false;
-        int count = card ? _playerData.StartingCardSlots : 4;
+        int count = card ? _playerData.StartingCardSlots : ItemCatalog.SlotCount;
         if (from < 0 || to < 0 || from >= count || to >= count) return false;
         var loadout = Loadout(seat);
         if (card) { string previous = loadout.Cards[to]; loadout.Cards[to] = loadout.Cards[from]; loadout.Cards[from] = previous; }
@@ -120,16 +93,14 @@ public partial class ShopManager
     }
     public static void SanitizeItems(PlayerData data, bool coop, int seats)
     {
-        var used = new int[ItemCatalog.Count + 1];
         for (int p = 0; p < seats; p++)
         {
             var loadout = coop ? data.CoopLoadouts[p] : data.SoloLoadout;
-            for (int s = 0; s < 4; s++)
+            for (int s = 0; s < ItemCatalog.SlotCount; s++)
             {
                 int id = loadout.Items[s];
                 if (!ItemCatalog.Valid(id)) continue;
-                if (used[id] >= data.ItemInventory[id]) loadout.Items[s] = 0;
-                else used[id]++;
+                if (data.ItemLevels[id] <= 0 || System.Array.IndexOf(loadout.Items, id) != s) loadout.Items[s] = 0;
             }
         }
     }

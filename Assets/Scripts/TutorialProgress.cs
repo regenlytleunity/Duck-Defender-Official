@@ -16,7 +16,7 @@ public class TutorialProgress
     public string NewCardID;
     public CardPackType Pack;
     public bool CoreActive => Version == 1 && Stage < TutorialStage.Complete;
-    public bool ItemActive => !CoreActive && HasObtainedItem && Items != ItemTutorialStage.Complete;
+    public bool ItemActive => false;
 
     public void Normalize(PlayerData data)
     {

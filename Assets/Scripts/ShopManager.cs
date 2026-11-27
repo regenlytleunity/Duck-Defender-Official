@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 
 /// <summary>
-/// Owns pack purchases, the level-1 through level-6 collection, pack-specific
-/// essence, one-time ascensions and persistent developer resource flags.
+/// Owns pack purchases, the level-1 through level-6 collection, keys,
+/// one-time ascensions, reusable items and daily rewards.
 /// </summary>
 public partial class ShopManager : MonoBehaviour
 {
@@ -19,7 +19,7 @@ public partial class ShopManager : MonoBehaviour
 
     private PlayerData _playerData;
     public event System.Action OnCollectionChanged;
-    public bool InfiniteResources => _playerData != null && _playerData.InfiniteGoldAndEssence;
+    public bool InfiniteResources => false; // Retired resource code, retained for existing UI/tool callers.
     public bool InfiniteCopies => _playerData != null && _playerData.InfiniteCopies;
     public int GetEssence(CardPackType pack) => _playerData.GetEssence(pack);
 
@@ -99,7 +99,7 @@ public partial class ShopManager : MonoBehaviour
                 continue;
             }
 
-            CardDefinition pick = validPool[Random.Range(0, validPool.Count)];
+            CardDefinition pick = PickWeightedCard(validPool);
             pulledCards.Add(pick);
             AddCardToCollection(pick.ID);
         }
@@ -123,7 +123,6 @@ public partial class ShopManager : MonoBehaviour
             if (!savedCard.IsUnlocked) { savedCard.IsUnlocked = true; savedCard.Level = 1; return; }
             if (savedCard.Level < definition.MaxLevel && !savedCard.IsAscended)
                 savedCard.Duplicates = (int)System.Math.Min(int.MaxValue, (long)savedCard.Duplicates + 1);
-            else _playerData.AddEssence(definition.PackCategory, definition.EssencePerCopy);
         }
     }
 
@@ -145,9 +144,7 @@ public partial class ShopManager : MonoBehaviour
                 savedCard.Level++;
                 if (savedCard.Level >= def.MaxLevel)
                 {
-                    // Convert banked surplus too; no stranded copies at max level.
-                    long essence = (long)savedCard.Duplicates * def.EssencePerCopy;
-                    _playerData.AddEssence(def.PackCategory, (int)System.Math.Min(int.MaxValue, essence));
+                    // Maximum-level duplicates no longer grant currency.
                     savedCard.Duplicates = 0;
                 }
 
@@ -185,8 +182,8 @@ public partial class ShopManager : MonoBehaviour
         var saved = GetCardData(id);
         if (card == null || saved == null || !saved.IsUnlocked || saved.IsAscended ||
             saved.Level < card.MaxLevel || card.Ascension == CardAscension.None) return false;
-        if (!InfiniteResources && GetEssence(card.PackCategory) < card.AscensionCost) return false;
-        if (!InfiniteResources) _playerData.AddEssence(card.PackCategory, -card.AscensionCost);
+        if (!InfiniteResources && _playerData.Keys < 10) return false;
+        if (!InfiniteResources) _playerData.Keys -= 10;
         saved.IsAscended = true;
         SaveSystem.SaveData(_playerData);
         OnCollectionChanged?.Invoke();
@@ -207,6 +204,7 @@ public partial class ShopManager : MonoBehaviour
         _playerData.TotalCoins = CurrentCoins;
         var cards = new List<CardDefinition>();
         for (int i = 0; i < count; i++) cards.AddRange(OpenPack(pack.PackType));
+        DailyQuests.Record(_playerData, DailyQuestKind.Packs, count);
         SaveSystem.SaveData(_playerData);
         OnCollectionChanged?.Invoke();
         return cards;
@@ -215,18 +213,12 @@ public partial class ShopManager : MonoBehaviour
     public bool ExecuteDeveloperCode(string code)
     {
         if (TutorialBlocksShopping) return false;
-        bool max = code == "3619" || code == "5942";
+        if (ExecuteReworkCode(code)) return true;
+        bool max = code == "3619";
         bool unlock = code == "8672";
-        bool items = code == "1111";
         bool levelTwoAndGold = code == "2002";
-        if (code != "9845" && code != "0381" && !max && !unlock && !items && !levelTwoAndGold) return false;
-        if (code == "9845" || code == "5942") _playerData.InfiniteGoldAndEssence = true;
+        if (code != "0381" && !max && !unlock && !levelTwoAndGold) return false;
         if (code == "0381") _playerData.InfiniteCopies = true;
-        if (items)
-        {
-            for (int id = 1; id <= ItemCatalog.Count; id++)
-                _playerData.ItemInventory[id] = (int)System.Math.Min(int.MaxValue, (long)_playerData.ItemInventory[id] + 1);
-        }
         if (levelTwoAndGold)
         {
             CurrentCoins = (int)System.Math.Min(int.MaxValue, (long)CurrentCoins + 1000000);

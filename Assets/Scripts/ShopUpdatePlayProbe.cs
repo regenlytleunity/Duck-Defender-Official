@@ -129,11 +129,11 @@ public class ShopUpdatePlayProbe : MonoBehaviour
         yield return new WaitForSeconds(3.1f); Check(items.CasinoActive && items.ResultUntil > Time.time, "casino resolves and displays result");
         LocalCoopSession.Instance.CompleteWave(); LocalCoopSession.Instance.CompleteWave();
         Use(items, ItemKind.BattleBanner); float withBanner = player.Weapon.EffectiveFireInterval;
-        Check(ItemArea.BannerBonus(player.transform.position) == .15f && withBanner < baseInterval, "banner grants nearby fire rate and damage");
+        Check(ItemArea.BannerBonus(player.Stats) == .15f && withBanner < baseInterval, "banner grants nearby fire rate and damage");
         for (int i = 0; i < 9; i++) LocalCoopSession.Instance.CompleteWave();
-        Check(ItemArea.BannerBonus(player.transform.position) > 0, "banner survives nine completions");
+        Check(ItemArea.BannerBonus(player.Stats) > 0, "banner survives nine completions");
         LocalCoopSession.Instance.CompleteWave(); yield return null;
-        Check(ItemArea.BannerBonus(player.transform.position) == 0, "banner expires after ten completions");
+        Check(ItemArea.BannerBonus(player.Stats) == 0, "banner expires after ten completions");
         Use(items, ItemKind.Shield);
         var inside = Enemy(player.transform.position + Vector3.right);
         yield return new WaitForFixedUpdate(); yield return new WaitForFixedUpdate();

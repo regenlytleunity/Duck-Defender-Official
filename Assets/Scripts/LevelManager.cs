@@ -39,13 +39,16 @@ public class LevelManager : MonoBehaviour
     private int _coinsForShot = 0;
     bool _coinSaveDirty;
     double _fractionalCoins;
-    float _nextCoinSave, _nextCoinMerge;
+    float _nextCoinSave, _nextCoinMerge, _nextQuestSave;
     long _pendingMeteors, _pendingSecondaryMeteors;
 
     void Update()
     {
         if (_coinSaveDirty && Time.unscaledTime >= _nextCoinSave) FlushCoinSave();
+        if (Time.unscaledTime >= _nextQuestSave) { DailyQuests.Flush(); _nextQuestSave = Time.unscaledTime + 1; }
         if (Time.timeScale == 0) return;
+        if (LocalCoopSession.Instance != null && LocalCoopSession.Instance.Players.Exists(p => p.Alive))
+            DailyQuests.RecordRun(DailyQuestKind.Time, Time.deltaTime);
         if (Time.time >= _nextCoinMerge)
         {
             _nextCoinMerge = Time.time + .25f;
@@ -89,6 +92,7 @@ public class LevelManager : MonoBehaviour
 
     public void FlushCoinSave()
     {
+        DailyQuests.Flush();
         if (!_coinSaveDirty || _playerData == null) return;
         // Preserve any collection/dev settings saved by another existing system.
         _playerData = SaveSystem.LoadData();
@@ -168,7 +172,7 @@ public class LevelManager : MonoBehaviour
     float _fractionalXP;
     public void AddTutorialXP(int amount)
     {
-        CurrentXP += Mathf.Max(0, amount);
+        CurrentXP = (int)System.Math.Min(int.MaxValue, (long)CurrentXP + Mathf.Max(0, amount));
         while (TargetXP > 0 && CurrentXP >= TargetXP) LevelUp();
         UpdateUI();
     }
@@ -193,6 +197,7 @@ public class LevelManager : MonoBehaviour
     public void AddCoins(int amount, PlayerStats recipient = null)
     {
         if (amount <= 0) return;
+        DailyQuests.RecordRun(DailyQuestKind.Gold, amount);
         // Carry fractions: four individual coins and one stack of four pay equally.
         _fractionalCoins += amount * (double)GameDifficulty.CoinMultiplier;
         amount = (int)System.Math.Min(int.MaxValue, System.Math.Floor(_fractionalCoins));

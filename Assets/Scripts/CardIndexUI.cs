@@ -161,6 +161,6 @@ public class CardIndexUI : MonoBehaviour
         var shop = ShopManager.Instance;
         if (shop == null) return;
         if (CoinsText != null) CoinsText.text = (shop.InfiniteResources ? "Infinite" : shop.CurrentCoins.ToString("N0")) + " Coins";
-        if (EssenceText != null) EssenceText.text = (shop.InfiniteResources ? "Infinite" : shop.GetEssence(SelectedPack).ToString("N0")) + " " + SelectedPack + " Essence";
+        if (EssenceText != null) EssenceText.text = (shop.InfiniteResources ? "Infinite" : shop.Progress.Keys.ToString("N0")) + " Keys";
     }
 }

@@ -6,8 +6,8 @@ public class ItemWheelUI : MonoBehaviour
     PlayerItems _items;
     LocalPlayer _player;
     RectTransform _canvas, _wheel, _spin, _spinRoot;
-    readonly UnityEngine.UI.Image[] _icons = new UnityEngine.UI.Image[4], _quarters = new UnityEngine.UI.Image[4];
-    readonly TMP_Text[] _keys = new TMP_Text[4];
+    readonly UnityEngine.UI.Image[] _icons = new UnityEngine.UI.Image[2], _quarters = new UnityEngine.UI.Image[2];
+    readonly TMP_Text[] _keys = new TMP_Text[2];
     TMP_Text _result, _pickup;
     float _pickupUntil;
     RectTransform _mobile;
@@ -18,12 +18,12 @@ public class ItemWheelUI : MonoBehaviour
         _canvas = CoopUIElements.Canvas("Item HUD " + (player.Index + 1), null, 15);
         _wheel = CoopUIElements.Panel(_canvas, "Item selection", Vector2.one * .5f, Vector2.one * .5f, Color.clear);
         _wheel.sizeDelta = new Vector2(210, 210); _wheel.GetComponent<UnityEngine.UI.Image>().raycastTarget = false;
-        Vector2[] positions = { new Vector2(.5f, .78f), new Vector2(.78f, .5f), new Vector2(.5f, .22f), new Vector2(.22f, .5f) };
-        for (int i = 0; i < 4; i++)
+        Vector2[] positions = { new Vector2(.25f, .5f), new Vector2(.75f, .5f) };
+        for (int i = 0; i < 2; i++)
         {
             var quarter = CoopUIElements.Panel(_wheel, "Quarter " + (i + 1), Vector2.zero, Vector2.one, Color.white).GetComponent<UnityEngine.UI.Image>();
-            quarter.sprite = ItemArea.Circle; quarter.type = UnityEngine.UI.Image.Type.Filled; quarter.fillMethod = UnityEngine.UI.Image.FillMethod.Radial360; quarter.fillOrigin = 2; quarter.fillAmount = .25f;
-            quarter.rectTransform.localEulerAngles = new Vector3(0, 0, 45 - i * 90); quarter.raycastTarget = false; _quarters[i] = quarter;
+            quarter.sprite = ItemArea.Circle; quarter.type = UnityEngine.UI.Image.Type.Filled; quarter.fillMethod = UnityEngine.UI.Image.FillMethod.Radial360; quarter.fillOrigin = 2; quarter.fillAmount = .5f;
+            quarter.rectTransform.localEulerAngles = new Vector3(0, 0, 90 - i * 180); quarter.raycastTarget = false; _quarters[i] = quarter;
             var icon = CoopUIElements.Panel(_wheel, "Item icon", positions[i] - Vector2.one * .11f, positions[i] + Vector2.one * .11f, Color.white).GetComponent<UnityEngine.UI.Image>();
             icon.preserveAspect = true; icon.raycastTarget = false; _icons[i] = icon;
             _keys[i] = CoopUIElements.Text(_wheel, "", positions[i] + new Vector2(-.14f, -.2f), positions[i] + new Vector2(.14f, -.1f), 16);
@@ -41,9 +41,9 @@ public class ItemWheelUI : MonoBehaviour
         _result = CoopUIElements.Text(_canvas, "", Vector2.one * .5f, Vector2.one * .5f, 27); _result.rectTransform.sizeDelta = new Vector2(430, 65);
         _pickup = CoopUIElements.Text(_canvas, "", Vector2.one * .5f, Vector2.one * .5f, 25); _pickup.rectTransform.sizeDelta = new Vector2(420, 48);
         _mobile = CoopUIElements.Panel(_canvas, "Touch items", new Vector2(.32f, .01f), new Vector2(.68f, .15f), new Color(.04f, .06f, .12f, .8f));
-        for (int i = 0; i < 4; i++)
+        for (int i = 0; i < 2; i++)
         {
-            int slot = i; var button = CoopUIElements.Button(_mobile, (i + 1).ToString(), new Vector2(i * .2f, 0), new Vector2(i * .2f + .19f, 1), () => _items.Select(slot));
+            int slot = i; var button = CoopUIElements.Button(_mobile, (i + 1).ToString(), new Vector2(i * .4f, 0), new Vector2(i * .4f + .39f, 1), () => _items.Select(slot));
             var icon = CoopUIElements.Panel(button.transform, "Icon", new Vector2(.2f, .35f), new Vector2(.8f, .9f), Color.white).GetComponent<UnityEngine.UI.Image>();
             icon.sprite = ItemCatalog.Icon(items.Slots[i]); icon.preserveAspect = true; icon.raycastTarget = false; icon.enabled = icon.sprite != null;
             CoopUIElements.Stretch(button.GetComponentInChildren<TMP_Text>().rectTransform, new Vector2(0, 0), new Vector2(1, .35f));
@@ -59,8 +59,8 @@ public class ItemWheelUI : MonoBehaviour
     }
     public void ShowPickup(int id)
     {
-        if (_pickup == null || !ItemCatalog.Valid(id)) return;
-        _pickup.text = "+1 " + ItemCatalog.Names[id]; _pickupUntil = Time.time + 1.5f;
+        if (_pickup == null) return;
+        _pickup.text = "+1 key"; _pickupUntil = Time.time + 1.5f;
     }
     void LateUpdate()
     {
@@ -83,11 +83,12 @@ public class ItemWheelUI : MonoBehaviour
             RectTransformUtility.ScreenPointToLocalPointInRectangle(_canvas, pickupScreen, null, out var pickupPosition);
             _pickup.rectTransform.anchoredPosition = pickupPosition + Vector2.up * (1.5f - Mathf.Clamp(_pickupUntil - Time.time, 0, 1.5f)) * 25;
         }
-        for (int i = 0; i < 4; i++)
+        for (int i = 0; i < 2; i++)
         {
             _quarters[i].color = i == _items.SelectedSlot ? new Color(.35f, .5f, .65f, .94f) : new Color(.06f, .1f, .17f, .9f);
             _icons[i].sprite = ItemCatalog.Icon(_items.Slots[i]); _icons[i].enabled = _icons[i].sprite != null;
-            _keys[i].text = _player.UsesGamepad ? ControllerBindings.Label(InputHelper.ItemActions[i]) : InputManager.Instance != null ? InputManager.Instance.GetKeybind(InputHelper.ItemActions[i]).ToString() : (i + 1).ToString();
+            _keys[i].text = _items.CooldownRemaining(i) > 0 ? Mathf.CeilToInt(_items.CooldownRemaining(i)) + "s" : _items.Charges[i].ToString();
+            _icons[i].color = _items.CooldownRemaining(i) > 0 ? new Color(.4f, .4f, .4f) : Color.white;
             if (_mobile.gameObject.activeSelf)
             {
                 var button = _mobile.GetChild(i).GetComponent<UnityEngine.UI.Button>();

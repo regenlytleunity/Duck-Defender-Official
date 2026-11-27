@@ -22,6 +22,8 @@ public class PlayerStats : MonoBehaviour
 {
     public static PlayerStats Instance;
     public int CoinsPerWave;
+    public float KeyDropBonus;
+    [NonSerialized] public float KeyDamageUntil;
     [NonSerialized] public PlayerItems Items;
     [NonSerialized] public bool CardsSuppressed;
     [NonSerialized] public float PermanentDamage, PermanentSpeed, PermanentFireRate, PermanentLuck;
@@ -29,7 +31,7 @@ public class PlayerStats : MonoBehaviour
     bool _cloneSnapshot, _cloneDamageLocked;
     float _cloneItemDamage, _cloneBannerBonus, _cloneMoneyHighBonus, _cloneFireMultiplier;
     public float ItemFireRateMultiplier => _cloneSnapshot ? _cloneFireMultiplier :
-        (1 + PermanentFireRate + (Items != null ? Items.FireRateBonus : 0) + ItemArea.BannerBonus(transform.position)) * CloneFireRateFactor;
+        (1 + PermanentFireRate + (Items != null ? Items.FireRateBonus : 0) + ItemArea.BannerBonus(this)) * CloneFireRateFactor;
     public const float RebirthBonus = 1.5f;
 
     [Header("Card Rework")]
@@ -98,7 +100,7 @@ public class PlayerStats : MonoBehaviour
         if (CardsSuppressed) return 0;
         if (_cloneSnapshot ? _cloneDamageLocked : Items != null && Items.DamageLocked) return 1;
         float baseDamage = flat + (feather ? 0 : NonFeatherFlatDamage) + (_cloneSnapshot ? _cloneItemDamage : Items != null ? Items.FlatDamage : 0);
-        float percent = PermanentDamage + (_cloneSnapshot ? _cloneBannerBonus : ItemArea.BannerBonus(transform.position)) + GlobalDamageBonus + RunDamageBonus +
+        float percent = (Time.time < KeyDamageUntil ? 1 : 0) + PermanentDamage + (_cloneSnapshot ? _cloneBannerBonus : ItemArea.BannerBonus(this)) + GlobalDamageBonus + RunDamageBonus +
             GetCurrentMoneyHighMultiplier() - 1f + localBonus;
         return Mathf.Max(0f, baseDamage * Mathf.Max(0f, 1f + percent) * ratio * (feather ? RebirthStatMultiplier : 1f));
     }
@@ -371,7 +373,7 @@ public class PlayerStats : MonoBehaviour
         _cloneSnapshot = true; _cloneFireMultiplier = source.ItemFireRateMultiplier;
         _cloneItemDamage = source.Items != null ? source.Items.FlatDamage : 0;
         _cloneDamageLocked = source.Items != null && source.Items.DamageLocked;
-        _cloneBannerBonus = ItemArea.BannerBonus(source.transform.position);
+        _cloneBannerBonus = ItemArea.BannerBonus(source);
         _cloneMoneyHighBonus = source.GetCurrentMoneyHighMultiplier() - 1;
         ResetSpecialFeatherCounters();
     }

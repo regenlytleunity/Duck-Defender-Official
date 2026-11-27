@@ -275,9 +275,9 @@ public class CardDisplay : MonoBehaviour, IPointerEnterHandler
             AscendButton.gameObject.SetActive(ascensionAvailable);
             AscendButton.onClick.RemoveAllListeners();
             AscendButton.onClick.AddListener(() => ShopManager.Instance.TryAscendCard(_assignedCard.ID));
-            AscendButton.interactable = ascensionAvailable && (ShopManager.Instance.InfiniteResources || ShopManager.Instance.GetEssence(_assignedCard.PackCategory) >= _assignedCard.AscensionCost);
+            AscendButton.interactable = ascensionAvailable && (ShopManager.Instance.InfiniteResources || ShopManager.Instance.Progress.Keys >= 10);
         }
-        if (EssenceText) EssenceText.text = (ShopManager.Instance.InfiniteResources ? "∞" : ShopManager.Instance.GetEssence(_assignedCard.PackCategory).ToString()) + "/" + _assignedCard.AscensionCost + " " + _assignedCard.PackCategory + " Essence";
+        if (EssenceText) EssenceText.text = (ShopManager.Instance.InfiniteResources ? "∞" : ShopManager.Instance.Progress.Keys.ToString()) + "/10 Keys";
         if (data.Level >= _assignedCard.MaxLevel)
         {
             if (LevelText) LevelText.text = data.IsAscended ? "ASCENDED" : "MAX · Lv 6";

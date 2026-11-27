@@ -19,7 +19,7 @@ public partial class TutorialDirector
         }
         return panel == menu.MenuPanel || panel == menu.IndexPanel;
     }
-    public static bool AllowItemTab => !SkipConfirmationOpen && !CoreActive && Progress != null && Progress.HasObtainedItem && !CapturesContinue;
+    public static bool AllowItemTab => !SkipConfirmationOpen && !CoreActive && Progress != null && !CapturesContinue;
     public static bool AllowCardMenu(string id) => !SkipConfirmationOpen && !CapturesContinue && (!MenuLocked || CoreActive || Progress != null && Progress.ItemActive);
     public static bool AllowItemMenu(int id) => !MenuLocked || Progress != null && Progress.ItemActive && Progress.Items == ItemTutorialStage.Equip &&
         ItemCatalog.Valid(id) && ShopManager.Instance.Progress.ItemInventory[id] > 0;

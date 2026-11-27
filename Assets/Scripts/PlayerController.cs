@@ -141,7 +141,7 @@ public class PlayerController : MonoBehaviour
     float RebirthMultiplier => OwnerStats != null ? OwnerStats.RebirthStatMultiplier : 1f;
     public float EffectiveAcceleration => _clone != null ? _clone.SpawnAcceleration : Acceleration * RebirthMultiplier;
     // Jump apex scales with impulse squared. Keep gravity/upgraded jump counts unchanged.
-    public float EffectiveJumpForce => JumpForce * Mathf.Sqrt(RebirthMultiplier);
+    public float EffectiveJumpForce => JumpForce * Mathf.Sqrt(RebirthMultiplier * (OwnerStats != null && OwnerStats.Items != null && Time.time < OwnerStats.Items.MovementUntil ? 1.25f : 1));
     float _prePhysicsSpeed;
     public bool IsFlying => OwnerStats != null && OwnerStats.Items != null && OwnerStats.Items.DivineActive || Time.time < _flightUntil;
 

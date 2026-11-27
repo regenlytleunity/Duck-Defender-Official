@@ -99,11 +99,11 @@ public static class InputHelper
         if (player != null && player.UsesGamepad)
         {
             var pad = player.Controller; if (pad == null || !pad.added) return -1;
-            for (int i = 0; i < 4; i++) if (ControllerBindings.Pressed(pad, ItemActions[i])) return i;
+            for (int i = 0; i < ItemCatalog.SlotCount; i++) if (ControllerBindings.Pressed(pad, ItemActions[i])) return i;
             return -1;
         }
         if (IsMobile) return -1;
-        for (int i = 0; i < 4; i++) if (Input.GetKeyDown(InputManager.Instance != null ? InputManager.Instance.GetKeybind(ItemActions[i]) : (KeyCode)((int)KeyCode.Alpha1 + i))) return i;
+        for (int i = 0; i < ItemCatalog.SlotCount; i++) if (Input.GetKeyDown(InputManager.Instance != null ? InputManager.Instance.GetKeybind(ItemActions[i]) : (KeyCode)((int)KeyCode.Alpha1 + i))) return i;
         return -1;
     }
     public static bool GetUseItemDown(Component owner)
@@ -120,5 +120,5 @@ public static class InputHelper
         if (player != null && player.UsesGamepad) return player.Connected && ControllerBindings.Held(player.Controller, "UseItem");
         return !IsMobile && Input.GetKey(InputManager.Instance != null ? InputManager.Instance.UseItemKey : KeyCode.Mouse1);
     }
-    public static readonly string[] ItemActions = { "Item1", "Item2", "Item3", "Item4" };
+    public static readonly string[] ItemActions = { "Item1", "Item2" };
 }

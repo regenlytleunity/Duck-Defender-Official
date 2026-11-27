@@ -343,6 +343,7 @@ public class CardManager : MonoBehaviour
 
         switch (stat)
         {
+            case StatType.KeyDropChance: ps.KeyDropBonus = Mathf.Max(ps.KeyDropBonus, amount); break;
             // ============================================================
             // MUNITIONS - mostly ADDITIVE (each pick stacks)
             // ============================================================

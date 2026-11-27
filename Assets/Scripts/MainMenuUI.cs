@@ -9,6 +9,12 @@ public class MainMenuUI : MonoBehaviour
     public static MainMenuUI Instance;
     public TMP_FontAsset UIFont;
 
+    [Header("Item box artwork")]
+    [Tooltip("Optional box body without its lid. Null uses the runtime placeholder.")]
+    public Sprite ItemBoxBody;
+    [Tooltip("Optional separate lid used by the opening animation.")]
+    public Sprite ItemBoxLid;
+
     [Header("Main Panels")]
     public GameObject MenuPanel;
     public GameObject ShopPanel;
@@ -110,7 +116,7 @@ public class MainMenuUI : MonoBehaviour
             if (button != null) button.gameObject.SetActive(false);
         if (DifficultyDescription != null)
         {
-            DifficultyDescription.text = "Difficulty adapts to your collection";
+            DifficultyDescription.gameObject.SetActive(false);
             CoopUIElements.WhiteInfill(DifficultyDescription);
         }
     }
@@ -183,6 +189,7 @@ public void ShowPanel(GameObject panel)
     
     public void BackToMainMenu()
     {
+        if (GetComponent<ItemReworkMenuUI>()?.BoxOpen == true) return;
         if (!TutorialDirector.AllowPanel(MenuPanel) && !ConfirmPanel.activeInHierarchy) return;
         if (ConfirmPanel.activeInHierarchy) { CancelPurchase(); return; }
         if (IndexPanel.activeInHierarchy && IndexPanel.GetComponent<IndexLoadoutUI>()?.HandleBack() == true) return;
@@ -362,6 +369,9 @@ void Purchase(int count)
     // --- MINIGAME LOGIC ---
     void StartPackOpening(ShopPackDefinition pack)
     {
+        _questReveal = false;
+        CardRevealCenter.gameObject.SetActive(true);
+        GetComponent<ItemReworkMenuUI>()?.HideBox();
         if (AdditionalPackImages == null) AdditionalPackImages = new UnityEngine.UI.Image[0];
         if (AdditionalPackImages.Length < _packCount - 1)
         {
@@ -627,6 +637,17 @@ void Purchase(int count)
         FinishPackReveal();
     }
 
+    bool _questReveal;
+    public void RevealQuestCards(List<CardDefinition> cards)
+    {
+        if (cards == null || cards.Count == 0) return;
+        _purchasedCards = cards; _packCount = cards.Count > 9 ? 6 : cards.Count > 3 ? 3 : 1;
+        MenuPanel.SetActive(false);
+        StartPackOpening(ShopManager.Instance.AvailablePacks[0]);
+        _questReveal = true; _isSlicingMode = false;
+        SliceZone.SetActive(false); SliceHelpText.SetActive(false);
+        StartCoroutine(RevealCardsRoutine());
+    }
     public bool TutorialPackRevealed { get; private set; }
     void FinishPackReveal()
     {
@@ -635,7 +656,7 @@ void Purchase(int count)
         {
             ContinueButton.gameObject.SetActive(!TutorialDirector.CoreActive);
             ContinueButton.onClick.RemoveAllListeners();
-            ContinueButton.onClick.AddListener(() => ShowPanel(ShopPanel));
+            ContinueButton.onClick.AddListener(() => { bool quest = _questReveal; _questReveal = false; ShowPanel(quest ? MenuPanel : ShopPanel); });
         }
     }
     
@@ -661,18 +682,8 @@ void Purchase(int count)
     void RefreshEssence()
     {
         if (ShopManager.Instance == null) return;
-        var shop = ShopManager.Instance;
-        if (PackEssenceTexts != null) for (int i = 0; i < Mathf.Min(4, PackEssenceTexts.Length); i++)
-            if (PackEssenceTexts[i] != null)
-            {
-                PackEssenceTexts[i].text = shop.InfiniteResources ? "Infinite" : shop.GetEssence((CardPackType)i).ToString("N0");
-                PackEssenceTexts[i].gameObject.SetActive(shop.Progress.EssenceDiscovered[i] || shop.AllCards.Exists(c => c != null && (int)c.PackCategory == i && shop.GetCardData(c.ID)?.Level >= c.MaxLevel));
-            }
-        if (EssenceBalancesText == null) return;
-        EssenceBalancesText.text = "Munitions " + (shop.InfiniteResources ? "Infinite" : shop.GetEssence(CardPackType.Munitions).ToString()) +
-            "  Mobility " + (shop.InfiniteResources ? "Infinite" : shop.GetEssence(CardPackType.Mobility).ToString()) +
-            "  Survival " + (shop.InfiniteResources ? "Infinite" : shop.GetEssence(CardPackType.Survival).ToString()) +
-            "  Gadget " + (shop.InfiniteResources ? "Infinite" : shop.GetEssence(CardPackType.Gadget).ToString());
+        if (PackEssenceTexts != null) foreach (var text in PackEssenceTexts) if (text != null) text.gameObject.SetActive(false);
+        if (EssenceBalancesText != null) EssenceBalancesText.gameObject.SetActive(false);
     }
     void OnDestroy() { if (ShopManager.Instance != null) ShopManager.Instance.OnCollectionChanged -= RefreshBalances; }
 }

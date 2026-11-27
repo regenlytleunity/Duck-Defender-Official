@@ -1526,6 +1526,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   UIFont: {fileID: 11400000, guid: 7adfb0b94645d4b748f53b7240fc4d47, type: 2}
+  KeyIcon: {fileID: 0}
   WaveText: {fileID: 1472240037}
   EnemiesLeftText: {fileID: 607126647}
   PlayerHealthBar: {fileID: 369499185}
@@ -1899,7 +1900,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 471931646}
-  - component: {fileID: 471931645}
   - component: {fileID: 471931647}
   m_Layer: 0
   m_Name: CardManager
@@ -1908,18 +1908,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &471931645
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 471931644}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 8e9f1f579a2e04f648c7d10a9ab660bc, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
 --- !u!4 &471931646
 Transform:
   m_ObjectHideFlags: 0
@@ -1999,6 +1987,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: a1c40f71ab0a8410f9e1661df3371c33, type: 2}
   - {fileID: 11400000, guid: 3b7cd25765a774150be666f872a9b578, type: 2}
   - {fileID: 11400000, guid: dd96dab89563f5e41a81b37102853ce6, type: 2}
+  - {fileID: 11400000, guid: 1f1906ba32f54554e8821c8dfd3832c6, type: 2}
   CommonRollWeight: 0.65
   RareRollWeight: 0.3
   LegendaryRollWeight: 0.05
@@ -13308,6 +13297,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   CoinsPerWave: 0
+  KeyDropBonus: 0
   GlobalDamageBonus: 0
   NonFeatherFlatDamage: 0
   HypersonicDamageFraction: 0
@@ -14409,6 +14399,11 @@ MonoBehaviour:
   CrouchAlt: 0
   DashKey: 304
   ShootKey: 323
+  UseItemKey: 324
+  Item1Key: 49
+  Item2Key: 50
+  Item3Key: 51
+  Item4Key: 52
   PauseKey: 0
 --- !u!4 &1424755452
 Transform:
@@ -19153,7 +19148,6 @@ GameObject:
   - component: {fileID: 2138287515}
   - component: {fileID: 2138287517}
   - component: {fileID: 2138287516}
-  - component: {fileID: 2138287518}
   m_Layer: 0
   m_Name: Tilemap_Background
   m_TagString: Untagged
@@ -20036,18 +20030,6 @@ Tilemap:
     e31: 0
     e32: 0
     e33: 1
---- !u!114 &2138287518
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2138287514}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: abd66bfbe629a412c8285f8c28d83b0b, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
 --- !u!1 &2142738204
 GameObject:
   m_ObjectHideFlags: 0

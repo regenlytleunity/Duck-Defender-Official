@@ -36,15 +36,23 @@ public sealed class ControllerBindingsUI
             var label = _keyboard.transform.Find("Action" + i) as RectTransform;
             if (label == null) label = CoopUIElements.Text(_keyboard.transform, SettingsMenuUI.BindingNames[i], Vector2.zero, Vector2.one, 25).rectTransform;
             label.name = "Action" + i;
+            label.GetComponent<TMP_Text>().text = SettingsMenuUI.BindingNames[i];
             CoopUIElements.Stretch(label, new Vector2(left, bottom), new Vector2(left + .27f, bottom + .065f));
             var binding = _keyboard.transform.Find("Bind" + i) as RectTransform;
             if (binding == null)
                 binding = (RectTransform)CoopUIElements.Button(_keyboard.transform, "", Vector2.zero, Vector2.one, () => settings.BeginBinding(action)).transform;
             binding.name = "Bind" + i;
+            var buttonBinding = binding.GetComponent<UnityEngine.UI.Button>();
+            buttonBinding.onClick = new UnityEngine.UI.Button.ButtonClickedEvent();
+            buttonBinding.onClick.AddListener(() => settings.BeginBinding(action));
             CoopUIElements.Stretch(binding, new Vector2(left + .275f, bottom), new Vector2(left + .445f, bottom + .065f));
             settings.KeybindLabels[i] = binding.GetComponentInChildren<TextMeshProUGUI>();
             settings.KeybindLabels[i].fontSizeMin = 16; settings.KeybindLabels[i].fontSizeMax = 26;
         }
+        foreach (Transform child in _keyboard.transform)
+            if ((child.name.StartsWith("Action") && int.TryParse(child.name.Substring(6), out int labelIndex) && labelIndex >= SettingsMenuUI.BindingActions.Length) ||
+                (child.name.StartsWith("Bind") && int.TryParse(child.name.Substring(4), out int bindIndex) && bindIndex >= SettingsMenuUI.BindingActions.Length))
+                child.gameObject.SetActive(false);
         var restore = _keyboard.transform.Find("RestoreDefaults") as RectTransform;
         if (restore != null) CoopUIElements.Stretch(restore, new Vector2(.60f, .125f), new Vector2(.94f, .175f));
         _controller = CoopUIElements.Panel(panel, "Controller bindings", new Vector2(.025f, .16f), new Vector2(.975f, .81f), new Color(.035f, .055f, .085f)).gameObject;

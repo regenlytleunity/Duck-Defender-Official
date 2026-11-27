@@ -948,86 +948,82 @@ Owns permanent economy and collection/upgrading behavior.
 
 ### Collection and pack wiring
 
-MainMenu's ShopManager contains 47 collection cards and intentionally omits the four
-Basic cards. Its AvailablePacks omits Pack_BasePack. Basics are always eligible through
-the gameplay CardManager's 51-card list and are not purchasable or upgradeable.
+MainMenu's ShopManager contains 48 collection cards, including the rare Gadget
+Key Finder, and omits the four Basic cards. SampleScene's CardManager registers
+all 52. Basics remain run-only upgrades. Eight starter cards unlock on a new profile.
+Cards retain six collection levels and their rarity-specific gold/copy costs.
+All ascensions cost 10 keys. Max-level duplicates and leftover copies grant nothing.
+Within each pack rarity pool, maximum-level cards have half the relative draw weight.
+Pack rarity odds remain 60% Common, 35% Rare and 5% Legendary.
 
-PlayerData.CreateNew unlocks eight specified collection starters independently of the
-shop list. ShopManager owns four essence balances, six-level upgrade prices/copy costs,
-1,000-essence ascensions and persistent developer resource flags. At maximum level,
-new duplicates and leftover copies convert to essence (Common 1, Rare 2, Legendary 4).
-
-TryBuyPacks accepts one, three or six packs, gated by the permanent bulk-opening
-unlock. It grants/saves three, nine or eighteen cards before the visual reveal,
-and publishes OnCollectionChanged for collection/resource UI. Pack odds
-are 60% Common, 35% Rare and 5% Legendary. No Corrupted cards are rolled.
-
-MainMenuUI contains the one-/three-/six-pack controls and an adaptive reveal grid, while
-CardDisplay contains the ascension button/balance bindings. DeveloperConsoleUI accepts
-eight four-digit codes, including repeatable item grants and level-two collection
-unlocks plus one million gold. Existing higher card levels and ascensions are preserved.
-See `Docs/CODES.md` for the complete list and entry instructions.
+TryBuyPacks accepts one, three or six packs, gated by the bulk-opening upgrade.
+The existing reveal grid also presents daily quest cards (up to sixteen).
+DeveloperConsoleUI routes the current codes listed in `Docs/CODES.md`.
 
 ### Items, loadouts and permanent upgrades
 
-`ShopManager.Upgrades.cs` extends the existing ShopManager. `ShopUpdateUI` adds
-three shop tabs at runtime, retaining authored pack art and the original bitmap font.
-Six item offers persist with sold flags and a UTC ten-minute rotation timestamp.
-Five starting-card slots, three-/six-pack unlocks and five 50-level permanent
-stats share the existing coin balance and save file. Essence labels appear after
-a pack's essence is discovered or a card in that pack reaches its maximum level.
+`ShopManager.Items.cs` and `ShopManager.Upgrades.cs` extend ShopManager.
+`ShopUpdateUI` retains three tabs, the original font and authored pack art.
+The item shop contains one box, costing one key to open. `ItemReworkMenuUI`
+provides a zoom, three to five hits, screen shake, a flying lid and an item reveal.
+Rewards save before the cosmetic animation. A first copy unlocks level 1;
+a duplicate grants ten item-specific shards. Maxed items have half the relative
+weight (equal odds again when all four are maxed). Shards keep accumulating at max.
+Optional MainMenuUI ItemBoxBody/ItemBoxLid sprites replace the runtime placeholders.
 
-`IndexLoadoutUI`, `LoadoutPanel` and `LoadoutInteraction` supply the Items tab,
-starting-card column, contextual equip/sell menus, drag/drop and per-seat lobby
-equipment. Each item slot reserves one owned copy. Co-op shares the host inventory
-across participating seats; solo and co-op store separate selections. Starting
-cards use unlocked non-Basic collection cards, with no duplicates within one
-player's loadout. Host-disabled cards are excluded. Simple co-op disables both
-loadouts for the run while retaining saved selections; permanent upgrades remain.
+Only Bomb (ID 1), Healing Potion (2), Battle Banner (4) and Experience Potion (7)
+are available. Stable legacy IDs remain reserved. Items have levels 1-10 and use
+the shard/gold tables in ItemCatalog. `LoadoutPanel` supplies two equip slots,
+upgrade/Info menus and five-row pages covering all ten upgrade descriptions and
+costs, with the current level outlined. A player cannot equip the same item twice;
+co-op players may independently equip the same host-owned unlock. Simple co-op
+suppresses item/starting-card loadouts while preserving their saved selections.
 
-`LocalCoopSession` initializes `PlayerItems` after player Start methods. Starting
-cards go through CardManager's existing per-player application/history, so they
-use the saved level/ascension and are excluded from subsequent run offers. Solo
-compatibility calls and explicit per-player calls share the same card history. Items
-are deducted and saved only on use. Unused copies survive death and quitting.
-Completed runs enable drops after the first two games; eligible kills roll 0.5%,
-with the first successful drop always a Bomb. `ItemPickup` requires nearby contact
-and is independent of coin magnetism. Drops have gravity and collide only with
-Ground. Collection shows a brief white-infill "+1 item name" above the collector.
+`PlayerItems` snapshots item levels at run start. Items are reusable, retain their
+slots, and start cooldown only after the last charge is used. Cooldown refills all
+charges. Starting cards still use CardManager's existing per-player application/history.
+`ItemWheelUI` displays two halves, charge counts and greyed icons with cooldown
+seconds. Keyboard 1/2 and D-pad left/right select slots; right-click/RB uses them.
+Mobile has two slot buttons and Use. Hold Use previews the bomb trajectory;
+release throws, while switching slots or pausing cancels the pending throw.
 
-`ItemArea` owns fixed shield/banner zones, lobbed bombs, map-wide flames and the
-falling nuke/radiation. Consumable damage bypasses off-screen spawn protection
-through EnemyBase's existing damage/death path. Shields last two completed waves,
-flames three, and banners ten. Flames deal 10% maximum health per second; radiation
-slows existing and newly spawned enemies by 50% for ten waves after detonation.
-Banners do not stack. Casino positives last ten waves and negatives two.
-`ItemClone` creates one AI for five waves, snapshots the player's full current
-damage/fire rate and effective movement, and stays within six units. Clones do not
-count as real players for camera framing, pickups or game over. Collision exclusions
-are configured after activation. Bombs use one high arc mirrored left/right,
-detonate on terrain or enemy contact, and share their collision tracing with the
-held-Use trajectory preview. Switching slots or pausing cancels the throw.
-Flamethrower and green radiation reuse PlayerController.FireTrailPatchPrefab at
-terrain height, with ItemArea owning damage/slow and wave lifetime.
+`ItemArea` owns the level-dependent effects. Bomb launch velocity combines aim
+with an upward impulse and gravity; preview and contact tests share the same trace.
+Level 10 bounces and detonates at both impacts, releasing minis and three-second
+radiation clouds. Potion shields follow their owner and block enemies/projectile
+segments for seven or ten seconds. Banners last thirty seconds; the strongest
+active buff applies and level 10 retains effects after leaving until expiry.
+XP potions grant a fraction of the entire next-level XP cost, plus temporary team
+XP and personal movement/jump-height bonuses at the specified levels.
+Old item implementations remain dormant for source compatibility and are excluded
+from unlocks, boxes, equip menus and the usable-item switch.
 
-`PlayerItems` manages up to four evenly spaced cursor sawblades until death, with
-one hit per enemy per blade per orbit, plus the ten-second Shock stun/50%-health hit.
-Divine Intervention snapshots and suspends card stats/effects for two waves,
-restores the baseline captured before starting cards, grants flight, 10 HP/second
-regeneration and lightning at 10% of the baseline shot interval. Lightning deals
-50% maximum health, then chains to five more targets at 90% of the preceding
-fraction. Cards picked during Divine are recorded immediately and applied once
-after restoration. Existing projectiles, areas and companions respect suppression.
-The twelve item IDs preserve the original eight IDs; older inventories expand on
-load. ItemCatalog slices twelve distinct 32-pixel icons from the ItemIcons resource for menus, pickups and item effects.
+Enemies now drop keys through ItemPickup, with 0.5% ordinary and 0.7% elite base
+chances. Relative bonuses add: permanent upgrade 4% per level (five levels),
+Key Finder 5-30%, or Key Specialist 50%. Thus combined maxima are +50% or +70%,
+not percentage-point additions. Key Specialist pickups also grant +100% additive
+damage for five seconds. Keys fall under gravity, collide with Ground, require
+nearby contact and grant once. GameUI.KeyIcon can replace the gold-circle placeholder.
 
-`ItemWheelUI` provides the temporary four-way selection HUD, pickup text, casino
-display with a fixed landing tick and outcome-matched stopping angle, and
-mobile slot/Use buttons. Keyboard 1–4/right-click and controller D-pad/RB are the
-remappable item defaults; ordinary gamepad movement uses the configured analog stick.
-The old reserved-control mapping rule migrates once, then saved choices are retained.
-Co-op collection events update availability text in every loadout pane without
-closing another player's item menu.
+The permanent shop retains five starting-card slots and three-/six-pack opening,
+and replaces the five basic-stat upgrades with five key-drop levels costing
+250/1000/2500/5000/10000 gold. Essence and old stock/inventory/stat-upgrade fields
+are no longer serialized; compatibility members used by historical probes are inert.
+
+### Daily quests
+
+`DailyQuests` owns three unique objectives and weighted rewards in PlayerData.
+They appear after the core tutorial and reset at fixed EST midnight (05:00 UTC),
+with a countdown in the main menu. Time, kills, gold, boxes, purchased packs and
+movement feed their respective goals. Run progress is batched and flushed each
+second and on coin-save/scene teardown. Coin saves reload the latest account data
+to preserve independently collected keys and quest progress.
+
+Each daily has one table reward, and one of the three also grants one bonus key.
+Ready quests are green and claimable once; claimed quests are grey. Card rewards
+reuse the card reveal. Max-card rewards choose only eligible non-maxed cards of
+that rarity, grant their current maximum (level 6), clear copies, and do not ascend.
+If that rarity has no eligible card, it grants no card (the bonus key still applies).
 
 ---
 
@@ -1061,21 +1057,18 @@ separately from yellow controller focus. They follow layout changes without bloc
 Feather hits destroy the raised semicircle targets and emit a short dartboard-colored burst respecting particle visibility. The index permits browsing packs, layouts, pages and card
 previews while purchase/equipment services retain the tutorial restrictions.
 Older Play and Waves checkpoints migrate directly to Shop with the one-time 200-coin reward. Tutorial runs do not count
-toward the two completed normal runs needed for item drops. LocalCoopSession remembers
+toward completed normal runs; keys are available after the core tutorial. LocalCoopSession remembers
 whether a run started in the tutorial, including when skipping changes the saved stage
 before scene teardown.
 
-Existing current-schema profiles opt out of the core tutorial without losing
-progress. Both new and existing profiles can enter the item lesson after first
-acquisition; a pickup defers the lesson until returning to MainMenu. The index
-Items tab stays hidden until acquisition, and the item wheel requires an item
-equipped at the start of that run. Selling/unequipping cannot remove the required
-item during the lesson. Core tutorial menus and economy services enforce the
-same purchase/upgrade restrictions.
+The old item tutorial is disabled. The Items tab becomes available after the core
+tutorial without requiring an item acquisition. The item wheel still requires an
+item equipped at run start. Core tutorial restrictions remain enforced by the
+menu and economy services.
 
 `SaveSystem.SaveData(..., updateTutorial: true)` explicitly changes checkpoints;
 ordinary cached economy/tip writes preserve the latest saved tutorial state.
-The progression schema remains version 2. `GameUI` gives solo health the classic
+The progression schema is version 3. `GameUI` gives solo health the classic
 bar proportions and a numeric white-infill label. Health and XP bars are longer
 and inset farther from the top; XP reuses the health-bar silhouette with blue fill
 and no orb decoration. Solo and co-op coin icons and amounts sit below XP. The controller aim indicator is one closed outlined arrow.
@@ -1103,13 +1096,13 @@ Saved information includes:
 * duplicate count
 * unlock state
 * ascension state
-* four pack-specific essence balances
-* developer resource flags
+* keys, key-drop upgrade level, item levels and item-specific shards
+* the developer infinite-copy flag
 * progression schema version
-* owned consumables, solo/per-seat item and starting-card loadouts
-* permanent stat levels, starting slots and bulk-pack unlock tier
-* item shop stock, sold flags and UTC refresh time
-* completed runs, first item-drop flag and discovered essence types
+* solo/per-seat item and starting-card loadouts
+* starting slots and bulk-pack unlock tier
+* daily objective/reward selections, progress, claims and reset day
+* completed runs and legacy tutorial acquisition flags
 * core/item tutorial checkpoints, acquisition flag and guaranteed pack card IDs
 
 Missing/corrupt data falls back to fresh player data.
@@ -1132,11 +1125,12 @@ IsUnlocked = true
 
 ---
 
-Version 2 is the card-rework schema. Loading an older save intentionally replaces it
-with the eight-starter profile once. Current-version saves preserve progression. An
-editor-only VerificationSavePath allows the isolated checks to avoid real player data.
-The shop expansion keeps version 2. Missing new fields normalize to empty/default
-values without resetting current-version coins or cards.
+Version 3 is the item/key/quest rework schema. Loading a version below 3 intentionally
+replaces progression with the eight-starter profile and fresh core tutorial once.
+Version-3 saves retain progression. Settings in PlayerPrefs are separate and retained.
+Editor-only VerificationSavePath isolates checks from the user's normal account.
+Historical item/essence probes describe retired behavior; use ItemReworkVerification
+for the new economy and see `Docs/UPDATE_13_IMPLEMENTATION.md` for gameplay checks.
 
 ## SaveOnQuit
 
@@ -1393,14 +1387,14 @@ Assets/Scripts/VirtualJoystick.cs
 `Inputhelper.cs` contains `InputHelper`.
 
 Gameplay passes its owning component to InputHelper. An assigned LocalPlayer
-reads only its own Input System Gamepad: D-pad/left stick movement and upward jump,
+reads only its own Input System Gamepad: analog-stick movement and upward jump,
 right stick aim with a narrow horizontal snap, RT fire, LB dash. For sawblades and Cursor Aura,
 light stick pressure retracts the center toward the duck and firm pressure extends it up to 10 units.
 Full tilt turns with the chosen radius, and releasing the stick retains direction and radius. Shared menus use
 ControllerMenuNavigation with the first controller, bottom face/A to confirm and
 right face/B to go back by default. The old default pair migrates together once;
 customized pairs and unrelated gameplay mappings are preserved. `ControllerBindings` saves remappable Jump,
-Dash, Shoot, Confirm, Back, Use Item, four item-slot buttons, Show tutorial and Skip tutorial,
+Dash, Shoot, Confirm, Back, Use Item, two item-slot buttons, Show tutorial and Skip tutorial,
 plus move/aim stick swapping in PlayerPrefs;
 the existing keybind panel has keyboard and controller tabs. The controller tab
 draws a symmetric dual-stick Logitech-style diagram with live pathways to the
@@ -1430,7 +1424,7 @@ their source item/card/slot, including starting slots replaced during refresh.
 Desktop movement, jump, dash and shooting use InputManager's saved bindings;
 mobile input still takes priority. MainMenu includes the persistent InputManager,
 so settings changes carry into gameplay. The keybind screen exposes six primary
-actions, four alternate movement keys and five item controls, rejects duplicates, and supports
+actions, four alternate movement keys and three item controls, rejects duplicates, and supports
 restoring defaults. Escape cancels capture.
 
 InputManager removes only a duplicate component, preserving MobileInputController

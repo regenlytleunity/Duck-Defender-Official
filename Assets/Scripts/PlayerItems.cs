@@ -4,7 +4,7 @@ using UnityEngine;
 
 public class PlayerItems : MonoBehaviour
 {
-    public readonly int[] Slots = new int[4];
+    public readonly int[] Slots = new int[ItemCatalog.SlotCount];
     public int SelectedSlot { get; private set; }
     public float SelectionUntil { get; private set; }
     public float SpinUntil { get; private set; }
@@ -17,7 +17,12 @@ public class PlayerItems : MonoBehaviour
     public bool DamageLocked => CasinoActive && CasinoEffect == 4;
     public bool SpeedLocked => CasinoActive && CasinoEffect == 5;
     public float FlatDamage => CasinoActive && CasinoEffect == 0 ? 5 : 0;
-    public float SpeedBonus => CasinoActive && CasinoEffect == 1 ? .25f : 0;
+    public float SpeedBonus => Time.time < MovementUntil ? .25f : 0;
+    public float MovementUntil, ExperienceUntil;
+    public readonly int[] Charges = new int[ItemCatalog.SlotCount];
+    public readonly float[] ReadyAt = new float[ItemCatalog.SlotCount];
+    readonly int[] _levels = new int[ItemCatalog.SlotCount];
+    public float CooldownRemaining(int slot) => Mathf.Max(0, ReadyAt[slot] - Time.time);
     public float FireRateBonus => CasinoActive && CasinoEffect == 2 ? .15f : 0;
     public static int CompletedWaves => LocalCoopSession.Instance != null ? LocalCoopSession.Instance.CompletedWaves : 0;
     LocalPlayer _player;
@@ -51,7 +56,16 @@ public class PlayerItems : MonoBehaviour
     bool CanUse => TutorialDirector.AllowItems && _initialized && _loadoutsEnabled && _player != null && _player.Alive && _player.Connected &&
         !_player.Health.IsStunned && Time.timeScale > 0 && Time.time >= SpinUntil;
     public static bool SuppressEnemyCoins => TeamHasEffect(6);
-    public static float TeamXPFactor => TeamHasEffect(7) ? .75f : 1;
+    public static float TeamXPFactor
+    {
+        get
+        {
+            if (LocalCoopSession.Instance != null)
+                foreach (var player in LocalCoopSession.Instance.Players)
+                    if (player.Alive && player.Stats.Items != null && Time.time < player.Stats.Items.ExperienceUntil) return 1.1f;
+            return 1;
+        }
+    }
     static bool TeamHasEffect(int effect)
     {
         if (LocalCoopSession.Instance == null) return false;
@@ -61,20 +75,23 @@ public class PlayerItems : MonoBehaviour
     }
     public void Initialize(LocalPlayer player, PlayerData data, bool loadoutsEnabled)
     {
+        _lastPosition = transform.position;
+        ItemPickup.PermanentKeyBonus = data.KeyDropLevel * .04f;
         _player = player; _loadoutsEnabled = loadoutsEnabled; _initialized = true;
         var stats = player.Stats; stats.Items = this;
-        stats.PermanentDamage = data.PermanentUpgrades[0] * .01f;
-        stats.PermanentSpeed = data.PermanentUpgrades[2] * .01f;
-        stats.PermanentFireRate = data.PermanentUpgrades[3] * .01f;
-        stats.PermanentLuck = data.PermanentUpgrades[4] * .01f;
-        player.Health.AddMaxHealthPercent(data.PermanentUpgrades[1] * .01f);
         // Capture the authored player plus permanent upgrades before starting cards apply.
         _baseStats = JsonUtility.ToJson(stats); _baseMovement = JsonUtility.ToJson(player.Movement);
         _baseMaxHealth = player.Health.MaxHealth; _baseShotDelay = player.Weapon.FireRate;
         var loadout = LocalCoopSession.Multiplayer ? data.CoopLoadouts[player.Index] : data.SoloLoadout;
         if (loadoutsEnabled)
         {
-            System.Array.Copy(loadout.Items, Slots, 4);
+            System.Array.Copy(loadout.Items, Slots, ItemCatalog.SlotCount);
+            for (int i = 0; i < Slots.Length; i++)
+            {
+                _levels[i] = data.ItemLevels[Slots[i]];
+                if (_levels[i] <= 0) Slots[i] = 0;
+                Charges[i] = ItemCatalog.Valid(Slots[i]) ? ItemCatalog.Charges(Slots[i], _levels[i]) : 0;
+            }
             HadEquippedItems = System.Array.Exists(Slots, ItemCatalog.Valid);
             var manager = CardManager.Instance;
             if (manager != null) for (int i = 0; i < data.StartingCardSlots; i++)
@@ -87,12 +104,19 @@ public class PlayerItems : MonoBehaviour
         }
         gameObject.AddComponent<ItemWheelUI>().Initialize(this, player);
     }
+    Vector2 _lastPosition;
     void Update()
     {
         if (!_initialized) return;
-        if (!_player.Alive) { CancelUse(); ClearSawblades(); EndDivine(); return; }
+        if (!_player.Alive) { _lastPosition = transform.position; CancelUse(); ClearSawblades(); EndDivine(); return; }
         if (DivineActive && CompletedWaves >= DivineExpiresWave) EndDivine();
-        if (Time.timeScale == 0) { CancelUse(); return; }
+        if (Time.timeScale == 0) { _lastPosition = transform.position; CancelUse(); return; }
+        for (int i = 0; i < Slots.Length; i++)
+            if (ItemCatalog.Valid(Slots[i]) && Charges[i] == 0 && Time.time >= ReadyAt[i])
+                Charges[i] = ItemCatalog.Charges(Slots[i], _levels[i]);
+        float distance = Vector2.Distance(transform.position, _lastPosition);
+        if (distance < 10) DailyQuests.RecordRun(DailyQuestKind.Movement, distance);
+        _lastPosition = transform.position;
         UpdateSawblades();
         if (DivineActive)
         {
@@ -115,13 +139,13 @@ public class PlayerItems : MonoBehaviour
     public void Select(int slot)
     {
         if (!TutorialDirector.AllowItems || !HadEquippedItems) return;
-        if (!_initialized || slot < 0 || slot >= 4 || !_player.Alive || Time.timeScale == 0) return;
+        if (!_initialized || slot < 0 || slot >= ItemCatalog.SlotCount || !_player.Alive || Time.timeScale == 0) return;
         if (SelectedSlot != slot) CancelUse();
         SelectedSlot = slot; SelectionUntil = Time.time + 2;
     }
     public void BeginUse(bool touch = false)
     {
-        if (!CanUse || !ItemCatalog.Valid(Slots[SelectedSlot])) return;
+        if (!CanUse || !ItemCatalog.Valid(Slots[SelectedSlot]) || Charges[SelectedSlot] <= 0) return;
         if (!ItemCatalog.IsThrowable(Slots[SelectedSlot])) { UseSelected(); return; }
         _touchHeld = touch; _aimingSlot = SelectedSlot;
         UpdateTrajectory();
@@ -167,30 +191,33 @@ public class PlayerItems : MonoBehaviour
         if (!CanUse) return false;
         int id = Slots[SelectedSlot];
         if (!ItemCatalog.Valid(id)) return false;
-        if (id == (int)ItemKind.Sawblade && SawbladeCount >= 4) return false;
-        var data = SaveSystem.LoadData();
-        if (data.ItemInventory[id] <= 0) { Slots[SelectedSlot] = 0; return false; }
-        data.ItemInventory[id]--;
-        var loadout = LocalCoopSession.Multiplayer ? data.CoopLoadouts[_player.Index] : data.SoloLoadout;
-        loadout.Items[SelectedSlot] = 0;
-        ShopManager.SanitizeItems(data, !LocalCoopSession.Multiplayer, LocalCoopSession.Multiplayer ? 1 : 4);
-        SaveSystem.SaveData(data);
-        Slots[SelectedSlot] = 0; SelectionUntil = Time.time + 2;
+        if (Charges[SelectedSlot] <= 0) return false;
+        int level = _levels[SelectedSlot];
+        Charges[SelectedSlot]--;
+        if (Charges[SelectedSlot] == 0) ReadyAt[SelectedSlot] = Time.time + ItemCatalog.Cooldown(id, level);
+        SelectionUntil = Time.time + 2;
         CancelUse();
         switch ((ItemKind)id)
         {
-            case ItemKind.Bomb: ItemArea.LobBomb(_player.Stats, _player.Weapon.AimDirection); break;
-            case ItemKind.HealthPotion: _player.Health.Heal(_player.Health.MaxHealth); break;
-            case ItemKind.Shield: ItemArea.Place(ItemKind.Shield, _player.Stats); break;
-            case ItemKind.BattleBanner: ItemArea.Place(ItemKind.BattleBanner, _player.Stats); break;
-            case ItemKind.PocketCasino: StartCoroutine(Spin()); break;
-            case ItemKind.CloneProjector: ItemClone.Create(_player, _player.Weapon.AimDirection.x < 0 ? -1 : 1); break;
-            case ItemKind.ExperiencePotion: LevelManager.Instance?.GrantItemLevel(); break;
-            case ItemKind.Flamethrower: ItemArea.Place(ItemKind.Flamethrower, _player.Stats); break;
-            case ItemKind.Sawblade: AddSawblade(); break;
-            case ItemKind.Shock: Shock(); break;
-            case ItemKind.DivineIntervention: BeginDivine(); break;
-            case ItemKind.Nuke: ItemArea.DropNuke(_player.Stats); break;
+            case ItemKind.Bomb:
+                ItemArea.LobBomb(_player.Stats, _player.Weapon.AimDirection, level);
+                break;
+            case ItemKind.HealthPotion:
+                _player.Health.Heal(level >= 10 ? Mathf.CeilToInt(_player.Health.MaxHealth * .75f) : level >= 6 ? 4 : level >= 2 ? 3 : 2);
+                if (level >= 5) ItemArea.PotionShockwave(_player.Stats);
+                if (level >= 7) ItemArea.Place(ItemKind.Shield, _player.Stats, level);
+                break;
+            case ItemKind.BattleBanner:
+                ItemArea.Place(ItemKind.BattleBanner, _player.Stats, level);
+                break;
+            case ItemKind.ExperiencePotion:
+                float fraction = level >= 9 ? 1 : level >= 6 ? .75f : level >= 2 ? .65f : .5f;
+                var manager = LevelManager.Instance;
+                if (manager != null) manager.AddTutorialXP(Mathf.CeilToInt(manager.TargetXP * fraction));
+                float duration = level >= 10 ? 10 : 5;
+                if (level >= 5) ExperienceUntil = Time.time + duration;
+                if (level >= 7) MovementUntil = Time.time + duration;
+                break;
         }
         return true;
     }

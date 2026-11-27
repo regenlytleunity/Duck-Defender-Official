@@ -59,7 +59,7 @@ public class IndexLoadoutUI : MonoBehaviour
         bool host = _index.HostFilterMode, starters = !host && _shop.Progress.StartingCardSlots > 0;
         if (host) _itemsMode = false;
         _slots.gameObject.SetActive(starters && !_itemsMode);
-        bool showItems = !host && _shop.Progress.Tutorial.HasObtainedItem;
+        bool showItems = !host && !TutorialDirector.CoreActive;
         _itemsTab.gameObject.SetActive(showItems);
         _equipment.Root.gameObject.SetActive(_itemsMode || _equipment.HasModal);
         _index.ContentArea.gameObject.SetActive(!_itemsMode);
